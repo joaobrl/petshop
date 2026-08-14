@@ -3,9 +3,6 @@ spring:
     uri: mongodb://localhost:27017/produtos_test_db
     representation:
       uuid: standard
-  data:
-    mongodb:
-      auto-index-creation: true
 
 server:
   port: 8080
