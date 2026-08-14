@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    container_name: shared-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - shared_db_data:/var/lib/postgresql/data
+      - ./postgres-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  api-products:
+    build:
+      context: .
+      dockerfile: product-registration/Dockerfile
+    container_name: api-products
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/produtos_db
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mongo
+
+  api-customers:
+    build:
+      context: .
+      dockerfile: customer-management/Dockerfile
+    container_name: api-customers
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/customer_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/customer_history_db
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CUSTOMER_USERNAME: ${KAFKA_CUSTOMER_USERNAME}
+      KAFKA_CUSTOMER_PASSWORD: ${KAFKA_CUSTOMER_PASSWORD}
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-customer-group}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+    ports:
+      - "8082:8080"
+    depends_on:
+      - db
+      - mongo
+      - kafka
+
+  api-staff:
+    build:
+      context: .
+      dockerfile: staff-service/Dockerfile
+    container_name: api-staff
+    environment:
+      SERVER_PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/staff_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EXTERNAL_API_CUSTOMER_MANAGEMENT_URL: http://api-customers:8080
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+    ports:
+      - "8085:8085"
+    depends_on:
+      - db
+      - api-customers
+
+  api-booking:
+    build:
+      context: .
+      dockerfile: booking-service/Dockerfile
+    container_name: api-booking
+    environment:
+      SERVER_PORT: 8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/booking_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOKING_USERNAME: ${KAFKA_BOOKING_USERNAME}
+      KAFKA_BOOKING_PASSWORD: ${KAFKA_BOOKING_PASSWORD}
+      EXTERNAL_API_STAFF_SERVICE_URL: http://api-staff:8085
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+    ports:
+      - "8083:8083"
+    depends_on:
+      - db
+      - kafka
+
+  api-order:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    container_name: api-order
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/order_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ORDER_USERNAME: ${KAFKA_ORDER_USERNAME}
+      KAFKA_ORDER_PASSWORD: ${KAFKA_ORDER_PASSWORD}
+      EXTERNAL_API_PRODUCT_SERVICE_URL: http://api-products:8080
+      EXTERNAL_API_CUSTOMER_SERVICE_URL: http://api-customers:8080
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+    ports:
+      - "8086:8086"
+    depends_on:
+      - db
+      - kafka
+      - api-customers
+      - api-products
+
+  api-notification:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: api-notification
+    environment:
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      BREVO_TEMPLATE_REGISTRATION_CONFIRMED: ${BREVO_TEMPLATE_REGISTRATION_CONFIRMED}
+      BREVO_TEMPLATE_BOOKING_SCHEDULED: ${BREVO_TEMPLATE_BOOKING_SCHEDULED}
+      BREVO_TEMPLATE_BOOKING_COMPLETED: ${BREVO_TEMPLATE_BOOKING_COMPLETED}
+      BREVO_TEMPLATE_BOOKING_CANCELED: ${BREVO_TEMPLATE_BOOKING_CANCELED}
+      BREVO_TEMPLATE_ORDER_AWAITING_PAYMENT: ${BREVO_TEMPLATE_ORDER_AWAITING_PAYMENT}
+      BREVO_TEMPLATE_PAYMENT_CONFIRMED: ${BREVO_TEMPLATE_PAYMENT_CONFIRMED}
+      BREVO_TEMPLATE_INVOICE_ISSUED: ${BREVO_TEMPLATE_INVOICE_ISSUED}
+      BREVO_TEMPLATE_PICKUP_WINDOW: ${BREVO_TEMPLATE_PICKUP_WINDOW}
+      BREVO_TEMPLATE_ORDER_READY_FOR_PICKUP: ${BREVO_TEMPLATE_ORDER_READY_FOR_PICKUP}
+      BREVO_TEMPLATE_CART_REMINDER: ${BREVO_TEMPLATE_CART_REMINDER}
+      BREVO_TEMPLATE_PASSWORD_RESET: ${BREVO_TEMPLATE_PASSWORD_RESET}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_NOTIFICATION_USERNAME: ${KAFKA_NOTIFICATION_USERNAME}
+      KAFKA_NOTIFICATION_PASSWORD: ${KAFKA_NOTIFICATION_PASSWORD}
+    ports:
+      - "8084:8084"
+    depends_on:
+      - kafka
+
+  mongo:
+    image: mongo:6.0
+    container_name: shared-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - shared_mongo_data:/data/db
+
+  kafka:
+    image: bitnamilegacy/kafka:3.7.0
+    container_name: petshop-kafka
+    ports:
+      - "9094:9094"
+    environment:
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093
+      - KAFKA_CFG_LISTENERS=INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,INTERNAL:SASL_PLAINTEXT,EXTERNAL:SASL_PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+
+      - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
+      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
+
+      - KAFKA_CLIENT_USERS=${KAFKA_BOOKING_USERNAME},${KAFKA_ORDER_USERNAME},${KAFKA_NOTIFICATION_USERNAME},${KAFKA_CUSTOMER_USERNAME}
+      - KAFKA_CLIENT_PASSWORDS=${KAFKA_BOOKING_PASSWORD},${KAFKA_ORDER_PASSWORD},${KAFKA_NOTIFICATION_PASSWORD},${KAFKA_CUSTOMER_PASSWORD}
+
+      - KAFKA_INTER_BROKER_USER=${KAFKA_INTER_BROKER_USER:-petbooking_app}
+      - KAFKA_INTER_BROKER_PASSWORD=${KAFKA_INTER_BROKER_PASSWORD}
+volumes:
+  shared_db_data:
+    driver: local
+  shared_mongo_data:
+    driver: local

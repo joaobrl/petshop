@@ -1,0 +1,85 @@
+**/target/
+**/*.jar
+**/*.class
+.env
+.env.*.local
+.env.local
+avaliacao-webcommerce.md
+
+# Secrets do k8s com valor real (gerado localmente ou de conta de
+# terceiro) — nunca commitar o valor real, só o manifest sem dados
+# sensíveis deveria ir pro git (ou usar sealed-secrets/external-secrets).
+# product-registration migrou pra Mongo (compartilhado com
+# customer-management via mongo-svc) — não tem mais secret próprio de
+# banco, k8s/db-produtos/ foi removido.
+k8s/jwt-secret.yaml
+k8s/api-booking/secret.yaml
+k8s/api-clientes/secret.yaml
+k8s/api-notification/secret.yaml
+k8s/api-order/secret.yaml
+k8s/kafka/secret.yaml
+k8s/db-booking/secret.yaml
+k8s/db-clientes/secret.yaml
+k8s/db-order/secret.yaml
+k8s/db-staff/secret.yaml
+
+HELP.md
+
+# Lista de trabalho local (não é documentação oficial do projeto) sobre o
+# que falta pra conectar um frontend/app — ver o próprio arquivo.
+docs/pendencias-frontend.md
+
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Logs, dumps de teste/crash e artefatos temporários — nenhum é insumo do
+# projeto, só ruído de execução local.
+*.log
+logs/
+**/hs_err_pid*.log
+**/*.dump
+**/*.dumpstream
+**/*.hprof
+
+# Backups/arquivos de merge/swap de editor — nunca fazem parte do código
+# de verdade, só sobra de edição manual.
+*.orig
+*.bak
+*~
+*.swp
+*.swo
+
+# Arquivos de metadata do SO — nunca relevantes pro código.
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+**/.idea/
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/**
+.claude/**

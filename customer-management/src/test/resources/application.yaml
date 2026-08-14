@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  # Ver comentário equivalente em main/resources/application.yml: no Boot 4
+  # o caminho correto é spring.mongodb.representation.uuid, não
+  # spring.data.mongodb.uuid-representation.
+  mongodb:
+    representation:
+      uuid: standard
+
+server:
+  port: 8080
+
+# Segredo dummy só pra o contexto de teste subir (JwtService exige >= 32
+# bytes). Testes que precisam de um token válido geram um de verdade
+# usando este mesmo segredo via JwtService, não mais via
+# SecurityMockMvcRequestPostProcessors.jwt() (isso era específico do
+# oauth2-resource-server, que não existe mais aqui).
+jwt:
+  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
+  expiration-minutes: 60
+
+# Mesmas chaves do main/resources/application.yml — precisa existir aqui
+# porque este arquivo substitui (não complementa) o de main no classpath de
+# teste, e o BootstrapAdminRunner não tem mais default embutido no @Value.
+bootstrap:
+  admin:
+    name: Admin Petshop
+    email: admin@petshop.local
+    cpf: "00000000000"
+    phone: "00000000000"

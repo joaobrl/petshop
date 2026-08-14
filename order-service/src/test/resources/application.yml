@@ -1,0 +1,50 @@
+server:
+  port: 8086
+
+# URLs dummy — os testes de integração mockam os ports (CustomerPortOut/
+# ProductStockPortOut), então os Feign clients nunca chegam a fazer uma
+# chamada de verdade; só precisam resolver pra o contexto subir.
+external:
+  api:
+    product-service:
+      url: http://localhost:0
+    customer-service:
+      url: http://localhost:0
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  # Sem SASL aqui (diferente do main/resources/application.yaml): o
+  # KafkaTemplate não precisa de um broker alcançável só pra o contexto
+  # subir, e os testes que tocam mensageria mockam o KafkaTemplate direto.
+  kafka:
+    bootstrap-servers: localhost:9092
+
+# Segredo dummy só pra o contexto de teste subir (JwtService exige >= 32
+# bytes). Testes que precisam de um token válido geram um de verdade
+# usando este mesmo segredo via JwtService.
+jwt:
+  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
+  expiration-minutes: 60
+
+order:
+  cart:
+    reservation-ttl-hours: 24
+    expiration-check-interval-ms: 600000
+  payment:
+    mock-delay-seconds: 30
+    check-interval-ms: 10000
+  pickup:
+    min-delay-minutes: 1
+    max-delay-minutes: 60
+    check-interval-ms: 10000

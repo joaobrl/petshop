@@ -1,0 +1,92 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/clientes_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # No Boot 4, o namespace de configuração do Mongo é spring.mongodb.* (não
+  # spring.data.mongodb.* — esse é ignorado silenciosamente pela
+  # autoconfiguração, sem erro nenhum, e o driver cai no default embutido
+  # localhost:27017). Ver o mesmo comentário em src/test/resources.
+  mongodb:
+    uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/customer_history_db}
+    representation:
+      uuid: standard
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_CUSTOMER_USERNAME}" password="${KAFKA_CUSTOMER_PASSWORD}";'
+    consumer:
+      # Os dois listeners reais (BookingHistoryKafkaListener,
+      # OrderHistoryKafkaListener) NÃO usam a factory default que o Boot
+      # monta a partir daqui — cada um tem sua própria
+      # ConcurrentKafkaListenerContainerFactory tipada, com o
+      # ErrorHandlingDeserializer/JsonDeserializer construído em código
+      # (ver KafkaConsumerConfig), porque cada tópico precisa de um tipo-alvo
+      # diferente (BookingEventDTO vs. OrderCompletedEventDTO) — um único
+      # spring.json.value.default.type global não serviria pros dois. Group
+      # id/offset-reset abaixo ainda são usados (KafkaConsumerConfig reaproveita
+      # esta seção via KafkaProperties.buildConsumerProperties()).
+      group-id: ${KAFKA_CONSUMER_GROUP:customer-group}
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+
+# Funcionário ADMIN criado automaticamente no primeiro start (ver
+# BootstrapAdminRunner), só quando a tabela de staff está vazia. Senha
+# inicial é BOOTSTRAP_ADMIN_PASSWORD se setada, senão uma senha aleatória
+# gerada em runtime (nunca o cpf) — impressa uma única vez no log; troca
+# obrigatória no primeiro login via /api/v1/auth/change-password.
+bootstrap:
+  admin:
+    name: ${BOOTSTRAP_ADMIN_NAME:Admin Petshop}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:admin@petshop.local}
+    cpf: ${BOOTSTRAP_ADMIN_CPF:00000000000}
+    phone: ${BOOTSTRAP_ADMIN_PHONE:00000000000}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+
+# DEBUG/TRACE de segurança e Hibernate (loga parâmetros de bind SQL — CPF,
+# hashes de senha, dados pessoais — em texto claro) gatiados atrás do
+# profile "dev": nunca ativos por padrão (docker-compose/k8s não setam
+# SPRING_PROFILES_ACTIVE), só quando alguém liga esse profile explicitamente
+# pra debugar localmente.
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
+      hibernate:
+        SQL: DEBUG
+        type:
+          descriptor:
+            sql:
+              BasicBinder: TRACE

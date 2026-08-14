@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-order-svc
+spec:
+  selector:
+    app: db-order
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

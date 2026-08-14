@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-booking-config
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://db-booking-svc:5432/booking_db
+  SPRING_JPA_HIBERNATE_DDL_AUTO: update
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-svc:9092
+  EXTERNAL_API_STAFF_SERVICE_URL: http://api-staff-svc:8085
+  JWT_EXPIRATION_MINUTES: "15"

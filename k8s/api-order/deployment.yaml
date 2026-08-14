@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-order-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-order
+  template:
+    metadata:
+      labels:
+        app: api-order
+    spec:
+      containers:
+        - name: api-order
+          image: api-order:latest
+          imagePullPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          envFrom:
+            - configMapRef:
+                name: api-order-config
+            - secretRef:
+                name: db-order-secret
+            - secretRef:
+                name: api-order-secret
+            - secretRef:
+                name: jwt-secret
+          ports:
+            - containerPort: 8086
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+            # Health Checks
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8086
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8086
+            initialDelaySeconds: 15
+            periodSeconds: 10

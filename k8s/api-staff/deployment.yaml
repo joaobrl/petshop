@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-staff-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-staff
+  template:
+    metadata:
+      labels:
+        app: api-staff
+    spec:
+      containers:
+        - name: api-staff
+          image: api-staff:latest
+          imagePullPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          envFrom:
+            - configMapRef:
+                name: api-staff-config
+            - secretRef:
+                name: db-staff-secret
+            - secretRef:
+                name: jwt-secret
+          ports:
+            - containerPort: 8085
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+            # Health Checks
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8085
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8085
+            initialDelaySeconds: 15
+            periodSeconds: 10

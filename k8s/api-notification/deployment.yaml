@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-notification-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-notification
+  template:
+    metadata:
+      labels:
+        app: api-notification
+    spec:
+      containers:
+        - name: api-notification
+          image: api-notification:latest
+          imagePullPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          envFrom:
+            - configMapRef:
+                name: api-notification-config
+            - secretRef:
+                name: api-notification-secret
+          ports:
+            - containerPort: 8084
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+            # Health Checks
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 10

@@ -1,0 +1,66 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+external:
+  api:
+    product-service:
+      url: ${EXTERNAL_API_PRODUCT_SERVICE_URL:http://localhost:8081}
+    customer-service:
+      url: ${EXTERNAL_API_CUSTOMER_SERVICE_URL:http://localhost:8082}
+
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+            loggerLevel: BASIC
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/order_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_ORDER_USERNAME}" password="${KAFKA_ORDER_PASSWORD}";'
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+
+# Regras do fluxo de compra
+order:
+  cart:
+    reservation-ttl-hours: 24
+    expiration-check-interval-ms: 600000  # 10 min
+  payment:
+    mock-delay-seconds: 30
+    check-interval-ms: 10000  # 10 seg
+  pickup:
+    min-delay-minutes: 1
+    max-delay-minutes: 60
+    check-interval-ms: 10000  # 10 seg
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+  level:
+    org.springframework.kafka: INFO

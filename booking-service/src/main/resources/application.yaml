@@ -1,0 +1,77 @@
+server:
+  port: 8083
+
+external:
+  api:
+    staff-service:
+      url: ${EXTERNAL_API_STAFF_SERVICE_URL:http://localhost:8085}
+
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+            loggerLevel: BASIC
+          staff-service:
+            connectTimeout: 1000
+            readTimeout: 3000
+            loggerLevel: FULL
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/pet-service_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_BOOKING_USERNAME}" password="${KAFKA_BOOKING_PASSWORD}";'
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+  level:
+    com.petshop.pet_service.infrastructure.rest.customerManagement.feign: DEBUG
+
+# DEBUG/TRACE de segurança e Hibernate (loga parâmetros de bind SQL — CPF,
+# hashes de senha, dados pessoais — em texto claro) gatiados atrás do
+# profile "dev": nunca ativos por padrão (docker-compose/k8s não setam
+# SPRING_PROFILES_ACTIVE), só quando alguém liga esse profile explicitamente
+# pra debugar localmente.
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
+      hibernate:
+        SQL: DEBUG
+        type:
+          descriptor:
+            sql:
+              BasicBinder: TRACE

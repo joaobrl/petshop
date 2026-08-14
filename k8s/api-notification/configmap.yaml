@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-notification-config
+data:
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-svc:9092
+  # IDs de template do Brevo — não são segredo (só o api-key é), por isso
+  # ficam no configmap em vez do secret.
+  # Preencha depois de criar o template "Cadastro confirmado" no painel do Brevo.
+  BREVO_TEMPLATE_REGISTRATION_CONFIRMED: ""
+  BREVO_TEMPLATE_BOOKING_SCHEDULED: "1"
+  BREVO_TEMPLATE_BOOKING_COMPLETED: "2"
+  BREVO_TEMPLATE_BOOKING_CANCELED: "3"
+  BREVO_TEMPLATE_ORDER_AWAITING_PAYMENT: "4"
+  BREVO_TEMPLATE_PAYMENT_CONFIRMED: "5"
+  BREVO_TEMPLATE_INVOICE_ISSUED: "6"
+  BREVO_TEMPLATE_PICKUP_WINDOW: "7"
+  BREVO_TEMPLATE_ORDER_READY_FOR_PICKUP: "8"
+  BREVO_TEMPLATE_CART_REMINDER: "9"
+  BREVO_TEMPLATE_PASSWORD_RESET: "10"

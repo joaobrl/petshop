@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-staff-config
+data:
+  SERVER_PORT: "8085"
+  SPRING_DATASOURCE_URL: jdbc:postgresql://db-staff-svc:5432/staff_db
+  SPRING_JPA_HIBERNATE_DDL_AUTO: update
+  STAFF_GROOMER_SATURDAY_COUNT: "2"
+  JWT_EXPIRATION_MINUTES: "15"

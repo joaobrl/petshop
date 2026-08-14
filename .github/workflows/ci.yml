@@ -1,0 +1,55 @@
+name: CI
+
+# Só validação (build + testes) a cada push/PR — sem deploy, o projeto é só
+# de estudo e não sobe pra lugar nenhum.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # petshop-commons é dependência compartilhada (exceções + handler
+      # padrão) — precisa estar instalada no repositório Maven local antes
+      # de qualquer outro módulo, senão o build deles falha na resolução de
+      # dependência.
+      - name: Build petshop-commons (dependência compartilhada)
+        run: mvn -B -f petshop-commons/pom.xml clean install
+
+      # Cada serviço é um módulo Maven independente (sem pom pai agregador),
+      # então builda e testa um de cada vez. "verify" roda os testes de
+      # integração com Testcontainers também (não só os unitários do
+      # "test") — os runners do GitHub Actions já vêm com Docker
+      # disponível, então os containers dos testes sobem sem configuração
+      # extra.
+      - name: Build e testes — product-registration
+        run: mvn -B -f product-registration/pom.xml clean verify
+
+      - name: Build e testes — customer-management
+        run: mvn -B -f customer-management/pom.xml clean verify
+
+      - name: Build e testes — staff-service
+        run: mvn -B -f staff-service/pom.xml clean verify
+
+      - name: Build e testes — booking-service
+        run: mvn -B -f booking-service/pom.xml clean verify
+
+      - name: Build e testes — order-service
+        run: mvn -B -f order-service/pom.xml clean verify
+
+      - name: Build e testes — notification-service
+        run: mvn -B -f notification-service/pom.xml clean verify

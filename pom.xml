@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.petshop</groupId>
+    <artifactId>webcommerce</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>webcommerce</name>
+    <description>
+        Aggregator só de orquestração de build (packaging=pom, sem &lt;parent&gt;) —
+        cada módulo continua herdando spring-boot-starter-parent diretamente,
+        já que Maven só permite um &lt;parent&gt; por módulo. O ganho aqui é só
+        `mvn clean install` na raiz buildar os 7 na ordem certa (Maven resolve
+        pelo grafo de &lt;dependency&gt; do reactor), sem precisar do passo manual
+        de instalar petshop-commons primeiro.
+    </description>
+
+    <modules>
+        <module>petshop-commons</module>
+        <module>booking-service</module>
+        <module>customer-management</module>
+        <module>notification-service</module>
+        <module>order-service</module>
+        <module>product-registration</module>
+        <module>staff-service</module>
+    </modules>
+</project>

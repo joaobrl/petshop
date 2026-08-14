@@ -1,0 +1,15 @@
+spring:
+  mongodb:
+    uri: mongodb://localhost:27017/produtos_test_db
+    representation:
+      uuid: standard
+  data:
+    mongodb:
+      auto-index-creation: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
+  expiration-minutes: 60

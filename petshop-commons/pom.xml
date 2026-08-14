@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.petshop</groupId>
+    <artifactId>petshop-commons</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>petshop-commons</name>
+    <description>Shared library for Petshop microservices</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Web: fornece ProblemDetail, ResponseEntity, anotações -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <version>6.1.14</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Context: necessário para @RestControllerAdvice -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>6.1.14</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Bean Validation: MethodArgumentNotValidException -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>3.0.2</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.9</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Security: AccessDeniedException (filtro de ownership nos
+             endpoints de listagem/busca por ID). "provided" porque, dos
+             serviços que usam petshop-commons, só o notification-service não
+             tem resource server OAuth2 no classpath — e esse não usa
+             BaseExceptionHandler. Os outros cinco já trazem spring-security-
+             core transitivamente via spring-boot-starter-oauth2-resource-
+             server, então nada muda pra eles. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+            <version>6.3.4</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Servlet API: OncePerRequestFilter/HttpServletRequest usados pelo
+             JwtAuthenticationFilter. "provided" pelo mesmo motivo do
+             spring-web/spring-security-core acima: todo serviço que usa
+             petshop-commons já é uma app web Spring Boot e já traz isso. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- JWT próprio (substitui o Keycloak) — diferente das dependências
+             acima, esta NÃO é "provided": nenhum serviço já traz jjwt no
+             classpath, então aqui ela é uma dependência de verdade (compile
+             para a API, runtime para impl/jackson), propagada
+             transitivamente pra quem depende de petshop-commons. Assim cada
+             microsserviço não precisa declarar jjwt no próprio pom. -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.6</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.6</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.12.6</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Módulo não usa spring-boot-starter-parent (é uma lib pura, sem
+             starter), então declara as dependências de teste direto, sem
+             gerenciamento de versão herdado. -->
+        <!-- slf4j-api sozinho (acima, "provided") não tem implementação —
+             sem um binding, org.slf4j.MDC vira NOP (put/get não fazem
+             nada), o que tornaria um teste de CorrelationIdFilter que
+             verifica o MDC sempre verde mesmo se a lógica quebrasse.
+             slf4j-simple NÃO serve aqui: o binding dele não implementa
+             MDCAdapter de verdade. logback-classic é o binding real que
+             cada serviço já traz via spring-boot-starter em runtime; aqui
+             só precisamos dele pra rodar os testes deste módulo isolado. -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.5.12</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.14.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.14.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.26.3</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.90</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

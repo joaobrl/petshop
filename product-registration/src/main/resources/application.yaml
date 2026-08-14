@@ -1,0 +1,43 @@
+spring:
+  # No Boot 4 a config de conexão (URI/credenciais) migrou pra
+  # spring.mongodb.* — usar spring.data.mongodb.* pra isso é ignorado
+  # silenciosamente (sem erro, cai no default localhost:27017). Mesmo
+  # gotcha já documentado em customer-management.
+  mongodb:
+    uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/produtos_db}
+    representation:
+      uuid: standard
+  # Já a config da CAMADA Spring Data (não a de conexão) continua em
+  # spring.data.mongodb.* — auto-index-creation é o que faz o
+  # @Indexed(unique = true) em ProductDocument.name virar de fato um
+  # índice único no Mongo; sem isso, a anotação não tem efeito nenhum
+  # (Spring Data não cria índice automaticamente por padrão, decisão
+  # deliberada deles pra não surpreender em produção com coleções grandes
+  # — aqui é seguro habilitar, coleção pequena, ambiente de estudo).
+  data:
+    mongodb:
+      auto-index-creation: true
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+
+server:
+  port: 8080
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+
+# DEBUG de segurança gatilhado atrás do profile "dev": nunca ativo por
+# padrão (docker-compose/k8s não setam SPRING_PROFILES_ACTIVE), só quando
+# alguém liga esse profile explicitamente pra debugar localmente.
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG

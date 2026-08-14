@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-booking-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-booking
+  template:
+    metadata:
+      labels:
+        app: api-booking
+    spec:
+      containers:
+        - name: api-booking
+          image: api-booking:latest
+          imagePullPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          envFrom:
+            - configMapRef:
+                name: api-booking-config
+            - secretRef:
+                name: db-booking-secret
+            - secretRef:
+                name: api-booking-secret
+            - secretRef:
+                name: jwt-secret
+          ports:
+            - containerPort: 8083
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+            # Health Checks
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8083
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8083
+            initialDelaySeconds: 15
+            periodSeconds: 10

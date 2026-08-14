@@ -1,0 +1,49 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: notification-service
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_NOTIFICATION_USERNAME}" password="${KAFKA_NOTIFICATION_PASSWORD}";'
+    consumer:
+      group-id: notification-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: com.petshop.notification_service.adapter.in.kafka.dto.SendEmailCommandDto
+        spring.json.trusted.packages: "com.petshop.notification_service.adapter.in.kafka.dto"
+        spring.json.use.type.headers: false
+
+brevo:
+  # Único serviço que conhece os templateId do Brevo — resolve tipo →
+  # templateId internamente (BrevoProperties/BrevoEmailAdapterOut). Sem
+  # from-email/sender: fixo em cada template no painel do Brevo, não entra
+  # em config nem no payload da API.
+  api-key: ${BREVO_API_KEY:}
+  base-url: ${BREVO_BASE_URL:https://api.brevo.com/v3}
+  templates:
+    CADASTRO_CONFIRMADO: ${BREVO_TEMPLATE_REGISTRATION_CONFIRMED:}
+    AGENDAMENTO_CONFIRMADO: ${BREVO_TEMPLATE_BOOKING_SCHEDULED:}
+    AGENDAMENTO_CONCLUIDO: ${BREVO_TEMPLATE_BOOKING_COMPLETED:}
+    AGENDAMENTO_CANCELADO: ${BREVO_TEMPLATE_BOOKING_CANCELED:}
+    PEDIDO_AGUARDANDO_PAGAMENTO: ${BREVO_TEMPLATE_ORDER_AWAITING_PAYMENT:}
+    PAGAMENTO_CONFIRMADO: ${BREVO_TEMPLATE_PAYMENT_CONFIRMED:}
+    NOTA_FISCAL_EMITIDA: ${BREVO_TEMPLATE_INVOICE_ISSUED:}
+    PEDIDO_EM_PREPARACAO: ${BREVO_TEMPLATE_PICKUP_WINDOW:}
+    PEDIDO_PRONTO_RETIRADA: ${BREVO_TEMPLATE_ORDER_READY_FOR_PICKUP:}
+    CARRINHO_ABANDONADO: ${BREVO_TEMPLATE_CART_REMINDER:}
+    RESET_SENHA: ${BREVO_TEMPLATE_PASSWORD_RESET:}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+  level:
+    org.springframework.kafka: INFO

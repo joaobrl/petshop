@@ -1,0 +1,41 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    # Sem "hibernate.dialect" fixo de propósito: esse arquivo também é lido pelo
+    # BookingRepositoryIntegrationTest, que sobrescreve o datasource pra um
+    # Postgres real via Testcontainers (@ServiceConnection) — só o datasource é
+    # trocado, não essa propriedade. Com o dialeto H2 fixo aqui, o Hibernate
+    # tentava gerar DDL do H2 (tipo "tinyint") contra o Postgres real e
+    # quebrava. O Hibernate 6+ detecta o dialeto certo sozinho a partir da
+    # conexão JDBC, então não precisa declarar explicitamente pra nenhum dos
+    # dois cenários (H2 aqui, Postgres no teste de Testcontainers).
+
+server:
+  port: 8080
+
+# Propriedades exclusivas para a execução dos testes
+# Chave tem que ser "staff-service" (não "customer-management"): é o que
+# CustomerManagementFeign realmente lê (${external.api.staff-service.url},
+# sem default) — sem essa chave batendo, qualquer @SpringBootTest de
+# contexto completo (não só slice) falha na subida com
+# "Could not resolve placeholder 'external.api.staff-service.url'".
+external:
+  api:
+    staff-service:
+      url: localhost:8080 # Valor dummy apenas para o Feign compilar a URL sem dar erro
+
+# Segredo dummy só pra o contexto de teste subir (JwtService exige >= 32
+# bytes) — mesmo valor usado em customer-management/staff-service.
+jwt:
+  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
+  expiration-minutes: 60
+

@@ -1,0 +1,48 @@
+server:
+  port: ${SERVER_PORT:8085}
+
+external:
+  api:
+    customer-management:
+      url: ${EXTERNAL_API_CUSTOMER_MANAGEMENT_URL:http://localhost:8082}
+
+spring:
+  application:
+    name: staff-service
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+            loggerLevel: BASIC
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/staff_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Segredo do JWT próprio — tem que ser IGUAL ao de customer-management
+# (e de todo mundo que valida esse token), senão a assinatura não bate.
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+
+# Quantos funcionários de tosa/banho (GROOMER) trabalham em cada sábado.
+# Variável de fácil manutenção pedida no escopo — muda aqui (ou via env var),
+# sem precisar mexer em código.
+staff:
+  groomer:
+    saturday-staff-count: ${STAFF_GROOMER_SATURDAY_COUNT:2}
