@@ -13,11 +13,15 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
 import java.util.List;
@@ -36,10 +40,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * ProductMongoRepository é mockado (por isso os mocks usam ProductDocument,
  * não Product). Tokens são gerados de verdade (mesmo segredo do
  * application.yml de teste) via header Authorization.
+ *
+ * Testcontainers Mongo real aqui mesmo com o repositório mockado: o
+ * autoconfigure do Spring Data Mongo cria o bean `mongoTemplate` como
+ * singleton eager na subida do contexto, independente de quem o usa estar
+ * mockado ou não — sem um Mongo de verdade alcançável essa criação trava
+ * até o timeout do driver.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Testcontainers
 class ProductControllerIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static MongoDBContainer mongo = new MongoDBContainer("mongo:6.0");
 
     // Mesmo segredo do src/test/resources/application.yml.
     private static final JwtService TEST_JWT_SERVICE =

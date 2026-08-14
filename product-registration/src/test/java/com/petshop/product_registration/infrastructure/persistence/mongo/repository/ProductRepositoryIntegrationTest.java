@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.mongodb.test.autoconfigure.DataMongoTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -14,8 +15,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+// auto-index-creation só é ligado aqui (não globalmente em
+// src/test/resources/application.yml) porque é a única classe que
+// realmente testa o índice único — ligá-lo globalmente forçava toda classe
+// de teste com @SpringBootTest "puro" (sem Testcontainers) a tentar criar
+// índice contra um Mongo real na subida do contexto, mesmo em testes que
+// mockam o repositório e nunca tocam Mongo de verdade.
 @DataMongoTest
 @Testcontainers
+@TestPropertySource(properties = "spring.data.mongodb.auto-index-creation=true")
 class ProductRepositoryIntegrationTest {
 
     @Container
