@@ -2,6 +2,8 @@ package com.petshop.customermanagement.core.port.in;
 
 import com.petshop.customermanagement.core.domain.BookingHistory;
 import com.petshop.customermanagement.core.domain.PurchaseHistory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,8 +20,8 @@ public interface HistoryPortIn {
     List<PurchaseHistory> findCustomerPurchaseHistory(UUID customerId);
 
     /** Histórico de agendamentos de todos os clientes — visão da loja. */
-    List<BookingHistory> findStoreBookingHistory();
+    Page<BookingHistory> findStoreBookingHistory(Pageable pageable);
 
     /** Histórico de compras de todos os clientes — visão da loja. */
-    List<PurchaseHistory> findStorePurchaseHistory();
+    Page<PurchaseHistory> findStorePurchaseHistory(Pageable pageable);
 }

@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -113,37 +115,39 @@ class HistoryControllerImplTest {
         verify(historyPortIn, never()).findCustomerPurchaseHistory(any());
     }
 
+    private final PageRequest pageable = PageRequest.of(0, 20);
+
     @Test
     void getStoreBookingHistoryDoesNotCheckOwnershipAndDelegatesDirectly() {
-        when(historyPortIn.findStoreBookingHistory()).thenReturn(List.of(new BookingHistory(), new BookingHistory()));
+        when(historyPortIn.findStoreBookingHistory(pageable)).thenReturn(new PageImpl<>(List.of(new BookingHistory(), new BookingHistory())));
 
-        var response = controller.getStoreBookingHistory();
+        var response = controller.getStoreBookingHistory(pageable);
 
-        assertThat(response.getBody()).hasSize(2);
+        assertThat(response.getBody().content()).hasSize(2);
         verifyNoInteractions(customerIdentityResolver);
     }
 
     @Test
     void getStoreBookingHistoryReturnsEmptyWhenNoBookingsAnywhere() {
-        when(historyPortIn.findStoreBookingHistory()).thenReturn(List.of());
+        when(historyPortIn.findStoreBookingHistory(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(controller.getStoreBookingHistory().getBody()).isEmpty();
+        assertThat(controller.getStoreBookingHistory(pageable).getBody().content()).isEmpty();
     }
 
     @Test
     void getStorePurchaseHistoryDoesNotCheckOwnershipAndDelegatesDirectly() {
-        when(historyPortIn.findStorePurchaseHistory()).thenReturn(List.of(new PurchaseHistory()));
+        when(historyPortIn.findStorePurchaseHistory(pageable)).thenReturn(new PageImpl<>(List.of(new PurchaseHistory())));
 
-        var response = controller.getStorePurchaseHistory();
+        var response = controller.getStorePurchaseHistory(pageable);
 
-        assertThat(response.getBody()).hasSize(1);
+        assertThat(response.getBody().content()).hasSize(1);
         verifyNoInteractions(customerIdentityResolver);
     }
 
     @Test
     void getStorePurchaseHistoryReturnsEmptyWhenNoPurchasesAnywhere() {
-        when(historyPortIn.findStorePurchaseHistory()).thenReturn(List.of());
+        when(historyPortIn.findStorePurchaseHistory(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(controller.getStorePurchaseHistory().getBody()).isEmpty();
+        assertThat(controller.getStorePurchaseHistory(pageable).getBody().content()).isEmpty();
     }
 }

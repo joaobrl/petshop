@@ -12,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -54,27 +56,29 @@ class BookingPersistenceAdapterOutTest {
     void findByCriteriaConvertsDateToDayRange() {
         var date = LocalDate.of(2026, 8, 15);
         var criteria = new BookingSearchCriteriaDto(null, null, null, null, date, null);
-        var entities = List.of(new BookingEntity());
-        when(repository.findByCriteria(criteria, date.atStartOfDay(), date.plusDays(1).atStartOfDay()))
-                .thenReturn(entities);
-        when(mapper.toDomainList(entities)).thenReturn(List.of(new Booking()));
+        var pageable = PageRequest.of(0, 20);
+        var entity = new BookingEntity();
+        var booking = new Booking();
+        when(repository.findByCriteria(criteria, date.atStartOfDay(), date.plusDays(1).atStartOfDay(), pageable))
+                .thenReturn(new PageImpl<>(List.of(entity)));
+        when(mapper.toDomain(entity)).thenReturn(booking);
 
-        var result = adapter.findByCriteria(criteria);
+        var result = adapter.findByCriteria(criteria, pageable);
 
-        assertThat(result).hasSize(1);
-        verify(repository).findByCriteria(criteria, date.atStartOfDay(), date.plusDays(1).atStartOfDay());
+        assertThat(result.getContent()).hasSize(1);
+        verify(repository).findByCriteria(criteria, date.atStartOfDay(), date.plusDays(1).atStartOfDay(), pageable);
     }
 
     @Test
     void findByCriteriaWithNullDatePassesNullRange() {
         var criteria = new BookingSearchCriteriaDto(null, null, null, null, null, null);
-        when(repository.findByCriteria(criteria, null, null)).thenReturn(List.of());
-        when(mapper.toDomainList(List.of())).thenReturn(List.of());
+        var pageable = PageRequest.of(0, 20);
+        when(repository.findByCriteria(criteria, null, null, pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        var result = adapter.findByCriteria(criteria);
+        var result = adapter.findByCriteria(criteria, pageable);
 
-        assertThat(result).isEmpty();
-        verify(repository).findByCriteria(criteria, null, null);
+        assertThat(result.getContent()).isEmpty();
+        verify(repository).findByCriteria(criteria, null, null, pageable);
     }
 
     @Test

@@ -1,11 +1,14 @@
 package com.petshop.customermanagement.api.rest;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.customermanagement.api.rest.dto.CustomerResponseDto;
 import com.petshop.customermanagement.api.rest.dto.PetResponseDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,7 +31,7 @@ public interface CustomerController {
     ResponseEntity<CustomerResponseDto> registerCustomer(@Valid @RequestBody CustomerRequestDto clientRequest, UriComponentsBuilder uriBuilder);
 
     @GetMapping("/list/customers")
-    ResponseEntity<List<CustomerResponseDto>> listCustomers();
+    ResponseEntity<PageResponse<CustomerResponseDto>> listCustomers(@PageableDefault(size = 20) Pageable pageable);
 
     @GetMapping("/find/customer/{id}")
     ResponseEntity<CustomerResponseDto> getCustomerById(@PathVariable String id, @AuthenticationPrincipal AuthenticatedUser user);

@@ -8,14 +8,15 @@ import com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto;
 import com.petshop.booking_service.core.port.in.dto.BookingUpdateDto;
 import com.petshop.booking_service.core.port.in.dto.PaymentConfirmationRequestDto;
 import com.petshop.booking_service.core.port.out.dto.BookingResponseDto;
+import com.petshop.commons.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -43,17 +44,16 @@ public class BookingControllerImpl implements BookingController {
     }
 
     @Override
-    public ResponseEntity<List<BookingResponseDto>> listBookings(String ownerCpf, UUID petId, LocalDate date, String employeeName, String serviceType, String status, AuthenticatedUser user) {
+    public ResponseEntity<PageResponse<BookingResponseDto>> listBookings(String ownerCpf, UUID petId, LocalDate date, String employeeName, String serviceType, String status, Pageable pageable, AuthenticatedUser user) {
 
         String effectiveOwnerCpf = (user != null && user.type() == AccountType.CUSTOMER)
                 ? user.cpf()
                 : ownerCpf;
         var criteria = new BookingSearchCriteriaDto(effectiveOwnerCpf, petId, serviceType, status, date, employeeName);
-        var bookings = bookingPortIn.findBookings(criteria)
-                .stream()
-                .map(BookingResponseDto::new)
-                .toList();
-        return ResponseEntity.ok(bookings);
+        var page = bookingPortIn.findBookings(criteria, pageable).map(BookingResponseDto::new);
+        return ResponseEntity.ok(new PageResponse<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages(), page.isLast()));
     }
 
     @Override

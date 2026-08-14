@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -88,8 +89,8 @@ class BookingSecurityIntegrationTest {
 
     @Test
     void listBookingsAllowsAnyAuthenticatedRole() throws Exception {
-        org.mockito.Mockito.when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of());
+        org.mockito.Mockito.when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/bookings/list")
                         .with(bearer(token(Role.CUSTOMER))))

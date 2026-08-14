@@ -6,6 +6,8 @@ import com.petshop.customermanagement.infrastructure.persistence.postgresql.enti
 import com.petshop.customermanagement.infrastructure.persistence.postgresql.mapper.StaffMapper;
 import com.petshop.customermanagement.infrastructure.persistence.postgresql.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -37,6 +39,11 @@ public class StaffPersistenceAdapterOut implements StaffPortOut {
     @Override
     public List<Staff> findAll() {
         return mapper.toDomainList(staffRepository.findAll());
+    }
+
+    @Override
+    public Page<Staff> findAllByEnabledTrue(Pageable pageable) {
+        return staffRepository.findByEnabledTrue(pageable).map(mapper::toDomain);
     }
 
     @Override

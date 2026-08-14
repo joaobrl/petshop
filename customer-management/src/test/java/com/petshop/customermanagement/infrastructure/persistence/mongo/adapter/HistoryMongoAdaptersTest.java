@@ -15,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -82,12 +84,13 @@ class HistoryMongoAdaptersTest {
 
         @Test
         void findAllMapsEveryEntityAcrossAllCustomers() {
+            var pageable = PageRequest.of(0, 20);
             var entity = new CustomerHistoryBookings();
             var domain = new BookingHistory();
-            when(repository.findAll()).thenReturn(List.of(entity));
+            when(repository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(entity)));
             when(mapper.toDomain(entity)).thenReturn(domain);
 
-            assertThat(adapter.findAll()).containsExactly(domain);
+            assertThat(adapter.findAll(pageable).getContent()).containsExactly(domain);
         }
 
         @Test
@@ -187,12 +190,13 @@ class HistoryMongoAdaptersTest {
 
         @Test
         void findAllMapsEveryEntityAcrossAllCustomers() {
+            var pageable = PageRequest.of(0, 20);
             var entity = new CustomerPurchaseHistory();
             var domain = new PurchaseHistory();
-            when(repository.findAll()).thenReturn(List.of(entity));
+            when(repository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(entity)));
             when(mapper.toDomain(entity)).thenReturn(domain);
 
-            assertThat(adapter.findAll()).containsExactly(domain);
+            assertThat(adapter.findAll(pageable).getContent()).containsExactly(domain);
         }
 
         @Test

@@ -1,16 +1,17 @@
 package com.petshop.product_registration.api.rest;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.product_registration.api.rest.dto.ProductResponseDto;
 import com.petshop.product_registration.core.port.in.dto.ProductRequestDto;
 import com.petshop.product_registration.core.port.in.dto.StockAdjustmentRequestDto;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.util.List;
 
 /**
  * {@code GET /list} e {@code GET /find/{id}} aceitam token opcional: o
@@ -27,7 +28,7 @@ public interface ProductController {
     ResponseEntity<ProductResponseDto> registerProduct(@Valid @RequestBody ProductRequestDto productRequest, UriComponentsBuilder uriBuilder);
 
     @GetMapping("/list")
-    ResponseEntity<List<ProductResponseDto>> listProducts(@AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<PageResponse<ProductResponseDto>> listProducts(@PageableDefault(size = 20) Pageable pageable, @AuthenticationPrincipal AuthenticatedUser user);
 
     @GetMapping("/find/{id}")
     ResponseEntity<ProductResponseDto> getProductById(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user);

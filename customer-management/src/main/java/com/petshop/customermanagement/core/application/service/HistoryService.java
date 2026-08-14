@@ -6,6 +6,8 @@ import com.petshop.customermanagement.core.port.in.HistoryPortIn;
 import com.petshop.customermanagement.core.port.out.BookingHistoryPortOut;
 import com.petshop.customermanagement.core.port.out.PurchaseHistoryPortOut;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -29,12 +31,12 @@ public class HistoryService implements HistoryPortIn {
     }
 
     @Override
-    public List<BookingHistory> findStoreBookingHistory() {
-        return bookingHistoryPortOut.findAll();
+    public Page<BookingHistory> findStoreBookingHistory(Pageable pageable) {
+        return bookingHistoryPortOut.findAll(pageable);
     }
 
     @Override
-    public List<PurchaseHistory> findStorePurchaseHistory() {
-        return purchaseHistoryPortOut.findAll();
+    public Page<PurchaseHistory> findStorePurchaseHistory(Pageable pageable) {
+        return purchaseHistoryPortOut.findAll(pageable);
     }
 }

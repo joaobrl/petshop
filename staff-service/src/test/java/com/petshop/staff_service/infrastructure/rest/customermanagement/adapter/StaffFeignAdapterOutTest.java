@@ -1,5 +1,6 @@
 package com.petshop.staff_service.infrastructure.rest.customermanagement.adapter;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.commons.security.Role;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.dto.StaffRegistryResponseDto;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.feign.StaffRegistryFeign;
@@ -39,7 +40,7 @@ class StaffFeignAdapterOutTest {
         dto.setPhone("11999990000");
         dto.setEnabled(true);
         dto.setRole(Role.GROOMER);
-        when(staffRegistryFeign.findAll()).thenReturn(List.of(dto));
+        when(staffRegistryFeign.findAll(0, 500)).thenReturn(new PageResponse<>(List.of(dto), 0, 500, 1, 1, true));
 
         var result = adapter.findAll();
 
@@ -56,7 +57,7 @@ class StaffFeignAdapterOutTest {
 
     @Test
     void returnsEmptyListWhenFeignReturnsNoStaff() {
-        when(staffRegistryFeign.findAll()).thenReturn(List.of());
+        when(staffRegistryFeign.findAll(0, 500)).thenReturn(new PageResponse<>(List.of(), 0, 500, 0, 0, true));
 
         assertThat(adapter.findAll()).isEmpty();
     }

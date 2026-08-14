@@ -1,7 +1,10 @@
 package com.petshop.customermanagement.api.rest;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.customermanagement.api.rest.dto.BookingHistoryResponseDto;
 import com.petshop.customermanagement.api.rest.dto.PurchaseHistoryResponseDto;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,8 +31,8 @@ public interface HistoryController {
     ResponseEntity<List<PurchaseHistoryResponseDto>> getCustomerPurchaseHistory(@PathVariable UUID customerId, @AuthenticationPrincipal AuthenticatedUser user);
 
     @GetMapping("/bookings")
-    ResponseEntity<List<BookingHistoryResponseDto>> getStoreBookingHistory();
+    ResponseEntity<PageResponse<BookingHistoryResponseDto>> getStoreBookingHistory(@PageableDefault(size = 20) Pageable pageable);
 
     @GetMapping("/purchases")
-    ResponseEntity<List<PurchaseHistoryResponseDto>> getStorePurchaseHistory();
+    ResponseEntity<PageResponse<PurchaseHistoryResponseDto>> getStorePurchaseHistory(@PageableDefault(size = 20) Pageable pageable);
 }

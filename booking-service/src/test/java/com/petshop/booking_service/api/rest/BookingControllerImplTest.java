@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -107,29 +109,31 @@ class BookingControllerImplTest {
         assertThat(request.getOwnerName()).isEqualTo("Nome Original");
     }
 
+    private final org.springframework.data.domain.Pageable pageable = PageRequest.of(0, 20);
+
     @Test
     void listBookingsForcesOwnerCpfToTokenForCustomer() {
         var user = customer("12345678900");
-        when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+        when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new PageImpl<>(List.of()));
 
-        controller.listBookings("outro-cpf-qualquer", null, null, null, null, null, user);
+        controller.listBookings("outro-cpf-qualquer", null, null, null, null, null, pageable, user);
 
         var captor = org.mockito.ArgumentCaptor.forClass(
                 com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto.class);
-        org.mockito.Mockito.verify(bookingPortIn).findBookings(captor.capture());
+        org.mockito.Mockito.verify(bookingPortIn).findBookings(captor.capture(), org.mockito.ArgumentMatchers.eq(pageable));
         assertThat(captor.getValue().getOwnerCpf()).isEqualTo("12345678900");
     }
 
     @Test
     void listBookingsUsesProvidedOwnerCpfForReceptionist() {
         var user = receptionist();
-        when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+        when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new PageImpl<>(List.of()));
 
-        controller.listBookings("11122233344", null, null, null, null, null, user);
+        controller.listBookings("11122233344", null, null, null, null, null, pageable, user);
 
         var captor = org.mockito.ArgumentCaptor.forClass(
                 com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto.class);
-        org.mockito.Mockito.verify(bookingPortIn).findBookings(captor.capture());
+        org.mockito.Mockito.verify(bookingPortIn).findBookings(captor.capture(), org.mockito.ArgumentMatchers.eq(pageable));
         assertThat(captor.getValue().getOwnerCpf()).isEqualTo("11122233344");
     }
 
@@ -138,14 +142,14 @@ class BookingControllerImplTest {
         // Regressão: a ordem dos parâmetros tem que bater com a assinatura em BookingController
         // (employeeName, serviceType, status) — reordenar os três silenciosamente é um erro fácil de cometer.
         var user = receptionist();
-        when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+        when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new PageImpl<>(List.of()));
 
         controller.listBookings(null, null, null, "Funcionario Um", ServiceType.BANHO.name(),
-                com.petshop.booking_service.core.domain.enums.StatusBooking.SCHEDULED.name(), user);
+                com.petshop.booking_service.core.domain.enums.StatusBooking.SCHEDULED.name(), pageable, user);
 
         var captor = org.mockito.ArgumentCaptor.forClass(
                 com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto.class);
-        org.mockito.Mockito.verify(bookingPortIn).findBookings(captor.capture());
+        org.mockito.Mockito.verify(bookingPortIn).findBookings(captor.capture(), org.mockito.ArgumentMatchers.eq(pageable));
         assertThat(captor.getValue().getEmployeeName()).isEqualTo("Funcionario Um");
         assertThat(captor.getValue().getServiceType()).isEqualTo(ServiceType.BANHO);
         assertThat(captor.getValue().getStatus())

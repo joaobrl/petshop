@@ -5,6 +5,8 @@ import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +17,8 @@ public interface CustomerPortIn {
     Customer registerCustomer (CustomerRequestDto clientRequest);
 
     List<Customer> customerList();
+
+    Page<Customer> customerListPage(Pageable pageable);
 
     Customer updateCustomer(UUID id, CustomerUpdateDto dto);
 

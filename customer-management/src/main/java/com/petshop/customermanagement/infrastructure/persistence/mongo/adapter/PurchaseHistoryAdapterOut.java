@@ -5,6 +5,8 @@ import com.petshop.customermanagement.core.port.out.PurchaseHistoryPortOut;
 import com.petshop.customermanagement.infrastructure.persistence.mongo.mapper.PurchaseHistoryMapper;
 import com.petshop.customermanagement.infrastructure.persistence.mongo.repository.CustomerPurchaseHistoryMongoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -33,10 +35,8 @@ public class PurchaseHistoryAdapterOut implements PurchaseHistoryPortOut {
     }
 
     @Override
-    public List<PurchaseHistory> findAll() {
-        return repository.findAll().stream()
-                .map(mapper::toDomain)
-                .collect(Collectors.toList());
+    public Page<PurchaseHistory> findAll(Pageable pageable) {
+        return repository.findAll(pageable).map(mapper::toDomain);
     }
 
     @Override

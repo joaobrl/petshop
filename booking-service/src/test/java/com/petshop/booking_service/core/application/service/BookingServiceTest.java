@@ -23,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -330,11 +332,12 @@ class BookingServiceTest {
     @Test
     void findBookingsDelegatesToPortOut() {
         var criteria = new BookingSearchCriteriaDto(null, null, null, null, null, null);
-        when(bookingPortOut.findByCriteria(criteria)).thenReturn(List.of(new Booking()));
+        var pageable = PageRequest.of(0, 20);
+        when(bookingPortOut.findByCriteria(criteria, pageable)).thenReturn(new PageImpl<>(List.of(new Booking())));
 
-        var result = service.findBookings(criteria);
+        var result = service.findBookings(criteria, pageable);
 
-        assertThat(result).hasSize(1);
+        assertThat(result.getContent()).hasSize(1);
     }
 
     @Test

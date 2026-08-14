@@ -1,6 +1,8 @@
 package com.petshop.customermanagement.core.port.out;
 
 import com.petshop.customermanagement.core.domain.PurchaseHistory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,7 +15,7 @@ public interface PurchaseHistoryPortOut {
     List<PurchaseHistory> findAllByCustomerId(UUID customerId);
 
     /** Histórico de compras da loja inteira — visão ADMIN/RECEPTIONIST. */
-    List<PurchaseHistory> findAll();
+    Page<PurchaseHistory> findAll(Pageable pageable);
 
     PurchaseHistory save(PurchaseHistory history);
 }

@@ -8,9 +8,9 @@ import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 // Sem @Transactional: MongoDB standalone (sem replica set, como sobe neste
 // projeto) não suporta transação multi-documento, e cada método aqui faz
@@ -39,9 +39,9 @@ public class ProductService implements ProductPortIn {
     }
 
     @Override
-    public List<Product> listProducts() {
-        log.debug("Fetching all enabled products from database");
-        return productPortOut.findByEnabledTrue();
+    public Page<Product> listProducts(Pageable pageable) {
+        log.debug("Fetching enabled products page {} (size {})", pageable.getPageNumber(), pageable.getPageSize());
+        return productPortOut.findByEnabledTrue(pageable);
     }
 
     @Override

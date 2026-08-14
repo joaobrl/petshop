@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -188,46 +189,35 @@ class StaffControllerIntegrationTest {
 
         @Test
         void succeedsForAdmin() throws Exception {
-            when(staffPortOut.findAll()).thenReturn(List.of(sampleStaff(UUID.randomUUID()), sampleStaff(UUID.randomUUID())));
+            when(staffPortOut.findAllByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(sampleStaff(UUID.randomUUID()), sampleStaff(UUID.randomUUID()))));
 
             mockMvc.perform(get("/api/v1/staff/all").with(adminAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(2)));
+                    .andExpect(jsonPath("$.content.length()", is(2)));
         }
 
         @Test
         void returnsEmptyListWhenNoneRegistered() throws Exception {
-            when(staffPortOut.findAll()).thenReturn(List.of());
+            when(staffPortOut.findAllByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of()));
 
             mockMvc.perform(get("/api/v1/staff/all").with(adminAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(0)));
+                    .andExpect(jsonPath("$.content.length()", is(0)));
         }
 
         @Test
         void succeedsForServiceToken() throws Exception {
-            when(staffPortOut.findAll()).thenReturn(List.of(sampleStaff(UUID.randomUUID())));
+            when(staffPortOut.findAllByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(sampleStaff(UUID.randomUUID()))));
 
             mockMvc.perform(get("/api/v1/staff/all").with(serviceAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)));
+                    .andExpect(jsonPath("$.content.length()", is(1)));
         }
 
         @Test
         void forbiddenForCustomerRole() throws Exception {
             mockMvc.perform(get("/api/v1/staff/all").with(customerAuth()))
                     .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void excludesDisabledStaff() throws Exception {
-            var inactive = sampleStaff(UUID.randomUUID());
-            inactive.setEnabled(false);
-            when(staffPortOut.findAll()).thenReturn(List.of(sampleStaff(UUID.randomUUID()), inactive));
-
-            mockMvc.perform(get("/api/v1/staff/all").with(adminAuth()))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)));
         }
     }
 

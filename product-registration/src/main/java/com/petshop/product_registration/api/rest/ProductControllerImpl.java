@@ -1,5 +1,6 @@
 package com.petshop.product_registration.api.rest;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.product_registration.api.rest.dto.ProductResponseDto;
@@ -8,11 +9,10 @@ import com.petshop.product_registration.core.port.in.dto.ProductRequestDto;
 import com.petshop.product_registration.core.port.in.dto.StockAdjustmentRequestDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,13 +28,13 @@ public class ProductControllerImpl implements ProductController {
     }
 
     @Override
-    public ResponseEntity<List<ProductResponseDto>> listProducts(AuthenticatedUser user) {
+    public ResponseEntity<PageResponse<ProductResponseDto>> listProducts(Pageable pageable, AuthenticatedUser user) {
         boolean includeStock = user != null && user.type() == AccountType.STAFF;
-        var products = portIn.listProducts()
-                .stream()
-                .map(product -> new ProductResponseDto(product, includeStock))
-                .toList();
-        return ResponseEntity.ok(products);
+        var page = portIn.listProducts(pageable)
+                .map(product -> new ProductResponseDto(product, includeStock));
+        return ResponseEntity.ok(new PageResponse<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages(), page.isLast()));
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -115,40 +116,41 @@ class ProductControllerIntegrationTest {
 
         @Test
         void listProductsIsPubliclyAccessible() throws Exception {
-            when(productRepository.findByEnabledTrue()).thenReturn(List.of(sampleProduct(1L)));
+            when(productRepository.findByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(sampleProduct(1L))));
 
             mockMvc.perform(get("/api/v1/products/list"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)));
+                    .andExpect(jsonPath("$.content.length()", is(1)))
+                    .andExpect(jsonPath("$.totalElements", is(1)));
         }
 
         @Test
         void listProductsOmitsStockWhenAnonymous() throws Exception {
-            when(productRepository.findByEnabledTrue()).thenReturn(List.of(sampleProduct(1L)));
+            when(productRepository.findByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(sampleProduct(1L))));
 
             mockMvc.perform(get("/api/v1/products/list"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].stock").doesNotExist())
-                    .andExpect(jsonPath("$[0].reservedPercentage").doesNotExist());
+                    .andExpect(jsonPath("$.content[0].stock").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].reservedPercentage").doesNotExist());
         }
 
         @Test
         void listProductsOmitsStockWhenCustomerToken() throws Exception {
-            when(productRepository.findByEnabledTrue()).thenReturn(List.of(sampleProduct(1L)));
+            when(productRepository.findByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(sampleProduct(1L))));
 
             mockMvc.perform(get("/api/v1/products/list").with(customerAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].stock").doesNotExist());
+                    .andExpect(jsonPath("$.content[0].stock").doesNotExist());
         }
 
         @Test
         void listProductsIncludesStockWhenStaffToken() throws Exception {
-            when(productRepository.findByEnabledTrue()).thenReturn(List.of(sampleProduct(1L)));
+            when(productRepository.findByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(sampleProduct(1L))));
 
             mockMvc.perform(get("/api/v1/products/list").with(adminAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$[0].stock", is(50)))
-                    .andExpect(jsonPath("$[0].reservedPercentage", is(0.0)));
+                    .andExpect(jsonPath("$.content[0].stock", is(50)))
+                    .andExpect(jsonPath("$.content[0].reservedPercentage", is(0.0)));
         }
 
         @Test

@@ -3,6 +3,8 @@ package com.petshop.booking_service.infrastructure.persistence.postgresql.reposi
 import com.petshop.booking_service.core.domain.enums.StatusBooking;
 import com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto;
 import com.petshop.booking_service.infrastructure.persistence.postgresql.entity.BookingEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -27,9 +29,10 @@ public interface BookingRepository extends JpaRepository<BookingEntity, UUID> {
         AND (:#{#criteria.employeeName} IS NULL OR b.employeeName = :#{#criteria.employeeName})
         AND (CAST(:startOfDay AS timestamp) IS NULL OR (b.bookingDateTime >= :startOfDay AND b.bookingDateTime < :endOfDay))
     """)
-    List<BookingEntity> findByCriteria(@Param("criteria") BookingSearchCriteriaDto criteria,
+    Page<BookingEntity> findByCriteria(@Param("criteria") BookingSearchCriteriaDto criteria,
                                         @Param("startOfDay") LocalDateTime startOfDay,
-                                        @Param("endOfDay") LocalDateTime endOfDay);
+                                        @Param("endOfDay") LocalDateTime endOfDay,
+                                        Pageable pageable);
 
     List<BookingEntity> findByBookingDateTimeAndStatusNot(LocalDateTime bookingDateTime, StatusBooking status);
 

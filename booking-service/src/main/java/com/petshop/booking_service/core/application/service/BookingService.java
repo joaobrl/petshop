@@ -21,6 +21,8 @@ import com.petshop.booking_service.core.port.out.dto.BookingResponseDto;
 import com.petshop.commons.exception.ConflictException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,8 +71,8 @@ public class BookingService implements BookingPortIn {
 
    
     @Override
-    public List<Booking> findBookings(BookingSearchCriteriaDto criteria){
-        return bookingPortOut.findByCriteria(criteria);
+    public Page<Booking> findBookings(BookingSearchCriteriaDto criteria, Pageable pageable){
+        return bookingPortOut.findByCriteria(criteria, pageable);
     }
 
     @Override

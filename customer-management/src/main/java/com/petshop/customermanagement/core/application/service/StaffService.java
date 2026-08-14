@@ -8,10 +8,11 @@ import com.petshop.customermanagement.core.port.in.dto.StaffRequestDto;
 import com.petshop.customermanagement.core.port.out.StaffPortOut;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,10 +42,8 @@ public class StaffService implements StaffPortIn {
     }
 
     @Override
-    public List<Staff> getAllStaff() {
-        return staffPortOut.findAll().stream()
-                .filter(staff -> Boolean.TRUE.equals(staff.getEnabled()))
-                .toList();
+    public Page<Staff> getAllStaff(Pageable pageable) {
+        return staffPortOut.findAllByEnabledTrue(pageable);
     }
 
     @Override

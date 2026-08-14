@@ -7,6 +7,8 @@ import com.petshop.booking_service.core.port.out.BookingPortOut;
 import com.petshop.booking_service.infrastructure.persistence.postgresql.mapper.BookingMapper;
 import com.petshop.booking_service.infrastructure.persistence.postgresql.repository.BookingRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -29,13 +31,13 @@ public class BookingPersistenceAdapterOut implements BookingPortOut {
     }
 
     @Override
-    public List<Booking> findByCriteria(BookingSearchCriteriaDto criteria) {
+    public Page<Booking> findByCriteria(BookingSearchCriteriaDto criteria, Pageable pageable) {
         // Filtro de data vira intervalo [inícioDoDia, inícioDoDiaSeguinte) em vez de CAST(bookingDateTime AS date)
         // — ver BookingRepository.findByCriteria pro motivo (CAST não é confiável aqui com Postgres + Hibernate).
         var date = criteria.getDate();
         var startOfDay = date != null ? date.atStartOfDay() : null;
         var endOfDay = date != null ? date.plusDays(1).atStartOfDay() : null;
-        return mapper.toDomainList(bookingRepository.findByCriteria(criteria, startOfDay, endOfDay));
+        return bookingRepository.findByCriteria(criteria, startOfDay, endOfDay, pageable).map(mapper::toDomain);
     }
 
     @Override

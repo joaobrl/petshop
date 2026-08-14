@@ -148,7 +148,7 @@ class HistoryControllerIntegrationTest {
         void recepcionistaConsultaHistoricoDeServicoGeral_sucesso() throws Exception {
             mockMvc.perform(get("/api/v1/history/bookings").with(receptionistAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(2)));
+                    .andExpect(jsonPath("$.content.length()", is(2)));
         }
     }
 
@@ -187,7 +187,7 @@ class HistoryControllerIntegrationTest {
         void recepcionistaConsultaHistoricoDeComprasGeral_sucesso() throws Exception {
             mockMvc.perform(get("/api/v1/history/purchases").with(receptionistAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(2)));
+                    .andExpect(jsonPath("$.content.length()", is(2)));
         }
     }
 }

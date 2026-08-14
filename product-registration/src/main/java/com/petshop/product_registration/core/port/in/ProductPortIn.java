@@ -2,14 +2,14 @@ package com.petshop.product_registration.core.port.in;
 
 import com.petshop.product_registration.core.domain.Product;
 import com.petshop.product_registration.core.port.in.dto.ProductRequestDto;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ProductPortIn {
 
     Product registerProduct(ProductRequestDto productRequest);
 
-    List<Product> listProducts();
+    Page<Product> listProducts(Pageable pageable);
 
     Product getProductById(Long id);
 
