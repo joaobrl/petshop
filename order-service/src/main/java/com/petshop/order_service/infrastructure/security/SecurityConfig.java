@@ -44,6 +44,7 @@ public class SecurityConfig {
                         // anyRequest().authenticated() e toma 401 pra sempre — pod nunca fica
                         // Ready. Só /health é exposto por HTTP por padrão, então nada mais vaza.
                         .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/cart/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
