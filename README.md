@@ -196,10 +196,4 @@ para a porta `NodePort` específica.
   documentação técnica completa: arquitetura, o que cada módulo faz por
   dentro, cenários de funcionamento (caminho feliz e erros), configuração
   e como rodar/testar. Ponto de partida pra quem não conhece o código.
-- [`avaliacao-webcommerce.md`](avaliacao-webcommerce.md) — avaliação pontual
-  de compilação, cobertura de testes, validação ao vivo, arquitetura
-  hexagonal e segurança — snapshot de uma rodada específica, não um
-  documento vivo (ver data no topo do arquivo).
-- [`docs/pendencias-frontend.md`](docs/pendencias-frontend.md) — o que falta
-  no backend pra conectar um frontend/app de verdade (CORS, contratos de
-  API, etc.) — não versionado (ver `.gitignore`), fica só local.
+
