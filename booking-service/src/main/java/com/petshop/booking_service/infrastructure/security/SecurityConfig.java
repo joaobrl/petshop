@@ -34,6 +34,7 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/bookings/available-slots").permitAll()
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/bookings/confirm-payment/*")
                             .hasAnyRole("ADMIN", "RECEPTIONIST")

@@ -47,6 +47,7 @@ public class SecurityConfig {
                         // (sem management.endpoints.web.exposure.include configurado),
                         // então liberar /actuator/health/** não vaza nada além disso.
                         .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/forgot-password").permitAll()
                         .requestMatchers("/api/v1/auth/change-password").authenticated()

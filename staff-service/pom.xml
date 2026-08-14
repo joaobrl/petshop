@@ -31,6 +31,7 @@
 		<!-- Mesma trilha usada em booking-service/order-service, compatível
 		     com Spring Boot 4.0.x. -->
 		<spring-cloud.version>2025.1.2</spring-cloud.version>
+		<springdoc.version>3.1.0</springdoc.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -52,6 +53,12 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>${springdoc.version}</version>
 		</dependency>
 
 		<!-- Feign: cadastro de Staff migrou pra customer-management, então
@@ -281,6 +288,7 @@
 							<excludes>
 								<exclude>**/StaffServiceApplication.class</exclude>
 								<exclude>**/*MapperImpl.class</exclude>
+								<exclude>**/OpenApiConfig.class</exclude>
 							</excludes>
 						</configuration>
 					</execution>
