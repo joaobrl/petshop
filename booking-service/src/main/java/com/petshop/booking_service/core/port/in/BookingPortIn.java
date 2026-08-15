@@ -5,14 +5,15 @@ import com.petshop.booking_service.core.port.in.dto.BookingRequestDto;
 import com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto;
 import com.petshop.booking_service.core.port.in.dto.BookingUpdateDto;
 import com.petshop.booking_service.core.port.in.dto.PaymentConfirmationRequestDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface BookingPortIn {
     Booking createBooking(BookingRequestDto request);
 
-    List<Booking> findBookings(BookingSearchCriteriaDto criteria);
+    Page<Booking> findBookings(BookingSearchCriteriaDto criteria, Pageable pageable);
 
     Booking findBookingById(UUID id);
 

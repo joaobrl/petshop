@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
@@ -108,33 +110,23 @@ class StaffServiceTest {
     @Nested
     class GetAllStaff {
 
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
         @Test
-        void returnsOnlyEnabledStaffFromPort() {
+        void delegatesToPortOutEnabledOnlyQuery() {
             var staffList = List.of(sampleStaff(UUID.randomUUID()), sampleStaff(UUID.randomUUID()));
-            when(staffPortOut.findAll()).thenReturn(staffList);
+            when(staffPortOut.findAllByEnabledTrue(pageable)).thenReturn(new PageImpl<>(staffList));
 
-            var result = staffService.getAllStaff();
+            var result = staffService.getAllStaff(pageable);
 
-            assertThat(result).isEqualTo(staffList);
-        }
-
-        @Test
-        void excludesDisabledStaff() {
-            var active = sampleStaff(UUID.randomUUID());
-            var inactive = sampleStaff(UUID.randomUUID());
-            inactive.setEnabled(false);
-            when(staffPortOut.findAll()).thenReturn(List.of(active, inactive));
-
-            var result = staffService.getAllStaff();
-
-            assertThat(result).containsExactly(active);
+            assertThat(result.getContent()).isEqualTo(staffList);
         }
 
         @Test
         void returnsEmptyListWhenNoneRegistered() {
-            when(staffPortOut.findAll()).thenReturn(List.of());
+            when(staffPortOut.findAllByEnabledTrue(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-            assertThat(staffService.getAllStaff()).isEmpty();
+            assertThat(staffService.getAllStaff(pageable).getContent()).isEmpty();
         }
     }
 

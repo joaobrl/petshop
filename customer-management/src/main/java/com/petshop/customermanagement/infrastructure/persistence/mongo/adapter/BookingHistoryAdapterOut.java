@@ -6,6 +6,8 @@ import com.petshop.customermanagement.infrastructure.persistence.mongo.entity.Cu
 import com.petshop.customermanagement.infrastructure.persistence.mongo.mapper.BookingHistoryMapper;
 import com.petshop.customermanagement.infrastructure.persistence.mongo.repository.CustomerHistoryBookingsMongoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -34,10 +36,8 @@ public class BookingHistoryAdapterOut implements BookingHistoryPortOut {
     }
 
     @Override
-    public List<BookingHistory> findAll() {
-        return repository.findAll().stream()
-                .map(mapper::toDomain)
-                .collect(Collectors.toList());
+    public Page<BookingHistory> findAll(Pageable pageable) {
+        return repository.findAll(pageable).map(mapper::toDomain);
     }
 
     @Override

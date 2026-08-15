@@ -13,7 +13,9 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -37,12 +39,11 @@ public class CustomerControllerImpl implements CustomerController{
     }
 
     @Override
-    public ResponseEntity<List<CustomerResponseDto>> listCustomers() {
-        var customer = portIn.customerList()
-                .stream()
-                .map(CustomerResponseDto::new)
-                .toList();
-        return ResponseEntity.ok(customer);
+    public ResponseEntity<PageResponse<CustomerResponseDto>> listCustomers(Pageable pageable) {
+        var page = portIn.customerListPage(pageable).map(CustomerResponseDto::new);
+        return ResponseEntity.ok(new PageResponse<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages(), page.isLast()));
     }
 
     @Override

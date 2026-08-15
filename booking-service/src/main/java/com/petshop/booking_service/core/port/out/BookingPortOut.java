@@ -2,6 +2,8 @@ package com.petshop.booking_service.core.port.out;
 
 import com.petshop.booking_service.core.domain.Booking;
 import com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,7 +13,7 @@ import java.util.UUID;
 
 public interface BookingPortOut {
     Booking save(Booking booking);
-    List<Booking> findByCriteria(BookingSearchCriteriaDto criteria);
+    Page<Booking> findByCriteria(BookingSearchCriteriaDto criteria, Pageable pageable);
     Optional<Booking> findById(UUID id);
 
     /**

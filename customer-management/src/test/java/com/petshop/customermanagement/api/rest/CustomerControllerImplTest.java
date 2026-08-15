@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -72,21 +74,23 @@ class CustomerControllerImplTest {
 
     @Test
     void listCustomersMapsAllCustomersToDto() {
-        when(portIn.customerList()).thenReturn(List.of(sampleCustomer(), sampleCustomer()));
+        var pageable = PageRequest.of(0, 20);
+        when(portIn.customerListPage(pageable)).thenReturn(new PageImpl<>(List.of(sampleCustomer(), sampleCustomer())));
 
-        var response = controller.listCustomers();
+        var response = controller.listCustomers(pageable);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).hasSize(2);
+        assertThat(response.getBody().content()).hasSize(2);
     }
 
     @Test
     void listCustomersReturnsEmptyListWhenNoneExist() {
-        when(portIn.customerList()).thenReturn(List.of());
+        var pageable = PageRequest.of(0, 20);
+        when(portIn.customerListPage(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        var response = controller.listCustomers();
+        var response = controller.listCustomers(pageable);
 
-        assertThat(response.getBody()).isEmpty();
+        assertThat(response.getBody().content()).isEmpty();
     }
 
     @Nested

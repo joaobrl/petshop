@@ -1,13 +1,15 @@
 package com.petshop.customermanagement.api.rest;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.customermanagement.api.rest.dto.StaffResponseDto;
 import com.petshop.customermanagement.core.port.in.dto.StaffRequestDto;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -21,7 +23,7 @@ public interface StaffController {
     ResponseEntity<StaffResponseDto> createStaff(@Valid @RequestBody StaffRequestDto request, UriComponentsBuilder uriBuilder);
 
     @GetMapping("/all")
-    ResponseEntity<List<StaffResponseDto>> getAllStaff();
+    ResponseEntity<PageResponse<StaffResponseDto>> getAllStaff(@PageableDefault(size = 20) Pageable pageable);
 
     @GetMapping("/{id}/find")
     ResponseEntity<StaffResponseDto> getStaffById(@PathVariable String id);

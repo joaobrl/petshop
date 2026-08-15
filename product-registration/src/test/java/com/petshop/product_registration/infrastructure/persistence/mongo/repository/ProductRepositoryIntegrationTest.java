@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.mongodb.test.autoconfigure.DataMongoTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -67,7 +68,7 @@ class ProductRepositoryIntegrationTest {
         repository.save(newProduct("Ativo " + nextId, true));
         repository.save(newProduct("Inativo " + nextId, false));
 
-        var result = repository.findByEnabledTrue();
+        var result = repository.findByEnabledTrue(PageRequest.of(0, 100)).getContent();
 
         assertThat(result).extracting(ProductDocument::getName)
                 .anyMatch(name -> name.startsWith("Ativo"));
@@ -80,7 +81,7 @@ class ProductRepositoryIntegrationTest {
         var inativo1 = repository.save(newProduct("Inativo1 " + nextId, false));
         var inativo2 = repository.save(newProduct("Inativo2 " + nextId, false));
 
-        assertThat(repository.findByEnabledTrue())
+        assertThat(repository.findByEnabledTrue(PageRequest.of(0, 100)).getContent())
                 .extracting(ProductDocument::getId)
                 .doesNotContain(inativo1.getId(), inativo2.getId());
     }

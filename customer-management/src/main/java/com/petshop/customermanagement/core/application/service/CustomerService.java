@@ -12,6 +12,8 @@ import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -57,6 +59,11 @@ public class CustomerService implements CustomerPortIn {
     @Override
     public List<Customer> customerList() {
         return customerPortOut.findAll();
+    }
+
+    @Override
+    public Page<Customer> customerListPage(Pageable pageable) {
+        return customerPortOut.findAllPage(pageable);
     }
 
     @Override

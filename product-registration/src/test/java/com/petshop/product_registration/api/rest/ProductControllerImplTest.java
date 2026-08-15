@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -64,50 +66,52 @@ class ProductControllerImplTest {
         assertThat(response.getHeaders().getLocation().toString()).contains("/products/1");
     }
 
+    private final PageRequest pageable = PageRequest.of(0, 20);
+
     @Test
     void listProductsMapsAllProductsToDto() {
-        when(portIn.listProducts()).thenReturn(List.of(sampleProduct(), sampleProduct()));
+        when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct(), sampleProduct())));
 
-        var response = controller.listProducts(staffUser());
+        var response = controller.listProducts(pageable, staffUser());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).hasSize(2);
+        assertThat(response.getBody().content()).hasSize(2);
     }
 
     @Test
     void listProductsReturnsEmptyListWhenNoneEnabled() {
-        when(portIn.listProducts()).thenReturn(List.of());
+        when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(controller.listProducts(staffUser()).getBody()).isEmpty();
+        assertThat(controller.listProducts(pageable, staffUser()).getBody().content()).isEmpty();
     }
 
     @Test
     void listProductsIncludesStockWhenUserIsStaff() {
-        when(portIn.listProducts()).thenReturn(List.of(sampleProduct()));
+        when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct())));
 
-        var response = controller.listProducts(staffUser());
+        var response = controller.listProducts(pageable, staffUser());
 
-        assertThat(response.getBody().get(0).getStock()).isEqualTo(50);
-        assertThat(response.getBody().get(0).getReservedPercentage()).isNotNull();
+        assertThat(response.getBody().content().get(0).getStock()).isEqualTo(50);
+        assertThat(response.getBody().content().get(0).getReservedPercentage()).isNotNull();
     }
 
     @Test
     void listProductsOmitsStockWhenUserIsCustomer() {
-        when(portIn.listProducts()).thenReturn(List.of(sampleProduct()));
+        when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct())));
 
-        var response = controller.listProducts(customerUser());
+        var response = controller.listProducts(pageable, customerUser());
 
-        assertThat(response.getBody().get(0).getStock()).isNull();
-        assertThat(response.getBody().get(0).getReservedPercentage()).isNull();
+        assertThat(response.getBody().content().get(0).getStock()).isNull();
+        assertThat(response.getBody().content().get(0).getReservedPercentage()).isNull();
     }
 
     @Test
     void listProductsOmitsStockWhenAnonymous() {
-        when(portIn.listProducts()).thenReturn(List.of(sampleProduct()));
+        when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct())));
 
-        var response = controller.listProducts(null);
+        var response = controller.listProducts(pageable, null);
 
-        assertThat(response.getBody().get(0).getStock()).isNull();
+        assertThat(response.getBody().content().get(0).getStock()).isNull();
     }
 
     @Test

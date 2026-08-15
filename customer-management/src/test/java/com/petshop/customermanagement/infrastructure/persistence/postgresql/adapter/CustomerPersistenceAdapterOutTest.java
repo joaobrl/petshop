@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -83,6 +85,17 @@ class CustomerPersistenceAdapterOutTest {
         when(mapper.toDomainList(List.of())).thenReturn(List.of());
 
         assertThat(adapter.findAll()).isEmpty();
+    }
+
+    @Test
+    void findAllPageReturnsMappedPage() {
+        var pageable = PageRequest.of(0, 20);
+        var entity = new CustomerEntity();
+        var domain = new Customer("Maria", "12345678900", "maria@mail.com", "119999999");
+        when(customerRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(entity)));
+        when(mapper.toDomain(entity)).thenReturn(domain);
+
+        assertThat(adapter.findAllPage(pageable).getContent()).containsExactly(domain);
     }
 
     @Test

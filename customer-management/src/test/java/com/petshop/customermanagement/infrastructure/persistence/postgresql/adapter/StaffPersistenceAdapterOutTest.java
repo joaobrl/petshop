@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -108,6 +110,17 @@ class StaffPersistenceAdapterOutTest {
         when(mapper.toDomainList(List.of())).thenReturn(List.of());
 
         assertThat(adapter.findAll()).isEmpty();
+    }
+
+    @Test
+    void findAllByEnabledTrueReturnsMappedPage() {
+        var pageable = PageRequest.of(0, 20);
+        var entity = new StaffEntity();
+        var domain = sampleDomain();
+        when(staffRepository.findByEnabledTrue(pageable)).thenReturn(new PageImpl<>(List.of(entity)));
+        when(mapper.toDomain(entity)).thenReturn(domain);
+
+        assertThat(adapter.findAllByEnabledTrue(pageable).getContent()).containsExactly(domain);
     }
 
     // O adapter mexe direto na flag isNew (via existsById/entity.setNew)

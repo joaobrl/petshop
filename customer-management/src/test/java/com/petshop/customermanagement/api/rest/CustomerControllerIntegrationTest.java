@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -154,17 +155,17 @@ class CustomerControllerIntegrationTest {
 
         @Test
         void listCustomersAllowedForAdminRole() throws Exception {
-            when(customerPortOut.findAll()).thenReturn(java.util.List.of(customerWithId(UUID.randomUUID())));
+            when(customerPortOut.findAllPage(any())).thenReturn(new PageImpl<>(java.util.List.of(customerWithId(UUID.randomUUID()))));
 
             mockMvc.perform(get("/api/v1/customers/list/customers")
                             .with(adminAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)));
+                    .andExpect(jsonPath("$.content.length()", is(1)));
         }
 
         @Test
         void listCustomersAllowedForReceptionistRole() throws Exception {
-            when(customerPortOut.findAll()).thenReturn(java.util.List.of());
+            when(customerPortOut.findAllPage(any())).thenReturn(new PageImpl<>(java.util.List.of()));
 
             mockMvc.perform(get("/api/v1/customers/list/customers")
                             .with(receptionistAuth()))

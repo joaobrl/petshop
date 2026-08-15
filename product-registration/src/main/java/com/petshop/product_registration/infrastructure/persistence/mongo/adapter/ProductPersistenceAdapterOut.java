@@ -6,9 +6,10 @@ import com.petshop.product_registration.infrastructure.persistence.mongo.mapper.
 import com.petshop.product_registration.infrastructure.persistence.mongo.repository.ProductMongoRepository;
 import com.petshop.product_registration.infrastructure.persistence.mongo.sequence.ProductSequenceGenerator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -32,8 +33,8 @@ public class ProductPersistenceAdapterOut implements ProductPortOut {
     }
 
     @Override
-    public List<Product> findByEnabledTrue() {
-        return mapper.toDomainList(productRepository.findByEnabledTrue());
+    public Page<Product> findByEnabledTrue(Pageable pageable) {
+        return productRepository.findByEnabledTrue(pageable).map(mapper::toDomain);
     }
 
     @Override

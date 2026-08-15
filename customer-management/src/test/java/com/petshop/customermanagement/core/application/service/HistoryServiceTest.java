@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.UUID;
@@ -72,33 +74,35 @@ class HistoryServiceTest {
         assertThat(historyService.findCustomerPurchaseHistory(customerId)).isEmpty();
     }
 
+    private final PageRequest pageable = PageRequest.of(0, 20);
+
     @Test
     void findStoreBookingHistoryDelegatesToFindAll() {
         var history = new BookingHistory();
-        when(bookingHistoryPortOut.findAll()).thenReturn(List.of(history));
+        when(bookingHistoryPortOut.findAll(pageable)).thenReturn(new PageImpl<>(List.of(history)));
 
-        assertThat(historyService.findStoreBookingHistory()).containsExactly(history);
+        assertThat(historyService.findStoreBookingHistory(pageable).getContent()).containsExactly(history);
     }
 
     @Test
     void findStoreBookingHistoryReturnsEmptyWhenNoBookingsAnywhere() {
-        when(bookingHistoryPortOut.findAll()).thenReturn(List.of());
+        when(bookingHistoryPortOut.findAll(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(historyService.findStoreBookingHistory()).isEmpty();
+        assertThat(historyService.findStoreBookingHistory(pageable).getContent()).isEmpty();
     }
 
     @Test
     void findStorePurchaseHistoryDelegatesToFindAll() {
         var history = new PurchaseHistory();
-        when(purchaseHistoryPortOut.findAll()).thenReturn(List.of(history));
+        when(purchaseHistoryPortOut.findAll(pageable)).thenReturn(new PageImpl<>(List.of(history)));
 
-        assertThat(historyService.findStorePurchaseHistory()).containsExactly(history);
+        assertThat(historyService.findStorePurchaseHistory(pageable).getContent()).containsExactly(history);
     }
 
     @Test
     void findStorePurchaseHistoryReturnsEmptyWhenNoPurchasesAnywhere() {
-        when(purchaseHistoryPortOut.findAll()).thenReturn(List.of());
+        when(purchaseHistoryPortOut.findAll(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(historyService.findStorePurchaseHistory()).isEmpty();
+        assertThat(historyService.findStorePurchaseHistory(pageable).getContent()).isEmpty();
     }
 }

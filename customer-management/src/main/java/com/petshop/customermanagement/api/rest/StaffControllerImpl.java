@@ -1,15 +1,16 @@
 package com.petshop.customermanagement.api.rest;
 
+import com.petshop.commons.dto.PageResponse;
 import com.petshop.customermanagement.api.rest.dto.StaffResponseDto;
 import com.petshop.customermanagement.core.port.in.StaffPortIn;
 import com.petshop.customermanagement.core.port.in.dto.StaffRequestDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -26,9 +27,11 @@ public class StaffControllerImpl implements StaffController {
     }
 
     @Override
-    public ResponseEntity<List<StaffResponseDto>> getAllStaff() {
-        var staff = portIn.getAllStaff().stream().map(StaffResponseDto::new).toList();
-        return ResponseEntity.ok(staff);
+    public ResponseEntity<PageResponse<StaffResponseDto>> getAllStaff(Pageable pageable) {
+        var page = portIn.getAllStaff(pageable).map(StaffResponseDto::new);
+        return ResponseEntity.ok(new PageResponse<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages(), page.isLast()));
     }
 
     @Override

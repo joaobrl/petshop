@@ -18,6 +18,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
@@ -108,6 +110,29 @@ class CustomerServiceTest {
             when(customerPortOut.findAll()).thenReturn(List.of());
 
             assertThat(customerService.customerList()).isEmpty();
+        }
+    }
+
+    @Nested
+    class CustomerListPage {
+
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
+        @Test
+        void returnsPagedCustomersFromPortOut() {
+            var customers = List.of(sampleCustomer(), sampleCustomer());
+            when(customerPortOut.findAllPage(pageable)).thenReturn(new PageImpl<>(customers));
+
+            var result = customerService.customerListPage(pageable);
+
+            assertThat(result.getContent()).hasSize(2);
+        }
+
+        @Test
+        void returnsEmptyPageWhenNoCustomers() {
+            when(customerPortOut.findAllPage(pageable)).thenReturn(new PageImpl<>(List.of()));
+
+            assertThat(customerService.customerListPage(pageable).getContent()).isEmpty();
         }
     }
 

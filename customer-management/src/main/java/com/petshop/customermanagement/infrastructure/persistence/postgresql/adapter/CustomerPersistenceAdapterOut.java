@@ -6,6 +6,8 @@ import com.petshop.customermanagement.infrastructure.persistence.postgresql.enti
 import com.petshop.customermanagement.infrastructure.persistence.postgresql.mapper.CustomerMapper;
 import com.petshop.customermanagement.infrastructure.persistence.postgresql.repository.CustomerRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -51,6 +53,11 @@ public class CustomerPersistenceAdapterOut implements CustomerPortOut {
     @Override
     public List<Customer> findAll() {
         return mapper.toDomainList(customerRepository.findAll());
+    }
+
+    @Override
+    public Page<Customer> findAllPage(Pageable pageable) {
+        return customerRepository.findAll(pageable).map(mapper::toDomain);
     }
 
     @Override

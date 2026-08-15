@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -69,25 +71,27 @@ class StaffControllerImplTest {
     @Nested
     class GetAllStaff {
 
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
         @Test
         void returnsMappedList() {
             var staffA = sampleStaff(UUID.randomUUID());
             var staffB = sampleStaff(UUID.randomUUID());
-            when(portIn.getAllStaff()).thenReturn(List.of(staffA, staffB));
+            when(portIn.getAllStaff(pageable)).thenReturn(new PageImpl<>(List.of(staffA, staffB)));
 
-            var result = staffController.getAllStaff();
+            var result = staffController.getAllStaff(pageable);
 
             assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(result.getBody()).hasSize(2);
+            assertThat(result.getBody().content()).hasSize(2);
         }
 
         @Test
         void returnsEmptyListWhenNoneRegistered() {
-            when(portIn.getAllStaff()).thenReturn(List.of());
+            when(portIn.getAllStaff(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-            var result = staffController.getAllStaff();
+            var result = staffController.getAllStaff(pageable);
 
-            assertThat(result.getBody()).isEmpty();
+            assertThat(result.getBody().content()).isEmpty();
         }
     }
 

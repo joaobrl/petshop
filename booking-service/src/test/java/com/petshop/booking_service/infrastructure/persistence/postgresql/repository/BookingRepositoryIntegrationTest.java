@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.domain.PageRequest;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -42,10 +43,11 @@ class BookingRepositoryIntegrationTest {
         var criteria = new BookingSearchCriteriaDto("11122233344", null, "BANHO", null, bookingDateTime.toLocalDate(), null);
         var results = bookingRepository.findByCriteria(criteria,
                 criteria.getDate().atStartOfDay(),
-                criteria.getDate().plusDays(1).atStartOfDay());
+                criteria.getDate().plusDays(1).atStartOfDay(),
+                PageRequest.of(0, 20));
 
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getOwnerCpf()).isEqualTo("11122233344");
+        assertThat(results.getContent()).hasSize(1);
+        assertThat(results.getContent().get(0).getOwnerCpf()).isEqualTo("11122233344");
     }
 
     @Test
@@ -54,9 +56,9 @@ class BookingRepositoryIntegrationTest {
         bookingRepository.save(newBookingEntity("99988877766", ServiceType.TOSAGEM, LocalDateTime.of(2026, 8, 11, 10, 0)));
 
         var criteria = new BookingSearchCriteriaDto(null, null, null, null, null, null);
-        var results = bookingRepository.findByCriteria(criteria, null, null);
+        var results = bookingRepository.findByCriteria(criteria, null, null, PageRequest.of(0, 20));
 
-        assertThat(results).hasSize(2);
+        assertThat(results.getContent()).hasSize(2);
     }
 
     @Test

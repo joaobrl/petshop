@@ -12,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -75,18 +77,21 @@ class ProductServiceTest {
     @Nested
     class ListProducts {
 
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
         @Test
         void returnsOnlyEnabledProducts() {
-            when(productPortOut.findByEnabledTrue()).thenReturn(List.of(productWithStock(1L, 10, 0)));
+            when(productPortOut.findByEnabledTrue(pageable))
+                    .thenReturn(new PageImpl<>(List.of(productWithStock(1L, 10, 0))));
 
-            assertThat(productService.listProducts()).hasSize(1);
+            assertThat(productService.listProducts(pageable).getContent()).hasSize(1);
         }
 
         @Test
         void returnsEmptyListWhenNoneEnabled() {
-            when(productPortOut.findByEnabledTrue()).thenReturn(List.of());
+            when(productPortOut.findByEnabledTrue(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-            assertThat(productService.listProducts()).isEmpty();
+            assertThat(productService.listProducts(pageable).getContent()).isEmpty();
         }
     }
 

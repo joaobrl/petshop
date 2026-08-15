@@ -2,15 +2,16 @@ package com.petshop.customermanagement.core.port.in;
 
 import com.petshop.customermanagement.core.domain.Staff;
 import com.petshop.customermanagement.core.port.in.dto.StaffRequestDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface StaffPortIn {
 
     Staff createStaff(StaffRequestDto request);
 
-    List<Staff> getAllStaff();
+    Page<Staff> getAllStaff(Pageable pageable);
 
     Staff getStaffById(UUID id);
 
