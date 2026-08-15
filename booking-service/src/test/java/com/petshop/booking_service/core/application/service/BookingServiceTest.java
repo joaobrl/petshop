@@ -109,7 +109,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Booking date and time cannot be null");
+                .hasMessage("Data e hora do agendamento não podem ser nulas");
     }
 
     @Test
@@ -118,7 +118,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Service type cannot be null");
+                .hasMessage("Tipo de serviço não pode ser nulo");
     }
 
     @Test
@@ -127,7 +127,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("The store is closed on Sundays");
+                .hasMessage("A loja não funciona aos domingos");
     }
 
     @Test
@@ -136,7 +136,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Veterinary consultations are only available Monday through Friday");
+                .hasMessage("Consultas veterinárias só estão disponíveis de segunda a sexta-feira");
     }
 
     @Test
@@ -145,7 +145,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Bookings on weekdays must be between 9 AM and 5 PM, with a break from 12 PM to 1 PM");
+                .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
     }
 
     @Test
@@ -154,7 +154,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Bookings on weekdays must be between 9 AM and 5 PM, with a break from 12 PM to 1 PM");
+                .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
     }
 
     @Test
@@ -163,7 +163,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Bookings on weekdays must be between 9 AM and 5 PM, with a break from 12 PM to 1 PM");
+                .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
     }
 
     @Test
@@ -172,7 +172,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Bookings on Saturdays must be between 8 AM and 11 AM");
+                .hasMessage("Agendamentos aos sábados devem ser entre 8h e 11h");
     }
 
     // ---------- criação bem-sucedida / atribuição de funcionário ----------

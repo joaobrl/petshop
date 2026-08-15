@@ -89,7 +89,7 @@ class BookingTest {
 
         assertThatThrownBy(() -> booking.completeBooking(new BookingUpdateDto()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Only scheduled bookings can be finalized.");
+                .hasMessage("Somente agendamentos com status agendado podem ser finalizados.");
     }
 
     @Test
@@ -159,6 +159,6 @@ class BookingTest {
 
         assertThatThrownBy(() -> booking.confirmPayment(PaymentMethod.PIX))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessage("Cannot confirm payment for a canceled booking");
+                .hasMessage("Não é possível confirmar pagamento de um agendamento cancelado");
     }
 }

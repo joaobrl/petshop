@@ -26,7 +26,7 @@ public class BookingSearchCriteriaDto {
             try {
                 this.serviceType = ServiceType.valueOf(serviceType.toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid service type: " + serviceType);
+                throw new IllegalArgumentException("Tipo de serviço inválido: " + serviceType);
             }
         }
 
@@ -34,7 +34,7 @@ public class BookingSearchCriteriaDto {
             try {
                 this.status = StatusBooking.valueOf(status.toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid status: " + status);
+                throw new IllegalArgumentException("Status inválido: " + status);
             }
         }
     }

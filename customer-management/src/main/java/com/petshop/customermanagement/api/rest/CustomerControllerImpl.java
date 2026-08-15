@@ -72,7 +72,7 @@ public class CustomerControllerImpl implements CustomerController{
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
 
         if (pets == null || pets.isEmpty()) {
-            throw new IllegalArgumentException("At least one pet must be informed");
+            throw new IllegalArgumentException("É necessário informar ao menos um pet");
         }
         var addPet = portIn.addPetToCustomer(customerId, pets);
         return ResponseEntity.ok(new CustomerResponseDto(addPet));
@@ -106,7 +106,7 @@ public class CustomerControllerImpl implements CustomerController{
                 .filter(customer -> customer.getId().equals(customerId))
                 .findFirst()
                 .map(Customer::getPet)
-                .orElseThrow(() -> new EntityNotFoundException("Customer not found: " + customerId))
+                .orElseThrow(() -> new EntityNotFoundException("Cliente não encontrado: " + customerId))
                 .stream()
                 .map(PetResponseDto::new)
                 .toList();

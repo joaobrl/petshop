@@ -59,21 +59,21 @@ class AvailableSlotsServiceTest {
     void rejectsNullServiceType() {
         assertThatThrownBy(() -> service.findAvailableSlots(null, FAR_FUTURE_MONDAY, RangeType.DAY))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Service type cannot be null");
+                .hasMessage("Tipo de serviço não pode ser nulo");
     }
 
     @Test
     void rejectsNullReferenceDate() {
         assertThatThrownBy(() -> service.findAvailableSlots(ServiceType.BANHO, null, RangeType.DAY))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Reference date cannot be null");
+                .hasMessage("Data de referência não pode ser nula");
     }
 
     @Test
     void rejectsNullRange() {
         assertThatThrownBy(() -> service.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Range cannot be null");
+                .hasMessage("Intervalo não pode ser nulo");
     }
 
     @Test

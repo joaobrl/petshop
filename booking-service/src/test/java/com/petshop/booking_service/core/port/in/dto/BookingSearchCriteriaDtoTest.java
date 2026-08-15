@@ -47,14 +47,14 @@ class BookingSearchCriteriaDtoTest {
     void rejectsInvalidServiceType() {
         assertThatThrownBy(() -> new BookingSearchCriteriaDto(null, null, "INVALIDO", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Invalid service type: INVALIDO");
+                .hasMessage("Tipo de serviço inválido: INVALIDO");
     }
 
     @Test
     void rejectsInvalidStatus() {
         assertThatThrownBy(() -> new BookingSearchCriteriaDto(null, null, null, "INVALIDO", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Invalid status: INVALIDO");
+                .hasMessage("Status inválido: INVALIDO");
     }
 
     @Test

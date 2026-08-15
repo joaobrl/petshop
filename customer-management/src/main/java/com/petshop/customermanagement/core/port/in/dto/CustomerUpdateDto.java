@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 public class CustomerUpdateDto {
 
     private String name;
-    @Email(message = "Invalid email format")
+    @Email(message = "Formato de email inválido")
     private String email;
     private String phone;
 

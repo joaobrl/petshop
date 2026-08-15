@@ -12,7 +12,7 @@ class StaffExceptionHandlerTest {
     void inheritsBaseExceptionHandlerBehavior() {
         var handler = new StaffExceptionHandler();
 
-        var problem = handler.handleNotFound(new NotFoundException("Staff", "x"));
+        var problem = handler.handleNotFound(new NotFoundException("Funcionário", "x"));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(problem.getTitle()).isEqualTo("Resource not found");

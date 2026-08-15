@@ -52,10 +52,10 @@ public class CartService implements CartPortIn {
     @Transactional
     public Cart removeItem(UUID customerId, Long productId) {
         var cart = cartPortOut.findOpenCartByCustomerId(customerId)
-                .orElseThrow(() -> new NotFoundException("Cart for customer", customerId));
+                .orElseThrow(() -> new NotFoundException("Carrinho do cliente", customerId));
 
         var item = cart.findItem(productId)
-                .orElseThrow(() -> new NotFoundException("Cart item for product", productId));
+                .orElseThrow(() -> new NotFoundException("Item do carrinho para o produto", productId));
 
         if (item.isReserved()) {
             productStockPortOut.release(productId, item.getQuantity());

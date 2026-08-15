@@ -15,14 +15,14 @@ class NotFoundExceptionTest {
 
     @Test
     void resourceAndIdentifierConstructorBuildsMessage() {
-        var ex = new NotFoundException("Product", 42L);
+        var ex = new NotFoundException("Produto", 42L);
 
-        assertThat(ex.getMessage()).isEqualTo("Product not found with identifier: 42");
+        assertThat(ex.getMessage()).isEqualTo("Produto não encontrado(a) com identificador: 42");
     }
 
     @Test
     void isABusinessException() {
-        var ex = new NotFoundException("Product", 42L);
+        var ex = new NotFoundException("Produto", 42L);
 
         assertThat(ex).isInstanceOf(BusinessException.class);
     }

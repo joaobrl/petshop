@@ -50,7 +50,7 @@ public class ProductService implements ProductPortIn {
         return productPortOut.findById(id)
                 .orElseThrow(() -> {
                     log.warn("Product search failed: ID {} not found", id);
-                    return new NotFoundException("Product", id);
+                    return new NotFoundException("Produto", id);
                 });
     }
 
@@ -58,7 +58,7 @@ public class ProductService implements ProductPortIn {
     public Product updateProduct(Long id, ProductRequestDto productRequest) {
         if (productRequest == null) {
             log.error("Update failed: Request body is null for product ID {}", id);
-            throw new IllegalArgumentException("Update data cannot be null.");
+            throw new IllegalArgumentException("Os dados de atualização não podem ser nulos.");
         }
 
         log.info("Updating product ID: {}", id);

@@ -46,9 +46,9 @@ public class AvailableSlotsService implements AvailableSlotsPortIn {
     @Override
     @Cacheable(cacheNames = "availableSlots")
     public List<AvailableSlot> findAvailableSlots(ServiceType serviceType, LocalDate referenceDate, RangeType range) {
-        if (serviceType == null) throw new IllegalArgumentException("Service type cannot be null");
-        if (referenceDate == null) throw new IllegalArgumentException("Reference date cannot be null");
-        if (range == null) throw new IllegalArgumentException("Range cannot be null");
+        if (serviceType == null) throw new IllegalArgumentException("Tipo de serviço não pode ser nulo");
+        if (referenceDate == null) throw new IllegalArgumentException("Data de referência não pode ser nula");
+        if (range == null) throw new IllegalArgumentException("Intervalo não pode ser nulo");
 
         var isVet = serviceType == ServiceType.CONSULTA_VETERINARIA;
         var role = serviceType.requiredStaffRole();
