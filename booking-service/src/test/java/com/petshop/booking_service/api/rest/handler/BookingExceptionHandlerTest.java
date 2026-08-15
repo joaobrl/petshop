@@ -15,7 +15,7 @@ class BookingExceptionHandlerTest {
 
     @Test
     void inheritsBaseExceptionHandlerBehavior() {
-        var problem = handler.handleNotFound(new NotFoundException("Booking", "x"));
+        var problem = handler.handleNotFound(new NotFoundException("Agendamento", "x"));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(problem.getTitle()).isEqualTo("Resource not found");

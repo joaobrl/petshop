@@ -34,7 +34,7 @@ public class CustomerService implements CustomerPortIn {
     public Customer registerCustomer (CustomerRequestDto request) {
         customerPortOut.findByCpf(request.getCpf())
                 .ifPresent(c -> {
-                    throw new ConflictException("CPF already exists: " + request.getCpf());
+                    throw new ConflictException("CPF já cadastrado: " + request.getCpf());
                 });
 
         var customer = new Customer(
@@ -77,14 +77,14 @@ public class CustomerService implements CustomerPortIn {
     @Override
     public Customer findCustomer(UUID id) {
         return customerPortOut.findById(id)
-                .orElseThrow(() ->  new NotFoundException("Customer", id));
+                .orElseThrow(() ->  new NotFoundException("Cliente", id));
     }
 
     @Override
     public Customer findCustomerByIdOrCpf(String idOrCpf) {
         return findByUuidIfValid(idOrCpf)
                 .or(() -> customerPortOut.findByCpf(idOrCpf))
-                .orElseThrow(() -> new NotFoundException("Customer", idOrCpf));
+                .orElseThrow(() -> new NotFoundException("Cliente", idOrCpf));
     }
 
     private Optional<Customer> findByUuidIfValid(String idOrCpf) {

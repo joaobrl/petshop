@@ -27,10 +27,10 @@ public class StaffService implements StaffPortIn {
     @Override
     public Staff createStaff(StaffRequestDto request) {
         staffPortOut.findByCpf(request.getCpf()).ifPresent(employee -> {
-            throw new ConflictException("CPF already exists: " + request.getCpf());
+            throw new ConflictException("CPF já cadastrado: " + request.getCpf());
         });
         staffPortOut.findByEmail(request.getEmail()).ifPresent(employee -> {
-            throw new ConflictException("Email already exists: " + request.getEmail());
+            throw new ConflictException("Email já cadastrado: " + request.getEmail());
         });
 
         var staff = new Staff(request);
@@ -49,14 +49,14 @@ public class StaffService implements StaffPortIn {
     @Override
     public Staff getStaffById(UUID id) {
         return staffPortOut.findById(id)
-                .orElseThrow(() -> new NotFoundException("Staff", id));
+                .orElseThrow(() -> new NotFoundException("Funcionário", id));
     }
 
     @Override
     public Staff getStaffByIdOrCpf(String idOrCpf) {
         return findByUuidIfValid(idOrCpf)
                 .or(() -> staffPortOut.findByCpf(idOrCpf))
-                .orElseThrow(() -> new NotFoundException("Staff", idOrCpf));
+                .orElseThrow(() -> new NotFoundException("Funcionário", idOrCpf));
     }
 
     private Optional<Staff> findByUuidIfValid(String idOrCpf) {

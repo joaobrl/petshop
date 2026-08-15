@@ -37,7 +37,7 @@ public class AuthService implements AuthPortIn {
     private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
     private static final int GENERATED_PASSWORD_LENGTH = 10;
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final String INVALID_CREDENTIALS_MESSAGE = "Invalid email or password.";
+    private static final String INVALID_CREDENTIALS_MESSAGE = "Email ou senha inválidos.";
 
     private final CustomerPortOut customerPortOut;
     private final StaffPortOut staffPortOut;
@@ -162,7 +162,7 @@ public class AuthService implements AuthPortIn {
 
     private void checkCurrentPassword(String passwordHash, String currentPassword) {
         if (passwordHash == null || !passwordEncoder.matches(currentPassword, passwordHash)) {
-            throw new BadCredentialsException("Current password is incorrect.");
+            throw new BadCredentialsException("Senha atual incorreta.");
         }
     }
 

@@ -27,7 +27,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
             var response = productFeign.findById(productId);
             return new ProductStockInfo(response.getId(), response.getName(), response.getPrice());
         } catch (FeignException.NotFound e) {
-            throw new NotFoundException("Product", productId);
+            throw new NotFoundException("Produto", productId);
         } catch (FeignException e) {
             throw new BusinessRuleException(extractDetail(e, "Não foi possível consultar o produto " + productId));
         }
@@ -39,7 +39,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
             var response = productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity));
             return new ProductStockInfo(response.getId(), response.getName(), response.getPrice());
         } catch (FeignException.NotFound e) {
-            throw new NotFoundException("Product", productId);
+            throw new NotFoundException("Produto", productId);
         } catch (FeignException e) {
             throw new BusinessRuleException(extractDetail(e, "Não foi possível reservar o produto " + productId));
         }

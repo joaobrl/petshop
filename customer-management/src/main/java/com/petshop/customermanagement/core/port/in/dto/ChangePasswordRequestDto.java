@@ -12,14 +12,14 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ChangePasswordRequestDto {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email é obrigatório")
+    @Email(message = "Formato de email inválido")
     private String email;
 
-    @NotBlank(message = "Current password is required")
+    @NotBlank(message = "Senha atual é obrigatória")
     private String currentPassword;
 
-    @NotBlank(message = "New password is required")
-    @Size(min = 6, message = "New password must have at least 6 characters")
+    @NotBlank(message = "Nova senha é obrigatória")
+    @Size(min = 6, message = "Nova senha deve ter pelo menos 6 caracteres")
     private String newPassword;
 }

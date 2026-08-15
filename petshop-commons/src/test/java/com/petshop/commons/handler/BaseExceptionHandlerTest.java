@@ -26,13 +26,13 @@ class BaseExceptionHandlerTest {
 
     @Test
     void handlesNotFound() {
-        var ex = new NotFoundException("Product", 1L);
+        var ex = new NotFoundException("Produto", 1L);
 
         var problem = handler.handleNotFound(ex);
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(problem.getTitle()).isEqualTo("Resource not found");
-        assertThat(problem.getDetail()).isEqualTo("Product not found with identifier: 1");
+        assertThat(problem.getDetail()).isEqualTo("Produto não encontrado(a) com identificador: 1");
     }
 
     @Test
@@ -72,7 +72,7 @@ class BaseExceptionHandlerTest {
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(problem.getTitle()).isEqualTo("Invalid request");
-        assertThat(problem.getDetail()).isEqualTo("Validation failed");
+        assertThat(problem.getDetail()).isEqualTo("Falha na validação");
 
         @SuppressWarnings("unchecked")
         List<Map<String, String>> errors = (List<Map<String, String>>) problem.getProperties().get("errors");
@@ -83,7 +83,7 @@ class BaseExceptionHandlerTest {
         });
         assertThat(errors).anySatisfy(e -> {
             assertThat(e.get("field")).isEqualTo("cpf");
-            assertThat(e.get("message")).isEqualTo("invalid");
+            assertThat(e.get("message")).isEqualTo("inválido");
         });
     }
 
@@ -133,7 +133,7 @@ class BaseExceptionHandlerTest {
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(problem.getTitle()).isEqualTo("Internal server error");
         assertThat(problem.getDetail())
-                .isEqualTo("An unexpected error occurred. Please try again later.")
+                .isEqualTo("Ocorreu um erro inesperado. Tente novamente mais tarde.")
                 .doesNotContain("detalhe interno sensível");
     }
 }

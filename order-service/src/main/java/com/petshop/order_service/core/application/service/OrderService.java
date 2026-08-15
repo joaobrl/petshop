@@ -87,7 +87,7 @@ public class OrderService implements OrderPortIn {
     @Override
     public Order findById(UUID id) {
         return orderPortOut.findById(id)
-                .orElseThrow(() -> new NotFoundException("Order", id));
+                .orElseThrow(() -> new NotFoundException("Pedido", id));
     }
 
     // Chamado periodicamente pelo PaymentMockScheduler: aprova pedidos
@@ -151,6 +151,6 @@ public class OrderService implements OrderPortIn {
 
     private CustomerInfo requireCustomer(UUID customerId) {
         return customerPortOut.findCustomerById(customerId)
-                .orElseThrow(() -> new NotFoundException("Customer", customerId));
+                .orElseThrow(() -> new NotFoundException("Cliente", customerId));
     }
 }

@@ -7,6 +7,6 @@ public class NotFoundException extends BusinessException {
     }
 
     public NotFoundException(String resource, Object identifier) {
-        super(resource + " not found with identifier: " + identifier);
+        super(resource + " não encontrado(a) com identificador: " + identifier);
     }
 }

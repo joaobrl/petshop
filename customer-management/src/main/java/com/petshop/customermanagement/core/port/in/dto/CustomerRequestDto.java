@@ -14,30 +14,30 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CustomerRequestDto {
 
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Nome é obrigatório")
     private String name;
 
-    @NotBlank(message = "CPF is required")
-    @Pattern(regexp = "\\d{11}", message = "CPF must have 11 digits")
+    @NotBlank(message = "CPF é obrigatório")
+    @Pattern(regexp = "\\d{11}", message = "CPF deve ter 11 dígitos")
     private String cpf;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email é obrigatório")
+    @Email(message = "Formato de email inválido")
     private String email;
 
-    @NotBlank(message = "Phone is required")
+    @NotBlank(message = "Telefone é obrigatório")
     private String phone;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must have at least 6 characters")
+    @NotBlank(message = "Senha é obrigatória")
+    @Size(min = 6, message = "Senha deve ter pelo menos 6 caracteres")
     private String password;
 
-    @NotBlank(message = "Password confirmation is required")
+    @NotBlank(message = "Confirmação de senha é obrigatória")
     private String confirmPassword;
 
     // Validado aqui (não só no front) porque o cadastro é público e pode
     // ser chamado direto na API, sem passar por nenhum formulário.
-    @AssertTrue(message = "Password and confirmPassword must match")
+    @AssertTrue(message = "Senha e confirmação de senha devem ser iguais")
     public boolean isConfirmPasswordMatching() {
         return password == null || password.equals(confirmPassword);
     }

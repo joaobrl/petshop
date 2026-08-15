@@ -53,10 +53,10 @@ public class ServiceDetails {
      */
     public void confirmPayment(PaymentMethod method) {
         if (method == null) {
-            throw new IllegalArgumentException("Payment method cannot be null");
+            throw new IllegalArgumentException("Forma de pagamento não pode ser nula");
         }
         if (this.paymentStatus == PaymentStatus.COMPLETED) {
-            throw new BusinessRuleException("Payment has already been confirmed for this booking");
+            throw new BusinessRuleException("O pagamento já foi confirmado para este agendamento");
         }
         this.paymentStatus = PaymentStatus.COMPLETED;
         this.paymentMethod = method;

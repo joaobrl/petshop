@@ -46,13 +46,13 @@ public abstract class BaseExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
-        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Falha na validação");
         problem.setTitle("Invalid request");
 
         List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> Map.of(
                         "field", fe.getField(),
-                        "message", fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "invalid"
+                        "message", fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "inválido"
                 ))
                 .toList();
         problem.setProperty("errors", errors);
@@ -98,7 +98,7 @@ public abstract class BaseExceptionHandler {
         log.error("Unexpected error", ex);
         var problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected error occurred. Please try again later."
+                "Ocorreu um erro inesperado. Tente novamente mais tarde."
         );
         problem.setTitle("Internal server error");
         return problem;

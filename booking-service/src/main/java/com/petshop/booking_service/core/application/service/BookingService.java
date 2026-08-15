@@ -78,7 +78,7 @@ public class BookingService implements BookingPortIn {
     @Override
     public Booking findBookingById(UUID id) {
         return bookingPortOut.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Booking not found with id: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Agendamento não encontrado com id: " + id));
     }
 
     @Override
@@ -145,35 +145,35 @@ public class BookingService implements BookingPortIn {
         var conflict = bookingPortOut.findActiveBookingsForPetOnDate(petId, bookingDateTime.toLocalDate()).stream()
                 .anyMatch(b -> excludeBookingId == null || !b.getId().equals(excludeBookingId));
         if (conflict) {
-            throw new ConflictException("Pet already has a booking scheduled for " + bookingDateTime.toLocalDate());
+            throw new ConflictException("O pet já possui um agendamento marcado para " + bookingDateTime.toLocalDate());
         }
     }
 
     private void validateBookingTime(LocalDateTime bookingDateTime, ServiceType serviceType) {
-        if (bookingDateTime == null) throw new IllegalArgumentException("Booking date and time cannot be null");
-        if (serviceType == null) throw new IllegalArgumentException("Service type cannot be null");
+        if (bookingDateTime == null) throw new IllegalArgumentException("Data e hora do agendamento não podem ser nulas");
+        if (serviceType == null) throw new IllegalArgumentException("Tipo de serviço não pode ser nulo");
 
         var time = bookingDateTime.toLocalTime();
         var dayOfWeek = bookingDateTime.getDayOfWeek();
         var isVet = serviceType == ServiceType.CONSULTA_VETERINARIA;
 
         if (dayOfWeek == DayOfWeek.SUNDAY) {
-            throw new IllegalArgumentException("The store is closed on Sundays");
+            throw new IllegalArgumentException("A loja não funciona aos domingos");
         }
 
         if (dayOfWeek == DayOfWeek.SATURDAY && isVet) {
-            throw new IllegalArgumentException("Veterinary consultations are only available Monday through Friday");
+            throw new IllegalArgumentException("Consultas veterinárias só estão disponíveis de segunda a sexta-feira");
         }
 
         if (dayOfWeek != DayOfWeek.SATURDAY) {
             boolean outsideWindow = time.isBefore(LocalTime.of(9, 0)) || !time.isBefore(LocalTime.of(17, 0));
             boolean duringLunch = !time.isBefore(LocalTime.of(12, 0)) && time.isBefore(LocalTime.of(13, 0));
             if (outsideWindow || duringLunch) {
-                throw new IllegalArgumentException("Bookings on weekdays must be between 9 AM and 5 PM, with a break from 12 PM to 1 PM");
+                throw new IllegalArgumentException("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
             }
         } else {
             if (time.isBefore(LocalTime.of(8, 0)) || !time.isBefore(LocalTime.of(11, 0))) {
-                throw new IllegalArgumentException("Bookings on Saturdays must be between 8 AM and 11 AM");
+                throw new IllegalArgumentException("Agendamentos aos sábados devem ser entre 8h e 11h");
             }
         }
 
@@ -181,7 +181,7 @@ public class BookingService implements BookingPortIn {
         var twoHoursFromNow = now.plusHours(2);
 
         if (!bookingDateTime.isAfter(twoHoursFromNow)) {
-            throw new IllegalArgumentException("Booking must be made at least 2 hours in advance");
+            throw new IllegalArgumentException("O agendamento deve ser feito com pelo menos 2 horas de antecedência");
         }
     }
 

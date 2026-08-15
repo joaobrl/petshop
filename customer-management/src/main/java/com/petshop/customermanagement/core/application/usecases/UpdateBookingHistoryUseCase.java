@@ -37,7 +37,7 @@ public class UpdateBookingHistoryUseCase {
     public void execute(BookingCompletedCommand command) {
         // O command não tem customerId — busca o cliente pelo CPF.
         var customer = customerPortOut.findByCpf(command.ownerCpf())
-                .orElseThrow(() -> new NotFoundException("Customer with CPF", command.ownerCpf()));
+                .orElseThrow(() -> new NotFoundException("Cliente com CPF", command.ownerCpf()));
 
         BookingHistory history = bookingHistoryPortOut.findByBookingId(command.bookingId())
                 .orElseGet(() -> {

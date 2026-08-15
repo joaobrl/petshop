@@ -89,7 +89,7 @@ class ServiceDetailsTest {
 
             assertThatThrownBy(() -> details.confirmPayment(null))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("Payment method cannot be null");
+                    .hasMessage("Forma de pagamento não pode ser nula");
         }
 
         @Test
@@ -99,7 +99,7 @@ class ServiceDetailsTest {
 
             assertThatThrownBy(() -> details.confirmPayment(PaymentMethod.CARTAO))
                     .isInstanceOf(BusinessRuleException.class)
-                    .hasMessage("Payment has already been confirmed for this booking");
+                    .hasMessage("O pagamento já foi confirmado para este agendamento");
         }
     }
 }
