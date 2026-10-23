@@ -55,7 +55,7 @@ class CartServiceTest {
         void createsNewCartAndReservesStockWhenNoneOpenAndLoggedIn() {
             var customerId = UUID.randomUUID();
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.empty());
-            when(productStockPortOut.reserve(1L, 2)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
+            when(productStockPortOut.reserve(1L, 2, TOKEN)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
             var cart = cartService.addItem(customerId, 1L, 2, true, TOKEN);
@@ -63,7 +63,7 @@ class CartServiceTest {
             assertThat(cart.getCustomerId()).isEqualTo(customerId);
             assertThat(cart.getItems()).hasSize(1);
             assertThat(cart.getItems().get(0).isReserved()).isTrue();
-            verify(productStockPortOut).reserve(1L, 2);
+            verify(productStockPortOut).reserve(1L, 2, TOKEN);
             verify(productStockPortOut, never()).getInfo(any(), any());
         }
 
@@ -78,7 +78,7 @@ class CartServiceTest {
 
             assertThat(cart.getItems().get(0).isReserved()).isFalse();
             verify(productStockPortOut).getInfo(1L, TOKEN);
-            verify(productStockPortOut, never()).reserve(any(), anyInt());
+            verify(productStockPortOut, never()).reserve(any(), anyInt(), any());
         }
 
         @Test
@@ -86,7 +86,7 @@ class CartServiceTest {
             var customerId = UUID.randomUUID();
             var existingCart = Cart.openFor(customerId, 24);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(existingCart));
-            when(productStockPortOut.reserve(1L, 1)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
+            when(productStockPortOut.reserve(1L, 1, TOKEN)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
             var cart = cartService.addItem(customerId, 1L, 1, true, TOKEN);
@@ -106,10 +106,10 @@ class CartServiceTest {
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            var result = cartService.removeItem(customerId, 1L);
+            var result = cartService.removeItem(customerId, 1L, TOKEN);
 
             assertThat(result.getItems()).isEmpty();
-            verify(productStockPortOut).release(1L, 2);
+            verify(productStockPortOut).release(1L, 2, TOKEN);
         }
 
         @Test
@@ -120,9 +120,9 @@ class CartServiceTest {
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            cartService.removeItem(customerId, 1L);
+            cartService.removeItem(customerId, 1L, TOKEN);
 
-            verify(productStockPortOut, never()).release(any(), anyInt());
+            verify(productStockPortOut, never()).release(any(), anyInt(), any());
         }
 
         @Test
@@ -130,7 +130,7 @@ class CartServiceTest {
             var customerId = UUID.randomUUID();
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> cartService.removeItem(customerId, 1L))
+            assertThatThrownBy(() -> cartService.removeItem(customerId, 1L, TOKEN))
                     .isInstanceOf(NotFoundException.class);
         }
 
@@ -140,7 +140,7 @@ class CartServiceTest {
             var cart = Cart.openFor(customerId, 24);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
 
-            assertThatThrownBy(() -> cartService.removeItem(customerId, 99L))
+            assertThatThrownBy(() -> cartService.removeItem(customerId, 99L, TOKEN))
                     .isInstanceOf(NotFoundException.class);
         }
     }
@@ -196,8 +196,8 @@ class CartServiceTest {
 
             cartService.expireOldCarts();
 
-            verify(productStockPortOut).release(1L, 2);
-            verify(productStockPortOut, never()).release(eq(2L), anyInt());
+            verify(productStockPortOut).release(1L, 2, null);
+            verify(productStockPortOut, never()).release(eq(2L), anyInt(), any());
             assertThat(cart.getStatus()).isEqualTo(CartStatus.EXPIRED);
             verify(cartPortOut).save(cart);
             verify(notificationPortOut).sendCartReminder(cart, "maria@mail.com", "Maria");

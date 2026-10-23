@@ -5,12 +5,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * A única saída Feign do booking-service é o staff-service
- * ({@code /api/v1/availability/**}), que é uma rota interna — nunca deve
- * aceitar o token de um cliente diretamente. Por isso, diferente do
- * order-service, aqui não existe relay: sempre assinamos um token de
- * serviço novo antes de chamar, mesmo padrão que o staff-service já usa
- * pra chamar o customer-management.
+ * Resolve o header Authorization a repassar na chamada Feign pro staff-service.
+ * {@code resolveAuthorizationHeader} repassa o token de quem chamou quando há
+ * um (relay-com-fallback); sem requisição HTTP em curso (ex.: disparado por
+ * um scheduler), assina um token de serviço novo.
  */
 @Component
 @RequiredArgsConstructor
@@ -19,6 +17,10 @@ public class TokenPropagation {
     private static final String SERVICE_NAME = "booking-service";
 
     private final JwtService jwtService;
+
+    public String resolveAuthorizationHeader(String token) {
+        return (token == null || token.isBlank()) ? mintServiceToken() : token;
+    }
 
     public String mintServiceToken() {
         return "Bearer " + jwtService.generateServiceToken(SERVICE_NAME);

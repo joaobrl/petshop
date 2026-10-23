@@ -32,7 +32,7 @@ public class BookingControllerImpl implements BookingController {
     public ResponseEntity<BookingResponseDto> createBooking(BookingRequestDto bookingRequest, UriComponentsBuilder uriBuilder, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         applyOwnerIdentity(bookingRequest, user);
-        var booking = bookingPortIn.createBooking(bookingRequest, user != null ? user.role() : null);
+        var booking = bookingPortIn.createBooking(bookingRequest, user != null ? user.role() : null, token);
         var uri = uriBuilder.path("/bookings/{id}").buildAndExpand(booking.getId()).toUri();
         return ResponseEntity.created(uri).body(new BookingResponseDto(booking));
     }
@@ -82,7 +82,7 @@ public class BookingControllerImpl implements BookingController {
     public ResponseEntity<BookingResponseDto> updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         requireOwnershipIfCustomer(bookingPortIn.findBookingById(id).getOwnerCpf(), user);
-        var booking = bookingPortIn.updateBooking(id, bookingUpdate, status, user != null ? user.role() : null);
+        var booking = bookingPortIn.updateBooking(id, bookingUpdate, status, user != null ? user.role() : null, token);
         return ResponseEntity.ok(new BookingResponseDto(booking));
     }
 

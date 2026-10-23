@@ -15,5 +15,5 @@ public interface CustomerManagementPortOut {
      * fechada nesse horário, se não houver ninguém daquele cargo escalado,
      * ou se o staff-service estiver fora do ar.
      */
-    List<StaffAssignment> getScheduledStaff(LocalDateTime dateTime, String role);
+    List<StaffAssignment> getScheduledStaff(LocalDateTime dateTime, String role, String token);
 }

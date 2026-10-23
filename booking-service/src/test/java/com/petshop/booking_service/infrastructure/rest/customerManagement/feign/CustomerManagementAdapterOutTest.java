@@ -48,7 +48,7 @@ class CustomerManagementAdapterOutTest {
         when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of(new StaffDto(id, "Ciclana")));
 
-        var result = adapter.getScheduledStaff(dateTime, "GROOMER");
+        var result = adapter.getScheduledStaff(dateTime, "GROOMER", null);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(id);
@@ -56,12 +56,12 @@ class CustomerManagementAdapterOutTest {
     }
 
     @Test
-    void alwaysUsesAFreshServiceTokenNeverARelayedOne() {
+    void mintsFreshServiceTokenWhenNoCallerTokenIsProvided() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
         when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of());
 
-        adapter.getScheduledStaff(dateTime, "GROOMER");
+        adapter.getScheduledStaff(dateTime, "GROOMER", null);
 
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(feignClient).getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), captor.capture());
@@ -70,11 +70,23 @@ class CustomerManagementAdapterOutTest {
     }
 
     @Test
+    void relaysCallerTokenWhenProvided() {
+        var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
+        var callerToken = "Bearer " + JWT_SERVICE.generateServiceToken("quem-chamou");
+        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
+                .thenReturn(List.of());
+
+        adapter.getScheduledStaff(dateTime, "GROOMER", callerToken);
+
+        org.mockito.Mockito.verify(feignClient).getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), eq(callerToken));
+    }
+
+    @Test
     void returnsEmptyListWhenFeignReturnsNull() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
         when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString())).thenReturn(null);
 
-        assertThat(adapter.getScheduledStaff(dateTime, "GROOMER")).isEmpty();
+        assertThat(adapter.getScheduledStaff(dateTime, "GROOMER", null)).isEmpty();
     }
 
     @Test
@@ -85,6 +97,6 @@ class CustomerManagementAdapterOutTest {
         when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
                 .thenThrow(new FeignException.ServiceUnavailable("unavailable", request, null, null));
 
-        assertThat(adapter.getScheduledStaff(dateTime, "GROOMER")).isEmpty();
+        assertThat(adapter.getScheduledStaff(dateTime, "GROOMER", null)).isEmpty();
     }
 }

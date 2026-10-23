@@ -13,7 +13,7 @@ public interface CartPortIn {
      */
     Cart addItem(UUID customerId, Long productId, int quantity, boolean reserveStock, String token);
 
-    Cart removeItem(UUID customerId, Long productId);
+    Cart removeItem(UUID customerId, Long productId, String token);
 
     Cart getCart(UUID customerId);
 

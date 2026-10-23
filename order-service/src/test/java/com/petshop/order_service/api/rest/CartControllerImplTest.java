@@ -89,7 +89,7 @@ class CartControllerImplTest {
         var token = bearerTokenFor(user);
         var cart = Cart.openFor(customerId, 24);
         when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
-        when(cartPortIn.removeItem(customerId, 1L)).thenReturn(cart);
+        when(cartPortIn.removeItem(customerId, 1L, token)).thenReturn(cart);
 
         var response = controller.removeItem(1L, customerId, token);
 

@@ -79,25 +79,33 @@ class StaffSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // /availability/** só deve ser chamado internamente pelo booking-service
-    // (sempre com token de serviço) — um cliente com token válido não pode
-    // acessar diretamente, mesmo conhecendo a URL.
+    // /availability/** é chamado internamente pelo booking-service, que repassa o token de
+    // quem originou a requisição quando há um (relay-com-fallback) — por isso aceita tanto um
+    // token de serviço quanto o de um usuário autenticado (cliente ou funcionário).
     @Test
-    void availabilityGeneralForbiddenForCustomerToken() throws Exception {
+    void availabilityGeneralAllowedForCustomerToken() throws Exception {
+        org.mockito.Mockito.when(availabilityPortIn.checkGeneralAvailability(
+                        org.mockito.ArgumentMatchers.any(LocalDateTime.class), org.mockito.ArgumentMatchers.any(Role.class)))
+                .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 10, 9, 0)));
+
         mockMvc.perform(get("/api/v1/availability/general")
                         .param("dateTime", "10/08/2026 09:00")
                         .param("role", "GROOMER")
                         .with(bearer(token(Role.CUSTOMER))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
-    void availabilityGeneralForbiddenForStaffToken() throws Exception {
+    void availabilityGeneralAllowedForStaffToken() throws Exception {
+        org.mockito.Mockito.when(availabilityPortIn.checkGeneralAvailability(
+                        org.mockito.ArgumentMatchers.any(LocalDateTime.class), org.mockito.ArgumentMatchers.any(Role.class)))
+                .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 10, 9, 0)));
+
         mockMvc.perform(get("/api/v1/availability/general")
                         .param("dateTime", "10/08/2026 09:00")
                         .param("role", "GROOMER")
                         .with(bearer(token(Role.ADMIN))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test

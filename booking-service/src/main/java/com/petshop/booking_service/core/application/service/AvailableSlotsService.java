@@ -62,7 +62,10 @@ public class AvailableSlotsService implements AvailableSlotsPortIn {
             if (dayOfWeek == DayOfWeek.SATURDAY && isVet) continue;
 
             var representativeTime = dayOfWeek == DayOfWeek.SATURDAY ? SATURDAY_START : WEEKDAY_START;
-            var roster = customerManagementPortOut.getScheduledStaff(day.atTime(representativeTime), role);
+            // Resposta é cacheada por (serviceType, referenceDate, range), sem o chamador na chave — por isso
+            // sempre consulta com token de serviço aqui, nunca repassa o de quem pediu (evitaria vazar o
+            // resultado cacheado pra um token diferente do que gerou o cache).
+            var roster = customerManagementPortOut.getScheduledStaff(day.atTime(representativeTime), role, null);
             if (roster.isEmpty()) continue;
 
             for (LocalTime slotTime : slotsOf(dayOfWeek)) {

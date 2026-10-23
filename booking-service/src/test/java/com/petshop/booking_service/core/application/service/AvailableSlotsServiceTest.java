@@ -81,7 +81,7 @@ class AvailableSlotsServiceTest {
         var result = service.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_SUNDAY, RangeType.DAY);
 
         assertThat(result).isEmpty();
-        verify(customerManagementPortOut, never()).getScheduledStaff(any(), any());
+        verify(customerManagementPortOut, never()).getScheduledStaff(any(), any(), any());
     }
 
     @Test
@@ -89,12 +89,12 @@ class AvailableSlotsServiceTest {
         var result = service.findAvailableSlots(ServiceType.CONSULTA_VETERINARIA, FAR_FUTURE_SATURDAY, RangeType.DAY);
 
         assertThat(result).isEmpty();
-        verify(customerManagementPortOut, never()).getScheduledStaff(any(), any());
+        verify(customerManagementPortOut, never()).getScheduledStaff(any(), any(), any());
     }
 
     @Test
     void returnsEmptyWhenNoStaffScheduledForTheDay() {
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"))).thenReturn(List.of());
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any())).thenReturn(List.of());
 
         var result = service.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY);
 
@@ -104,7 +104,7 @@ class AvailableSlotsServiceTest {
 
     @Test
     void returnsAllFourteenWeekdaySlotsWhenStaffAvailableAndNoBookings() {
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER")))
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any()))
                 .thenReturn(List.of(staff("Ciclana")));
         when(bookingPortOut.findActiveBookingsAt(any())).thenReturn(List.of());
 
@@ -117,7 +117,7 @@ class AvailableSlotsServiceTest {
 
     @Test
     void returnsAllSixSaturdaySlotsForGroomerService() {
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER")))
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any()))
                 .thenReturn(List.of(staff("Ciclana")));
         when(bookingPortOut.findActiveBookingsAt(any())).thenReturn(List.of());
 
@@ -130,7 +130,7 @@ class AvailableSlotsServiceTest {
     @Test
     void excludesSlotWhereEntireRosterIsAlreadyAssigned() {
         var fullyBookedSlot = FAR_FUTURE_MONDAY.atTime(9, 0);
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER")))
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any()))
                 .thenReturn(List.of(staff("Ciclana")));
         lenient().when(bookingPortOut.findActiveBookingsAt(any())).thenReturn(List.of());
 
@@ -146,25 +146,25 @@ class AvailableSlotsServiceTest {
 
     @Test
     void weekRangeQueriesStaffForSixDaysExcludingSundayForGroomerService() {
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"))).thenReturn(List.of());
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any())).thenReturn(List.of());
 
         service.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.WEEK);
 
-        verify(customerManagementPortOut, times(6)).getScheduledStaff(any(), eq("GROOMER"));
+        verify(customerManagementPortOut, times(6)).getScheduledStaff(any(), eq("GROOMER"), any());
     }
 
     @Test
     void weekRangeQueriesStaffForFiveDaysExcludingSundayAndSaturdayForVeterinaryService() {
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("VETERINARIAN"))).thenReturn(List.of());
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("VETERINARIAN"), any())).thenReturn(List.of());
 
         service.findAvailableSlots(ServiceType.CONSULTA_VETERINARIA, FAR_FUTURE_MONDAY, RangeType.WEEK);
 
-        verify(customerManagementPortOut, times(5)).getScheduledStaff(any(), eq("VETERINARIAN"));
+        verify(customerManagementPortOut, times(5)).getScheduledStaff(any(), eq("VETERINARIAN"), any());
     }
 
     @Test
     void monthRangeCoversEveryDayOfTheMonthExceptSundays() {
-        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"))).thenReturn(List.of());
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any())).thenReturn(List.of());
         var referenceDate = FAR_FUTURE_MONDAY.withDayOfMonth(1);
         var yearMonth = java.time.YearMonth.from(referenceDate);
         long sundays = referenceDate.datesUntil(yearMonth.atEndOfMonth().plusDays(1))
@@ -174,6 +174,6 @@ class AvailableSlotsServiceTest {
 
         service.findAvailableSlots(ServiceType.BANHO, referenceDate, RangeType.MONTH);
 
-        verify(customerManagementPortOut, times((int) expectedCalls)).getScheduledStaff(any(), eq("GROOMER"));
+        verify(customerManagementPortOut, times((int) expectedCalls)).getScheduledStaff(any(), eq("GROOMER"), any());
     }
 }

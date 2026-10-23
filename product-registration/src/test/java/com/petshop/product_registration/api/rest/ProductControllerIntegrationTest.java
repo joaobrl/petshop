@@ -337,24 +337,35 @@ class ProductControllerIntegrationTest {
         }
 
         // reserve/release/confirm são rotas internas (chamadas via Feign pelo
-        // order-service, que sempre emite um token de serviço novo) — um
-        // cliente com token válido não pode chamar direto, mesmo conhecendo a URL.
+        // order-service, que repassa o token de quem originou a requisição quando
+        // há um, com fallback pra um token de serviço — ver TokenPropagation do
+        // order-service), mas qualquer token autenticado passa aqui, não só SERVICE.
         @Test
-        void reserveStockForbiddenForCustomerToken() throws Exception {
+        void reserveStockSucceedsForCustomerToken() throws Exception {
+            var product = sampleProduct(1L);
+            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .with(customerAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(5))))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.reservedStock", is(5)));
         }
 
         @Test
-        void reserveStockForbiddenForAdminToken() throws Exception {
+        void reserveStockSucceedsForAdminToken() throws Exception {
+            var product = sampleProduct(1L);
+            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .with(adminAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(5))))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.reservedStock", is(5)));
         }
 
         @Test
@@ -396,12 +407,18 @@ class ProductControllerIntegrationTest {
         }
 
         @Test
-        void releaseStockForbiddenForReceptionistToken() throws Exception {
+        void releaseStockSucceedsForReceptionistToken() throws Exception {
+            var product = sampleProduct(1L);
+            product.setReservedStock(5);
+            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
             mockMvc.perform(post("/api/v1/products/1/release")
                             .with(receptionistAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(3))))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.reservedStock", is(2)));
         }
 
         @Test
@@ -420,12 +437,18 @@ class ProductControllerIntegrationTest {
         }
 
         @Test
-        void confirmStockForbiddenForAdminToken() throws Exception {
+        void confirmStockSucceedsForAdminToken() throws Exception {
+            var product = sampleProduct(1L);
+            product.setReservedStock(5);
+            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
             mockMvc.perform(post("/api/v1/products/1/confirm")
                             .with(adminAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(4))))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.stock", is(46)));
         }
 
         @Test

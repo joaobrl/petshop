@@ -152,16 +152,16 @@ class ProductStockAdapterOutTest {
         void returnsMappedInfoOnSuccess() {
             when(productFeign.reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), anyString())).thenReturn(sampleResponse());
 
-            var info = adapter.reserve(1L, 5);
+            var info = adapter.reserve(1L, 5, null);
 
             assertThat(info.id()).isEqualTo(1L);
         }
 
         @Test
-        void alwaysUsesAFreshServiceTokenNeverTheCallersToken() {
+        void mintsAServiceTokenWhenNoCallerTokenIsGiven() {
             when(productFeign.reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), anyString())).thenReturn(sampleResponse());
 
-            adapter.reserve(1L, 5);
+            adapter.reserve(1L, 5, null);
 
             var captor = org.mockito.ArgumentCaptor.forClass(String.class);
             verify(productFeign).reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), captor.capture());
@@ -170,10 +170,19 @@ class ProductStockAdapterOutTest {
         }
 
         @Test
+        void relaysTheCallerTokenWhenGiven() {
+            when(productFeign.reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), anyString())).thenReturn(sampleResponse());
+
+            adapter.reserve(1L, 5, "Bearer user-token");
+
+            verify(productFeign).reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), eq("Bearer user-token"));
+        }
+
+        @Test
         void throwsNotFoundWhenProductMissing() {
             when(productFeign.reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), anyString())).thenThrow(feignException(404, null));
 
-            assertThatThrownBy(() -> adapter.reserve(1L, 5)).isInstanceOf(NotFoundException.class);
+            assertThatThrownBy(() -> adapter.reserve(1L, 5, null)).isInstanceOf(NotFoundException.class);
         }
 
         @Test
@@ -181,7 +190,7 @@ class ProductStockAdapterOutTest {
             when(productFeign.reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), anyString()))
                     .thenThrow(feignException(422, "{\"detail\":\"Estoque insuficiente\"}"));
 
-            assertThatThrownBy(() -> adapter.reserve(1L, 5))
+            assertThatThrownBy(() -> adapter.reserve(1L, 5, null))
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessage("Estoque insuficiente");
         }
@@ -192,16 +201,23 @@ class ProductStockAdapterOutTest {
 
         @Test
         void callsFeignWithoutThrowingOnSuccess() {
-            adapter.release(1L, 3);
+            adapter.release(1L, 3, null);
 
             verify(productFeign).release(eq(1L), eq(new StockAdjustmentRequestDto(3)), anyString());
+        }
+
+        @Test
+        void relaysTheCallerTokenWhenGiven() {
+            adapter.release(1L, 3, "Bearer user-token");
+
+            verify(productFeign).release(eq(1L), eq(new StockAdjustmentRequestDto(3)), eq("Bearer user-token"));
         }
 
         @Test
         void swallowsNotFoundAndLogsInstead() {
             when(productFeign.release(eq(1L), eq(new StockAdjustmentRequestDto(3)), anyString())).thenThrow(feignException(404, null));
 
-            assertThatCode(() -> adapter.release(1L, 3)).doesNotThrowAnyException();
+            assertThatCode(() -> adapter.release(1L, 3, null)).doesNotThrowAnyException();
 
             verify(productFeign).release(eq(1L), eq(new StockAdjustmentRequestDto(3)), anyString());
         }
@@ -210,7 +226,7 @@ class ProductStockAdapterOutTest {
         void swallowsAnyOtherFeignFailureAndLogsInstead() {
             when(productFeign.release(eq(1L), eq(new StockAdjustmentRequestDto(3)), anyString())).thenThrow(feignException(503, null));
 
-            assertThatCode(() -> adapter.release(1L, 3)).doesNotThrowAnyException();
+            assertThatCode(() -> adapter.release(1L, 3, null)).doesNotThrowAnyException();
 
             verify(productFeign).release(eq(1L), eq(new StockAdjustmentRequestDto(3)), anyString());
         }
@@ -221,16 +237,23 @@ class ProductStockAdapterOutTest {
 
         @Test
         void callsFeignWithoutThrowingOnSuccess() {
-            adapter.confirm(1L, 2);
+            adapter.confirm(1L, 2, null);
 
             verify(productFeign).confirm(eq(1L), eq(new StockAdjustmentRequestDto(2)), anyString());
+        }
+
+        @Test
+        void relaysTheCallerTokenWhenGiven() {
+            adapter.confirm(1L, 2, "Bearer user-token");
+
+            verify(productFeign).confirm(eq(1L), eq(new StockAdjustmentRequestDto(2)), eq("Bearer user-token"));
         }
 
         @Test
         void swallowsFeignFailureAndLogsInstead() {
             when(productFeign.confirm(eq(1L), eq(new StockAdjustmentRequestDto(2)), anyString())).thenThrow(feignException(503, null));
 
-            assertThatCode(() -> adapter.confirm(1L, 2)).doesNotThrowAnyException();
+            assertThatCode(() -> adapter.confirm(1L, 2, null)).doesNotThrowAnyException();
 
             verify(productFeign).confirm(eq(1L), eq(new StockAdjustmentRequestDto(2)), anyString());
         }

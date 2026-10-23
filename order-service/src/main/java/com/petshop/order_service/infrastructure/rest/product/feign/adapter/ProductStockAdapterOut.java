@@ -35,13 +35,13 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
         }
     }
 
-    // reserve/release/confirm são rotas internas do product-registration
-    // (chamadas só pelo order-service) — sempre usam um token de serviço
-    // novo, nunca o token do cliente que iniciou a requisição.
+    // reserve/release/confirm são rotas internas do product-registration (chamadas só pelo
+    // order-service) — repassam o token de quem chamou quando há um (relay-com-fallback);
+    // sem requisição HTTP em curso (ex.: PaymentMockScheduler), assina um token de serviço.
     @Override
-    public ProductStockInfo reserve(Long productId, int quantity) {
+    public ProductStockInfo reserve(Long productId, int quantity, String token) {
         try {
-            var response = productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.mintServiceToken());
+            var response = productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader(token));
             return new ProductStockInfo(response.getId(), response.getName(), response.getPrice());
         } catch (FeignException.NotFound e) {
             throw new NotFoundException("Produto", productId);
@@ -51,9 +51,9 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     }
 
     @Override
-    public void release(Long productId, int quantity) {
+    public void release(Long productId, int quantity, String token) {
         try {
-            productFeign.release(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.mintServiceToken());
+            productFeign.release(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader(token));
         } catch (FeignException.NotFound e) {
             log.warn("Produto {} não encontrado ao tentar liberar reserva de estoque.", productId);
         } catch (FeignException e) {
@@ -62,9 +62,9 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     }
 
     @Override
-    public void confirm(Long productId, int quantity) {
+    public void confirm(Long productId, int quantity, String token) {
         try {
-            productFeign.confirm(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.mintServiceToken());
+            productFeign.confirm(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader(token));
         } catch (FeignException e) {
             log.error("Falha ao confirmar baixa definitiva de estoque do produto {}: {}", productId, e.getMessage());
         }

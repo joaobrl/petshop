@@ -36,7 +36,7 @@ public class CartService implements CartPortIn {
                 .orElseGet(() -> Cart.openFor(customerId, reservationTtlHours));
 
         var productInfo = reserveStock
-                ? productStockPortOut.reserve(productId, quantity)
+                ? productStockPortOut.reserve(productId, quantity, token)
                 : productStockPortOut.getInfo(productId, token);
 
         cart.addOrIncrementItem(productId, productInfo.name(), productInfo.price(), quantity, reserveStock);
@@ -50,7 +50,7 @@ public class CartService implements CartPortIn {
 
     @Override
     @Transactional
-    public Cart removeItem(UUID customerId, Long productId) {
+    public Cart removeItem(UUID customerId, Long productId, String token) {
         var cart = cartPortOut.findOpenCartByCustomerId(customerId)
                 .orElseThrow(() -> new NotFoundException("Carrinho do cliente", customerId));
 
@@ -58,7 +58,7 @@ public class CartService implements CartPortIn {
                 .orElseThrow(() -> new NotFoundException("Item do carrinho para o produto", productId));
 
         if (item.isReserved()) {
-            productStockPortOut.release(productId, item.getQuantity());
+            productStockPortOut.release(productId, item.getQuantity(), token);
         }
         cart.removeItem(productId);
 
@@ -83,7 +83,8 @@ public class CartService implements CartPortIn {
 
             for (var item : cart.getItems()) {
                 if (item.isReserved()) {
-                    productStockPortOut.release(item.getProductId(), item.getQuantity());
+                    // Scheduler, sem requisição HTTP em curso — TokenPropagation assina um token de serviço.
+                    productStockPortOut.release(item.getProductId(), item.getQuantity(), null);
                 }
             }
             cart.setStatus(CartStatus.EXPIRED);

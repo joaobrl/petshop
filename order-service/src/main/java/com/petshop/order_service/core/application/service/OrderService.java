@@ -59,7 +59,7 @@ public class OrderService implements OrderPortIn {
 
         // Itens adicionados sem login não reservam estoque na hora; garante
         // aqui que tudo esteja reservado antes de virar pedido de verdade.
-        ensureAllItemsReserved(cart);
+        ensureAllItemsReserved(cart, token);
 
         var order = Order.fromCart(cart);
         var savedOrder = orderPortOut.save(order);
@@ -75,10 +75,10 @@ public class OrderService implements OrderPortIn {
         return savedOrder;
     }
 
-    private void ensureAllItemsReserved(Cart cart) {
+    private void ensureAllItemsReserved(Cart cart, String token) {
         for (var item : cart.getItems()) {
             if (!item.isReserved()) {
-                productStockPortOut.reserve(item.getProductId(), item.getQuantity());
+                productStockPortOut.reserve(item.getProductId(), item.getQuantity(), token);
                 item.setReserved(true);
             }
         }
@@ -108,7 +108,8 @@ public class OrderService implements OrderPortIn {
             orderPortOut.save(order);
 
             for (var item : order.getItems()) {
-                productStockPortOut.confirm(item.getProductId(), item.getQuantity());
+                // Scheduler, sem requisição HTTP em curso — TokenPropagation assina um token de serviço.
+                productStockPortOut.confirm(item.getProductId(), item.getQuantity(), null);
             }
 
             customerPortOut.findCustomerById(order.getCustomerId(), null).ifPresentOrElse(

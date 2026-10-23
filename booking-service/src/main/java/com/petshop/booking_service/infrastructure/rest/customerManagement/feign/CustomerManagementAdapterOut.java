@@ -22,11 +22,11 @@ public class CustomerManagementAdapterOut implements CustomerManagementPortOut {
     private final TokenPropagation tokenPropagation;
 
     @Override
-    public List<StaffAssignment> getScheduledStaff(LocalDateTime dateTime, String role) {
+    public List<StaffAssignment> getScheduledStaff(LocalDateTime dateTime, String role, String token) {
         String formattedDate = mapper.toQueryParam(dateTime);
 
         try {
-            var response = feignClient.getSchedule(formattedDate, role, tokenPropagation.mintServiceToken());
+            var response = feignClient.getSchedule(formattedDate, role, tokenPropagation.resolveAuthorizationHeader(token));
 
             if (response == null) {
                 log.warn("MS staff-service devolveu resposta vazia pra data: {}", formattedDate);
