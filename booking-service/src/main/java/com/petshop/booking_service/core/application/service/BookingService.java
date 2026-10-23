@@ -53,18 +53,7 @@ public class BookingService implements BookingPortIn {
     @Override
     @Transactional
     @CacheEvict(cacheNames = "availableSlots", allEntries = true)
-    public Booking createBooking(BookingRequestDto bookingRequest) {
-        return doCreateBooking(bookingRequest, null);
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking createBooking(BookingRequestDto bookingRequest, Role requesterRole) {
-        return doCreateBooking(bookingRequest, requesterRole);
-    }
-
-    private Booking doCreateBooking(BookingRequestDto bookingRequest, Role requesterRole) {
         validateBookingTime(bookingRequest.getBookingDateTime(), bookingRequest.getServiceType(), requesterRole);
 
         validateNoConflictingPetBooking(
@@ -98,18 +87,7 @@ public class BookingService implements BookingPortIn {
     @Override
     @Transactional
     @CacheEvict(cacheNames = "availableSlots", allEntries = true)
-    public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status) {
-        return doUpdateBooking(id, bookingUpdate, status, null);
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole) {
-        return doUpdateBooking(id, bookingUpdate, status, requesterRole);
-    }
-
-    private Booking doUpdateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole) {
         var booking = findBookingById(id);
 
         if (StatusBooking.COMPLETED.name().equalsIgnoreCase(status)) {

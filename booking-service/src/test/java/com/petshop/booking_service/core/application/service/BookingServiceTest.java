@@ -110,7 +110,7 @@ class BookingServiceTest {
     void rejectsNullBookingDateTime() {
         var dto = requestDto(ServiceType.BANHO, null);
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Data e hora do agendamento não podem ser nulas");
     }
@@ -119,7 +119,7 @@ class BookingServiceTest {
     void rejectsNullServiceType() {
         var dto = requestDto(null, FAR_FUTURE_MONDAY.atTime(9, 0));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Tipo de serviço não pode ser nulo");
     }
@@ -128,7 +128,7 @@ class BookingServiceTest {
     void rejectsSundayBooking() {
         var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_SUNDAY.atTime(9, 0));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("A loja não funciona aos domingos");
     }
@@ -137,7 +137,7 @@ class BookingServiceTest {
     void rejectsVeterinaryConsultationOnSaturday() {
         var dto = requestDto(ServiceType.CONSULTA_VETERINARIA, FAR_FUTURE_SATURDAY.atTime(9, 0));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Consultas veterinárias só estão disponíveis de segunda a sexta-feira");
     }
@@ -146,7 +146,7 @@ class BookingServiceTest {
     void rejectsWeekdayBookingBeforeOpeningHours() {
         var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(8, 0));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
     }
@@ -155,7 +155,7 @@ class BookingServiceTest {
     void rejectsWeekdayBookingDuringLunchBreak() {
         var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(12, 30));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
     }
@@ -164,7 +164,7 @@ class BookingServiceTest {
     void rejectsWeekdayBookingAfterClosingHours() {
         var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(17, 30));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
     }
@@ -173,7 +173,7 @@ class BookingServiceTest {
     void rejectsSaturdayBookingOutsideAllowedHours() {
         var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_SATURDAY.atTime(11, 30));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Agendamentos aos sábados devem ser entre 8h e 11h");
     }
@@ -358,7 +358,7 @@ class BookingServiceTest {
         when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
         when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var result = service.createBooking(dto);
+        var result = service.createBooking(dto, null);
 
         assertThat(result.getEmployeeName()).isEqualTo("Ciclana");
         verify(notificationPortOut).sendBookingScheduled(result);
@@ -376,7 +376,7 @@ class BookingServiceTest {
         when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of(occupied));
         when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var result = service.createBooking(dto);
+        var result = service.createBooking(dto, null);
 
         assertThat(result.getEmployeeName()).isEqualTo("Beltrano");
     }
@@ -388,7 +388,7 @@ class BookingServiceTest {
         when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER")).thenReturn(List.of());
         when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("Não há funcionário disponível");
 
@@ -404,7 +404,7 @@ class BookingServiceTest {
         occupied.setEmployeeName("Ciclana");
         when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of(occupied));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
@@ -420,7 +420,7 @@ class BookingServiceTest {
         when(availableSlotsPortIn.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY))
                 .thenReturn(List.of(new AvailableSlot(suggested, 1)));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(BookingUnavailableException.class)
                 .hasMessageContaining("Não há funcionário disponível")
                 .hasMessageContaining("Próximo horário disponível no mesmo dia")
@@ -437,7 +437,7 @@ class BookingServiceTest {
         when(availableSlotsPortIn.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY))
                 .thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(BookingUnavailableException.class)
                 .hasMessageContaining("Não há mais horários disponíveis")
                 .extracting(ex -> ((BookingUnavailableException) ex).getSuggestedSlot())
@@ -458,7 +458,7 @@ class BookingServiceTest {
                         new AvailableSlot(dateTime, 1),
                         new AvailableSlot(FAR_FUTURE_MONDAY.atTime(10, 0), 1)));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(BookingUnavailableException.class)
                 .extracting(ex -> ((BookingUnavailableException) ex).getSuggestedSlot())
                 .isEqualTo(FAR_FUTURE_MONDAY.atTime(10, 0));
@@ -476,7 +476,7 @@ class BookingServiceTest {
         when(bookingPortOut.findActiveBookingsForPetOnDate(petId, FAR_FUTURE_MONDAY))
                 .thenReturn(List.of(existingBooking));
 
-        assertThatThrownBy(() -> service.createBooking(dto))
+        assertThatThrownBy(() -> service.createBooking(dto, null))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining(FAR_FUTURE_MONDAY.toString());
 
@@ -494,7 +494,7 @@ class BookingServiceTest {
         when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
         when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var result = service.createBooking(dto);
+        var result = service.createBooking(dto, null);
 
         assertThat(result.getPetId()).isEqualTo(petId);
     }
@@ -542,7 +542,7 @@ class BookingServiceTest {
 
         var update = new BookingUpdateDto();
         update.setObservations("Concluído");
-        var result = service.updateBooking(id, update, "COMPLETED");
+        var result = service.updateBooking(id, update, "COMPLETED", null);
 
         assertThat(result.getStatus()).isEqualTo(StatusBooking.COMPLETED);
         verify(notificationPortOut).sendBookingCompleted(booking);
@@ -563,7 +563,7 @@ class BookingServiceTest {
 
         var update = new BookingUpdateDto();
         update.setBookingDateTime(newDateTime);
-        var result = service.updateBooking(id, update, null);
+        var result = service.updateBooking(id, update, null, null);
 
         assertThat(result.getEmployeeName()).isEqualTo("Fulana");
         assertThat(result.getBookingDateTime()).isEqualTo(newDateTime);
@@ -585,7 +585,7 @@ class BookingServiceTest {
 
         var update = new BookingUpdateDto();
         update.setBookingDateTime(newDateTime);
-        service.updateBooking(id, update, null);
+        service.updateBooking(id, update, null, null);
 
         verify(customerManagementPortOut).getScheduledStaff(newDateTime, "VETERINARIAN");
     }
@@ -600,7 +600,7 @@ class BookingServiceTest {
 
         var update = new BookingUpdateDto();
         update.setObservations("Só mudando observação");
-        var result = service.updateBooking(id, update, null);
+        var result = service.updateBooking(id, update, null, null);
 
         assertThat(result.getObservations()).isEqualTo("Só mudando observação");
         assertThat(result.getEmployeeName()).isEqualTo("Ciclana");
@@ -623,7 +623,7 @@ class BookingServiceTest {
         var update = new BookingUpdateDto();
         update.setBookingDateTime(newDateTime);
 
-        assertThatThrownBy(() -> service.updateBooking(id, update, null))
+        assertThatThrownBy(() -> service.updateBooking(id, update, null, null))
                 .isInstanceOf(ConflictException.class);
 
         verify(bookingPortOut, never()).save(any());
@@ -648,7 +648,7 @@ class BookingServiceTest {
 
         var update = new BookingUpdateDto();
         update.setBookingDateTime(newDateTime);
-        var result = service.updateBooking(id, update, null);
+        var result = service.updateBooking(id, update, null, null);
 
         assertThat(result.getBookingDateTime()).isEqualTo(newDateTime);
     }
