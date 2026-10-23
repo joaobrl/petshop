@@ -77,7 +77,7 @@ class CartPersistenceAdapterOutTest {
         var cart = Cart.openFor(customerId, 24);
         var entity = new CartEntity();
         entity.setId(cart.getId());
-        when(repository.findByCustomerIdAndStatus(customerId, CartStatus.OPEN)).thenReturn(Optional.of(entity));
+        when(repository.findByCustomerIdAndStatusOrderByCreatedAtDesc(customerId, CartStatus.OPEN)).thenReturn(List.of(entity));
         when(mapper.toDomain(entity)).thenReturn(cart);
 
         assertThat(adapter.findOpenCartByCustomerId(customerId)).contains(cart);

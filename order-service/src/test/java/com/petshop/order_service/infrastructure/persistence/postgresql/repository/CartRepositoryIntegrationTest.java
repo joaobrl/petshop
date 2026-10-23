@@ -62,15 +62,35 @@ class CartRepositoryIntegrationTest {
         checkedOutCart.setStatus(CartStatus.CHECKED_OUT);
         repository.save(checkedOutCart);
 
-        var found = repository.findByCustomerIdAndStatus(customerId, CartStatus.OPEN);
+        var found = repository.findByCustomerIdAndStatusOrderByCreatedAtDesc(customerId, CartStatus.OPEN);
 
-        assertThat(found).isPresent();
-        assertThat(found.get().getId()).isEqualTo(openCart.getId());
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0).getId()).isEqualTo(openCart.getId());
     }
 
     @Test
     void findByCustomerIdAndStatusReturnsEmptyWhenNoneMatch() {
-        assertThat(repository.findByCustomerIdAndStatus(UUID.randomUUID(), CartStatus.OPEN)).isEmpty();
+        assertThat(repository.findByCustomerIdAndStatusOrderByCreatedAtDesc(UUID.randomUUID(), CartStatus.OPEN)).isEmpty();
+    }
+
+    @Test
+    void findByCustomerIdAndStatusReturnsMostRecentFirstWhenDuplicateOpenCartsExist() {
+        // Nothing stops two OPEN carts existing for the same customer today
+        // (see CartRepository) — this is what lets the adapter tolerate it
+        // instead of the derived single-result query throwing.
+        var customerId = UUID.randomUUID();
+        var older = openCart(customerId, LocalDateTime.now().plusHours(1));
+        older.setCreatedAt(LocalDateTime.now().minusMinutes(5));
+        repository.save(older);
+
+        var newer = openCart(customerId, LocalDateTime.now().plusHours(1));
+        newer.setCreatedAt(LocalDateTime.now());
+        repository.save(newer);
+
+        var found = repository.findByCustomerIdAndStatusOrderByCreatedAtDesc(customerId, CartStatus.OPEN);
+
+        assertThat(found).hasSize(2);
+        assertThat(found.get(0).getId()).isEqualTo(newer.getId());
     }
 
     @Test
