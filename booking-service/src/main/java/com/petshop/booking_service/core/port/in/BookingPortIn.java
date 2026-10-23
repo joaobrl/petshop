@@ -12,7 +12,6 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 public interface BookingPortIn {
-    Booking createBooking(BookingRequestDto request);
 
     /**
      * {@code requesterRole} ADMIN/RECEPTIONIST dispensa só a antecedência mínima de 2h e a duplicidade de
@@ -25,8 +24,6 @@ public interface BookingPortIn {
     Page<Booking> findBookings(BookingSearchCriteriaDto criteria, Pageable pageable);
 
     Booking findBookingById(UUID id);
-
-    Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status);
 
     Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole);
 
