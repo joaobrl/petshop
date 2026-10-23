@@ -3,6 +3,7 @@ package com.petshop.customermanagement.api.rest;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.customermanagement.core.domain.Customer;
 import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.domain.enums.PetType;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -41,11 +43,14 @@ class CustomerControllerImplTest {
     @Mock
     private CustomerIdentityResolver customerIdentityResolver;
 
+    private static final JwtService JWT_SERVICE =
+            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+
     private CustomerControllerImpl controller;
 
     @BeforeEach
     void setUp() {
-        controller = new CustomerControllerImpl(portIn, customerIdentityResolver);
+        controller = new CustomerControllerImpl(portIn, customerIdentityResolver, JWT_SERVICE);
     }
 
     private Customer sampleCustomer() {
@@ -56,6 +61,10 @@ class CustomerControllerImplTest {
 
     private AuthenticatedUser user() {
         return new AuthenticatedUser(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999", Role.CUSTOMER, AccountType.CUSTOMER);
+    }
+
+    private String tokenFor(AuthenticatedUser user) {
+        return "Bearer " + JWT_SERVICE.generateToken(user.id(), user.email(), user.name(), user.cpf(), user.phone(), user.role(), user.type());
     }
 
     @Test
@@ -102,7 +111,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.findCustomerByIdOrCpf(customer.getId().toString())).thenReturn(customer);
 
-            var response = controller.getCustomerById(customer.getId().toString(), user);
+            var response = controller.getCustomerById(customer.getId().toString(), tokenFor(user));
 
             var inOrder = inOrder(portIn, customerIdentityResolver);
             inOrder.verify(portIn).findCustomerByIdOrCpf(customer.getId().toString());
@@ -117,7 +126,7 @@ class CustomerControllerImplTest {
             when(portIn.findCustomerByIdOrCpf(customer.getId().toString())).thenReturn(customer);
             doThrow(new AccessDeniedException("nope")).when(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
 
-            assertThatThrownBy(() -> controller.getCustomerById(customer.getId().toString(), user)).isInstanceOf(AccessDeniedException.class);
+            assertThatThrownBy(() -> controller.getCustomerById(customer.getId().toString(), tokenFor(user))).isInstanceOf(AccessDeniedException.class);
         }
 
         @Test
@@ -127,7 +136,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.updateCustomer(customer.getId(), dto)).thenReturn(customer);
 
-            var response = controller.updateCustomer(customer.getId(), dto, user);
+            var response = controller.updateCustomer(customer.getId(), dto, tokenFor(user));
 
             verify(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -138,7 +147,7 @@ class CustomerControllerImplTest {
             var id = UUID.randomUUID();
             var user = user();
 
-            var response = controller.deleteCustomer(id, user);
+            var response = controller.deleteCustomer(id, tokenFor(user));
 
             verify(customerIdentityResolver).requireOwnershipIfCustomer(id, user);
             verify(portIn).deleteCustomer(id);
@@ -152,7 +161,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.addPetToCustomer(customer.getId(), petRequests)).thenReturn(customer);
 
-            var response = controller.addPetToCustomer(customer.getId(), petRequests, user);
+            var response = controller.addPetToCustomer(customer.getId(), petRequests, tokenFor(user));
 
             verify(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -163,7 +172,7 @@ class CustomerControllerImplTest {
             var customer = sampleCustomer();
             var user = user();
 
-            assertThatThrownBy(() -> controller.addPetToCustomer(customer.getId(), List.of(), user))
+            assertThatThrownBy(() -> controller.addPetToCustomer(customer.getId(), List.of(), tokenFor(user)))
                     .isInstanceOf(IllegalArgumentException.class);
 
             verify(portIn, never()).addPetToCustomer(any(), any());
@@ -180,7 +189,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.addPetToCustomer(customer.getId(), petRequests)).thenReturn(customer);
 
-            var response = controller.addPetToCustomer(customer.getId(), petRequests, user);
+            var response = controller.addPetToCustomer(customer.getId(), petRequests, tokenFor(user));
 
             verify(portIn).addPetToCustomer(customer.getId(), petRequests);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -194,7 +203,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.updatePet(customer.getId(), petId, petRequest)).thenReturn(customer);
 
-            var response = controller.updatePet(customer.getId(), petId, petRequest, user);
+            var response = controller.updatePet(customer.getId(), petId, petRequest, tokenFor(user));
 
             verify(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -207,7 +216,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.removePetFromCustomer(customer.getId(), petId)).thenReturn(customer);
 
-            var response = controller.removePetFromCustomer(customer.getId(), petId, user);
+            var response = controller.removePetFromCustomer(customer.getId(), petId, tokenFor(user));
 
             verify(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -222,7 +231,7 @@ class CustomerControllerImplTest {
             var user = user();
             when(portIn.customerList()).thenReturn(List.of(customer, other));
 
-            var response = controller.listPetsOfCustomer(customer.getId(), user);
+            var response = controller.listPetsOfCustomer(customer.getId(), tokenFor(user));
 
             verify(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
             assertThat(response.getBody()).hasSize(1);
@@ -234,7 +243,7 @@ class CustomerControllerImplTest {
             var id = UUID.randomUUID();
             when(portIn.customerList()).thenReturn(List.of(sampleCustomer()));
 
-            assertThatThrownBy(() -> controller.listPetsOfCustomer(id, user))
+            assertThatThrownBy(() -> controller.listPetsOfCustomer(id, tokenFor(user)))
                     .isInstanceOf(EntityNotFoundException.class);
         }
     }

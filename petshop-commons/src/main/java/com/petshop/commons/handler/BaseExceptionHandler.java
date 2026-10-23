@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -57,6 +58,15 @@ public abstract class BaseExceptionHandler {
                 .toList();
         problem.setProperty("errors", errors);
 
+        return problem;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Corpo da requisição malformado: {}", ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Corpo da requisição malformado ou com um campo em formato inválido.");
+        problem.setTitle("Invalid request");
         return problem;
     }
 

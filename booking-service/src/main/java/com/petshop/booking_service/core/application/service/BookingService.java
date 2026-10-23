@@ -19,6 +19,7 @@ import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.core.port.out.NotificationPortOut;
 import com.petshop.booking_service.core.port.out.dto.BookingResponseDto;
 import com.petshop.commons.exception.ConflictException;
+import com.petshop.commons.security.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -46,15 +48,27 @@ public class BookingService implements BookingPortIn {
     private final NotificationPortOut notificationPortOut;
     private final BookingHistoryPortOut bookingHistoryPortOut;
     private final AvailableSlotsPortIn availableSlotsPortIn;
+    private final Clock clock;
 
     @Override
     @Transactional
     @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking createBooking(BookingRequestDto bookingRequest) {
-        validateBookingTime(bookingRequest.getBookingDateTime(), bookingRequest.getServiceType());
+        return doCreateBooking(bookingRequest, null);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
+    public Booking createBooking(BookingRequestDto bookingRequest, Role requesterRole) {
+        return doCreateBooking(bookingRequest, requesterRole);
+    }
+
+    private Booking doCreateBooking(BookingRequestDto bookingRequest, Role requesterRole) {
+        validateBookingTime(bookingRequest.getBookingDateTime(), bookingRequest.getServiceType(), requesterRole);
 
         validateNoConflictingPetBooking(
-                UUID.fromString(bookingRequest.getPetId()), bookingRequest.getBookingDateTime(), null);
+                UUID.fromString(bookingRequest.getPetId()), bookingRequest.getBookingDateTime(), null, requesterRole);
         var employeeName = ensureAvailabilityAndAssignEmployee(
                 bookingRequest.getBookingDateTime(), bookingRequest.getServiceType());
 
@@ -85,6 +99,17 @@ public class BookingService implements BookingPortIn {
     @Transactional
     @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status) {
+        return doUpdateBooking(id, bookingUpdate, status, null);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
+    public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole) {
+        return doUpdateBooking(id, bookingUpdate, status, requesterRole);
+    }
+
+    private Booking doUpdateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole) {
         var booking = findBookingById(id);
 
         if (StatusBooking.COMPLETED.name().equalsIgnoreCase(status)) {
@@ -101,9 +126,9 @@ public class BookingService implements BookingPortIn {
             var effectiveServiceType = bookingUpdate.getServiceType() != null
                     ? bookingUpdate.getServiceType()
                     : booking.getServiceDetails().getServiceType();
-            validateBookingTime(bookingUpdate.getBookingDateTime(), effectiveServiceType);
+            validateBookingTime(bookingUpdate.getBookingDateTime(), effectiveServiceType, requesterRole);
 
-            validateNoConflictingPetBooking(booking.getPetId(), bookingUpdate.getBookingDateTime(), id);
+            validateNoConflictingPetBooking(booking.getPetId(), bookingUpdate.getBookingDateTime(), id, requesterRole);
             var employeeName = ensureAvailabilityAndAssignEmployee(bookingUpdate.getBookingDateTime(), effectiveServiceType);
             booking.setEmployeeName(employeeName);
         }
@@ -141,15 +166,24 @@ public class BookingService implements BookingPortIn {
         return bookingPortOut.save(booking);
     }
 
-    private void validateNoConflictingPetBooking(UUID petId, LocalDateTime bookingDateTime, UUID excludeBookingId) {
-        var conflict = bookingPortOut.findActiveBookingsForPetOnDate(petId, bookingDateTime.toLocalDate()).stream()
-                .anyMatch(b -> excludeBookingId == null || !b.getId().equals(excludeBookingId));
+    private void validateNoConflictingPetBooking(UUID petId, LocalDateTime bookingDateTime, UUID excludeBookingId, Role requesterRole) {
+        var otherBookingsSameDay = bookingPortOut.findActiveBookingsForPetOnDate(petId, bookingDateTime.toLocalDate()).stream()
+                .filter(b -> excludeBookingId == null || !b.getId().equals(excludeBookingId))
+                .toList();
+
+        // ADMIN/RECEPTIONIST podem agendar um segundo atendimento pro mesmo pet no mesmo dia desde que nenhum dos
+        // agendamentos existentes esteja pendente/em andamento (status enum não distingue os dois, então SCHEDULED
+        // cobre ambos) — um atendimento já COMPLETED não impede o novo agendamento.
+        var conflict = isBookingRestrictionExempt(requesterRole)
+                ? otherBookingsSameDay.stream().anyMatch(b -> b.getStatus() == StatusBooking.SCHEDULED)
+                : !otherBookingsSameDay.isEmpty();
+
         if (conflict) {
             throw new ConflictException("O pet já possui um agendamento marcado para " + bookingDateTime.toLocalDate());
         }
     }
 
-    private void validateBookingTime(LocalDateTime bookingDateTime, ServiceType serviceType) {
+    private void validateBookingTime(LocalDateTime bookingDateTime, ServiceType serviceType, Role requesterRole) {
         if (bookingDateTime == null) throw new IllegalArgumentException("Data e hora do agendamento não podem ser nulas");
         if (serviceType == null) throw new IllegalArgumentException("Tipo de serviço não pode ser nulo");
 
@@ -157,6 +191,9 @@ public class BookingService implements BookingPortIn {
         var dayOfWeek = bookingDateTime.getDayOfWeek();
         var isVet = serviceType == ServiceType.CONSULTA_VETERINARIA;
 
+        // Horário de funcionamento/dia da semana vale pra todo mundo, inclusive ADMIN/RECEPTIONIST — o
+        // staff-service não sabe desse papel e continua recusando escala fora dessa janela de qualquer jeito
+        // (AvailabilityService#isValidSlot), então dispensar essa regra aqui não teria efeito prático.
         if (dayOfWeek == DayOfWeek.SUNDAY) {
             throw new IllegalArgumentException("A loja não funciona aos domingos");
         }
@@ -177,12 +214,23 @@ public class BookingService implements BookingPortIn {
             }
         }
 
-        var now = LocalDateTime.now();
+        // Só a antecedência mínima é dispensada pra ADMIN/RECEPTIONIST — permite encaixar um cliente que
+        // chegou na loja agora, por exemplo. Disponibilidade de funcionário continua sendo checada depois,
+        // em ensureAvailabilityAndAssignEmployee.
+        if (isBookingRestrictionExempt(requesterRole)) {
+            return;
+        }
+
+        var now = LocalDateTime.now(clock);
         var twoHoursFromNow = now.plusHours(2);
 
         if (!bookingDateTime.isAfter(twoHoursFromNow)) {
             throw new IllegalArgumentException("O agendamento deve ser feito com pelo menos 2 horas de antecedência");
         }
+    }
+
+    private boolean isBookingRestrictionExempt(Role requesterRole) {
+        return requesterRole == Role.ADMIN || requesterRole == Role.RECEPTIONIST;
     }
 
     private String ensureAvailabilityAndAssignEmployee(LocalDateTime bookingDateTime, ServiceType serviceType) {

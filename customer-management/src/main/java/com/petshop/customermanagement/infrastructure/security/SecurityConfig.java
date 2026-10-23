@@ -40,22 +40,12 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
-                        // Sem isso, o probe de liveness/readiness do k8s (que não manda
-                        // token — é só o kubelet checando "tá de pé?") cai no
-                        // anyRequest().hasAnyRole(...) e toma 401 pra sempre, e o pod
-                        // nunca fica Ready. Só health é exposto por HTTP por padrão
-                        // (sem management.endpoints.web.exposure.include configurado),
-                        // então liberar /actuator/health/** não vaza nada além disso.
+
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/forgot-password").permitAll()
                         .requestMatchers("/api/v1/auth/change-password").authenticated()
-                        // GET /staff/all é consumido internamente pelo staff-service (via
-                        // FeignTokenRelayConfig lá, sempre com token de serviço — ver
-                        // javadoc de lá) pra montar disponibilidade/escala; role SERVICE
-                        // cobre isso, sem abrir criação/edição/remoção de funcionário
-                        // (essas continuam só ADMIN, regra abaixo).
                         .requestMatchers(HttpMethod.GET, "/api/v1/staff/all").hasAnyRole("ADMIN", "SERVICE")
                         .requestMatchers("/api/v1/staff/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/customers/register/customer").permitAll()

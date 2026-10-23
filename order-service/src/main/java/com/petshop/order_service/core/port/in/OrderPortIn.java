@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public interface OrderPortIn {
 
-    Order checkout(UUID customerId);
+    Order checkout(UUID customerId, String token);
 
     Order findById(UUID id);
 

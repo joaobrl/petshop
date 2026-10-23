@@ -35,8 +35,6 @@ public class CustomerRequestDto {
     @NotBlank(message = "Confirmação de senha é obrigatória")
     private String confirmPassword;
 
-    // Validado aqui (não só no front) porque o cadastro é público e pode
-    // ser chamado direto na API, sem passar por nenhum formulário.
     @AssertTrue(message = "Senha e confirmação de senha devem ser iguais")
     public boolean isConfirmPasswordMatching() {
         return password == null || password.equals(confirmPassword);

@@ -14,7 +14,6 @@ public interface BookingHistoryPortOut {
 
     List<BookingHistory> findAllByCustomerId(UUID customerId);
 
-    /** Histórico de agendamentos da loja inteira — visão ADMIN/RECEPTIONIST. */
     Page<BookingHistory> findAll(Pageable pageable);
 
     BookingHistory save(BookingHistory history);

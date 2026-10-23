@@ -7,6 +7,7 @@ import com.petshop.order_service.core.domain.ProductStockInfo;
 import com.petshop.order_service.core.port.out.ProductStockPortOut;
 import com.petshop.order_service.infrastructure.rest.product.feign.ProductFeign;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.StockAdjustmentRequestDto;
+import com.petshop.order_service.infrastructure.security.TokenPropagation;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +19,14 @@ import org.springframework.stereotype.Component;
 public class ProductStockAdapterOut implements ProductStockPortOut {
 
     private final ProductFeign productFeign;
+    private final TokenPropagation tokenPropagation;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public ProductStockInfo getInfo(Long productId) {
+    public ProductStockInfo getInfo(Long productId, String token) {
         try {
-            var response = productFeign.findById(productId);
+            var response = productFeign.findById(productId, tokenPropagation.resolveAuthorizationHeader(token));
             return new ProductStockInfo(response.getId(), response.getName(), response.getPrice());
         } catch (FeignException.NotFound e) {
             throw new NotFoundException("Produto", productId);
@@ -33,10 +35,13 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
         }
     }
 
+    // reserve/release/confirm são rotas internas do product-registration
+    // (chamadas só pelo order-service) — sempre usam um token de serviço
+    // novo, nunca o token do cliente que iniciou a requisição.
     @Override
     public ProductStockInfo reserve(Long productId, int quantity) {
         try {
-            var response = productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity));
+            var response = productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.mintServiceToken());
             return new ProductStockInfo(response.getId(), response.getName(), response.getPrice());
         } catch (FeignException.NotFound e) {
             throw new NotFoundException("Produto", productId);
@@ -48,7 +53,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public void release(Long productId, int quantity) {
         try {
-            productFeign.release(productId, new StockAdjustmentRequestDto(quantity));
+            productFeign.release(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.mintServiceToken());
         } catch (FeignException.NotFound e) {
             log.warn("Produto {} não encontrado ao tentar liberar reserva de estoque.", productId);
         } catch (FeignException e) {
@@ -59,7 +64,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public void confirm(Long productId, int quantity) {
         try {
-            productFeign.confirm(productId, new StockAdjustmentRequestDto(quantity));
+            productFeign.confirm(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.mintServiceToken());
         } catch (FeignException e) {
             log.error("Falha ao confirmar baixa definitiva de estoque do produto {}: {}", productId, e.getMessage());
         }

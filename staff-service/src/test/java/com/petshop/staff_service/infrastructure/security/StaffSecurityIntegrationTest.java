@@ -53,6 +53,10 @@ class StaffSecurityIntegrationTest {
                 "11999990000", role, AccountType.STAFF);
     }
 
+    private String serviceToken() {
+        return TEST_JWT_SERVICE.generateServiceToken("booking-service");
+    }
+
     private RequestPostProcessor bearer(String token) {
         return request -> {
             request.addHeader("Authorization", "Bearer " + token);
@@ -75,8 +79,29 @@ class StaffSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // /availability/** só deve ser chamado internamente pelo booking-service
+    // (sempre com token de serviço) — um cliente com token válido não pode
+    // acessar diretamente, mesmo conhecendo a URL.
     @Test
-    void availabilityGeneralAllowsAnyAuthenticatedRole() throws Exception {
+    void availabilityGeneralForbiddenForCustomerToken() throws Exception {
+        mockMvc.perform(get("/api/v1/availability/general")
+                        .param("dateTime", "10/08/2026 09:00")
+                        .param("role", "GROOMER")
+                        .with(bearer(token(Role.CUSTOMER))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void availabilityGeneralForbiddenForStaffToken() throws Exception {
+        mockMvc.perform(get("/api/v1/availability/general")
+                        .param("dateTime", "10/08/2026 09:00")
+                        .param("role", "GROOMER")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void availabilityGeneralAllowedForServiceToken() throws Exception {
         org.mockito.Mockito.when(availabilityPortIn.checkGeneralAvailability(
                         org.mockito.ArgumentMatchers.any(LocalDateTime.class), org.mockito.ArgumentMatchers.any(Role.class)))
                 .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 10, 9, 0)));
@@ -84,7 +109,7 @@ class StaffSecurityIntegrationTest {
         mockMvc.perform(get("/api/v1/availability/general")
                         .param("dateTime", "10/08/2026 09:00")
                         .param("role", "GROOMER")
-                        .with(bearer(token(Role.CUSTOMER))))
+                        .with(bearer(serviceToken())))
                 .andExpect(status().isOk());
     }
 

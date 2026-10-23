@@ -84,6 +84,10 @@ class ProductControllerIntegrationTest {
         return bearer(TEST_JWT_SERVICE.generateToken(UUID.randomUUID(), "recepcao@petshop.local", "Recepcao", "00000000001", "11000000001", Role.RECEPTIONIST, AccountType.STAFF));
     }
 
+    private static RequestPostProcessor serviceAuth() {
+        return bearer(TEST_JWT_SERVICE.generateServiceToken("order-service"));
+    }
+
     private static RequestPostProcessor bearer(String token) {
         return request -> {
             request.addHeader("Authorization", "Bearer " + token);
@@ -325,21 +329,42 @@ class ProductControllerIntegrationTest {
         }
 
         @Test
-        void reserveStockRequiresAuthenticationButNotAnySpecificRole() throws Exception {
+        void reserveStockRequiresAuthentication() throws Exception {
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(5))))
                     .andExpect(status().isUnauthorized());
         }
 
+        // reserve/release/confirm são rotas internas (chamadas via Feign pelo
+        // order-service, que sempre emite um token de serviço novo) — um
+        // cliente com token válido não pode chamar direto, mesmo conhecendo a URL.
         @Test
-        void reserveStockSucceedsForAnyAuthenticatedRole() throws Exception {
+        void reserveStockForbiddenForCustomerToken() throws Exception {
+            mockMvc.perform(post("/api/v1/products/1/reserve")
+                            .with(customerAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(5))))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void reserveStockForbiddenForAdminToken() throws Exception {
+            mockMvc.perform(post("/api/v1/products/1/reserve")
+                            .with(adminAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(5))))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void reserveStockSucceedsForServiceToken() throws Exception {
             var product = sampleProduct(1L);
             when(productRepository.findById(1L)).thenReturn(Optional.of(product));
             when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
             mockMvc.perform(post("/api/v1/products/1/reserve")
-                            .with(customerAuth())
+                            .with(serviceAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(5))))
                     .andExpect(status().isOk())
@@ -354,7 +379,7 @@ class ProductControllerIntegrationTest {
             when(productRepository.findById(1L)).thenReturn(Optional.of(product));
 
             mockMvc.perform(post("/api/v1/products/1/reserve")
-                            .with(customerAuth())
+                            .with(serviceAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(1))))
                     .andExpect(status().isUnprocessableEntity())
@@ -364,21 +389,30 @@ class ProductControllerIntegrationTest {
         @Test
         void reserveStockReturnsBadRequestForNonPositiveQuantity() throws Exception {
             mockMvc.perform(post("/api/v1/products/1/reserve")
-                            .with(customerAuth())
+                            .with(serviceAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(0))))
                     .andExpect(status().isBadRequest());
         }
 
         @Test
-        void releaseStockSucceedsForAnyAuthenticatedRole() throws Exception {
+        void releaseStockForbiddenForReceptionistToken() throws Exception {
+            mockMvc.perform(post("/api/v1/products/1/release")
+                            .with(receptionistAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(3))))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void releaseStockSucceedsForServiceToken() throws Exception {
             var product = sampleProduct(1L);
             product.setReservedStock(5);
             when(productRepository.findById(1L)).thenReturn(Optional.of(product));
             when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
             mockMvc.perform(post("/api/v1/products/1/release")
-                            .with(receptionistAuth())
+                            .with(serviceAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(3))))
                     .andExpect(status().isOk())
@@ -386,14 +420,23 @@ class ProductControllerIntegrationTest {
         }
 
         @Test
-        void confirmStockSucceedsForAnyAuthenticatedRole() throws Exception {
+        void confirmStockForbiddenForAdminToken() throws Exception {
+            mockMvc.perform(post("/api/v1/products/1/confirm")
+                            .with(adminAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(4))))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void confirmStockSucceedsForServiceToken() throws Exception {
             var product = sampleProduct(1L);
             product.setReservedStock(5);
             when(productRepository.findById(1L)).thenReturn(Optional.of(product));
             when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
             mockMvc.perform(post("/api/v1/products/1/confirm")
-                            .with(adminAuth())
+                            .with(serviceAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(4))))
                     .andExpect(status().isOk())

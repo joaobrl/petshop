@@ -18,15 +18,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Throttling baseado em IP pros endpoints de autenticação sem sessão
- * (login, forgot-password) — hoje sem nenhum limite, o que permite brute
- * force / credential stuffing ilimitado. Janela fixa em memória (sem Redis):
- * suficiente porque cada serviço roda com 1 réplica hoje (ver
- * k8s/api-clientes/deployment.yaml); se isso mudar pra múltiplas réplicas,
- * o limite deixa de ser efetivo por instância e passaria a precisar de um
- * contador compartilhado.
- */
 public class RateLimitingFilter extends OncePerRequestFilter {
 
     private static final Set<String> LIMITED_PATHS = Set.of(

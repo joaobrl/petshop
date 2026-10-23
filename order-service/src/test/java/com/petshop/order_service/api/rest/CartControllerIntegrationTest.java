@@ -23,6 +23,8 @@ import java.time.Duration;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -83,7 +85,7 @@ class CartControllerIntegrationTest {
         @Test
         void addsItemWithoutReservingStockWhenAnonymous() throws Exception {
             var customerId = UUID.randomUUID();
-            when(productStockPortOut.getInfo(1L)).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
+            when(productStockPortOut.getInfo(eq(1L), any())).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
 
             mockMvc.perform(post("/api/v1/cart/items")
                             .contentType("application/json")
@@ -139,7 +141,7 @@ class CartControllerIntegrationTest {
         @Test
         void removesAPreviouslyAddedItem() throws Exception {
             var customerId = UUID.randomUUID();
-            when(productStockPortOut.getInfo(1L)).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
+            when(productStockPortOut.getInfo(eq(1L), any())).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
 
             mockMvc.perform(post("/api/v1/cart/items")
                     .contentType("application/json")
@@ -171,7 +173,7 @@ class CartControllerIntegrationTest {
         @Test
         void returnsExistingCartWithItems() throws Exception {
             var customerId = UUID.randomUUID();
-            when(productStockPortOut.getInfo(1L)).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
+            when(productStockPortOut.getInfo(eq(1L), any())).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
 
             mockMvc.perform(post("/api/v1/cart/items")
                     .contentType("application/json")

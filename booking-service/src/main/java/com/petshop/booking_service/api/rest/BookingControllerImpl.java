@@ -1,7 +1,9 @@
 package com.petshop.booking_service.api.rest;
 
+import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.booking_service.core.port.in.BookingPortIn;
 import com.petshop.booking_service.core.port.in.dto.BookingRequestDto;
 import com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto;
@@ -24,11 +26,13 @@ import java.util.UUID;
 public class BookingControllerImpl implements BookingController {
 
     private final BookingPortIn bookingPortIn;
+    private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<BookingResponseDto> createBooking(BookingRequestDto bookingRequest, UriComponentsBuilder uriBuilder, AuthenticatedUser user) {
+    public ResponseEntity<BookingResponseDto> createBooking(BookingRequestDto bookingRequest, UriComponentsBuilder uriBuilder, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         applyOwnerIdentity(bookingRequest, user);
-        var booking = bookingPortIn.createBooking(bookingRequest);
+        var booking = bookingPortIn.createBooking(bookingRequest, user != null ? user.role() : null);
         var uri = uriBuilder.path("/bookings/{id}").buildAndExpand(booking.getId()).toUri();
         return ResponseEntity.created(uri).body(new BookingResponseDto(booking));
     }
@@ -44,7 +48,8 @@ public class BookingControllerImpl implements BookingController {
     }
 
     @Override
-    public ResponseEntity<PageResponse<BookingResponseDto>> listBookings(String ownerCpf, UUID petId, LocalDate date, String employeeName, String serviceType, String status, Pageable pageable, AuthenticatedUser user) {
+    public ResponseEntity<PageResponse<BookingResponseDto>> listBookings(String ownerCpf, UUID petId, LocalDate date, String employeeName, String serviceType, String status, Pageable pageable, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
 
         String effectiveOwnerCpf = (user != null && user.type() == AccountType.CUSTOMER)
                 ? user.cpf()
@@ -57,7 +62,8 @@ public class BookingControllerImpl implements BookingController {
     }
 
     @Override
-    public ResponseEntity<BookingResponseDto> getFindBookingById(UUID id, AuthenticatedUser user) {
+    public ResponseEntity<BookingResponseDto> getFindBookingById(UUID id, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var booking = bookingPortIn.findBookingById(id);
         requireOwnershipIfCustomer(booking.getOwnerCpf(), user);
         return ResponseEntity.ok(new BookingResponseDto(booking));
@@ -73,21 +79,23 @@ public class BookingControllerImpl implements BookingController {
     }
 
     @Override
-    public ResponseEntity<BookingResponseDto> updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, AuthenticatedUser user) {
+    public ResponseEntity<BookingResponseDto> updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         requireOwnershipIfCustomer(bookingPortIn.findBookingById(id).getOwnerCpf(), user);
-        var booking = bookingPortIn.updateBooking(id, bookingUpdate, status);
+        var booking = bookingPortIn.updateBooking(id, bookingUpdate, status, user != null ? user.role() : null);
         return ResponseEntity.ok(new BookingResponseDto(booking));
     }
 
     @Override
-    public ResponseEntity<BookingResponseDto> cancelBooking(UUID id, AuthenticatedUser user) {
+    public ResponseEntity<BookingResponseDto> cancelBooking(UUID id, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         requireOwnershipIfCustomer(bookingPortIn.findBookingById(id).getOwnerCpf(), user);
         var booking = bookingPortIn.cancelBooking(id);
         return ResponseEntity.ok(new BookingResponseDto(booking));
     }
 
     @Override
-    public ResponseEntity<BookingResponseDto> confirmPayment(UUID id, PaymentConfirmationRequestDto request, AuthenticatedUser user) {
+    public ResponseEntity<BookingResponseDto> confirmPayment(UUID id, PaymentConfirmationRequestDto request, String token) {
         var booking = bookingPortIn.confirmPayment(id, request);
         return ResponseEntity.ok(new BookingResponseDto(booking));
     }

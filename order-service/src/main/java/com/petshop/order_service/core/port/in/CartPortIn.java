@@ -11,7 +11,7 @@ public interface CartPortIn {
      *                      logado — o item entra no carrinho, mas o
      *                      estoque não é reservado.
      */
-    Cart addItem(UUID customerId, Long productId, int quantity, boolean reserveStock);
+    Cart addItem(UUID customerId, Long productId, int quantity, boolean reserveStock, String token);
 
     Cart removeItem(UUID customerId, Long productId);
 

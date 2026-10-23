@@ -3,6 +3,7 @@ package com.petshop.staff_service.infrastructure.rest.customermanagement.adapter
 import com.petshop.staff_service.core.domain.Staff;
 import com.petshop.staff_service.core.port.out.StaffPortOut;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.feign.StaffRegistryFeign;
+import com.petshop.staff_service.infrastructure.security.TokenPropagation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -19,10 +20,11 @@ public class StaffFeignAdapterOut implements StaffPortOut {
     private static final int FULL_ROSTER_FETCH_SIZE = 500;
 
     private final StaffRegistryFeign staffRegistryFeign;
+    private final TokenPropagation tokenPropagation;
 
     @Override
     public List<Staff> findAll() {
-        return staffRegistryFeign.findAll(0, FULL_ROSTER_FETCH_SIZE).content().stream()
+        return staffRegistryFeign.findAll(0, FULL_ROSTER_FETCH_SIZE, tokenPropagation.mintServiceToken()).content().stream()
                 .map(dto -> new Staff(dto.getId(), dto.getName(), dto.getCpf(), dto.getEmail(), dto.getPhone(), dto.getEnabled(), dto.getRole()))
                 .toList();
     }

@@ -60,6 +60,8 @@ class OrderServiceTest {
         ReflectionTestUtils.setField(orderService, "pickupMaxDelayMinutes", 60);
     }
 
+    private static final String TOKEN = "Bearer test-token";
+
     private Cart cartWithItems(UUID customerId, boolean allReserved) {
         var cart = Cart.openFor(customerId, 24);
         cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
@@ -75,7 +77,7 @@ class OrderServiceTest {
             var customerId = UUID.randomUUID();
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.checkout(customerId))
+            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
                     .isInstanceOf(BusinessRuleException.class);
         }
 
@@ -85,7 +87,7 @@ class OrderServiceTest {
             var cart = Cart.openFor(customerId, 24);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId))
+            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("vazio");
         }
@@ -97,10 +99,10 @@ class OrderServiceTest {
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
             when(productStockPortOut.reserve(2L, 1)).thenReturn(new ProductStockInfo(2L, "Brinquedo", 5.0));
-            when(customerPortOut.findCustomerById(customerId))
+            when(customerPortOut.findCustomerById(customerId, TOKEN))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
-            orderService.checkout(customerId);
+            orderService.checkout(customerId, TOKEN);
 
             verify(productStockPortOut).reserve(2L, 1);
             verify(productStockPortOut, never()).reserve(eq(1L), anyInt());
@@ -112,10 +114,10 @@ class OrderServiceTest {
             var cart = cartWithItems(customerId, true);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(customerPortOut.findCustomerById(customerId))
+            when(customerPortOut.findCustomerById(customerId, TOKEN))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
-            var order = orderService.checkout(customerId);
+            var order = orderService.checkout(customerId, TOKEN);
 
             assertThat(order.getCustomerId()).isEqualTo(customerId);
             assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
@@ -130,9 +132,9 @@ class OrderServiceTest {
             var cart = cartWithItems(customerId, true);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(customerPortOut.findCustomerById(customerId)).thenReturn(Optional.empty());
+            when(customerPortOut.findCustomerById(customerId, TOKEN)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.checkout(customerId))
+            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
                     .isInstanceOf(NotFoundException.class);
         }
     }
@@ -177,7 +179,7 @@ class OrderServiceTest {
             var customerId = UUID.randomUUID();
             var order = Order.fromCart(cartWithItems(customerId, true));
             when(orderPortOut.findAwaitingPaymentCreatedBefore(any())).thenReturn(List.of(order));
-            when(customerPortOut.findCustomerById(customerId))
+            when(customerPortOut.findCustomerById(customerId, null))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
             orderService.processPendingPayments();
@@ -198,7 +200,7 @@ class OrderServiceTest {
             var customerId = UUID.randomUUID();
             var order = Order.fromCart(cartWithItems(customerId, true));
             when(orderPortOut.findAwaitingPaymentCreatedBefore(any())).thenReturn(List.of(order));
-            when(customerPortOut.findCustomerById(customerId)).thenReturn(Optional.empty());
+            when(customerPortOut.findCustomerById(customerId, null)).thenReturn(Optional.empty());
 
             orderService.processPendingPayments();
 
@@ -236,7 +238,7 @@ class OrderServiceTest {
             var order = Order.fromCart(cartWithItems(customerId, true));
             order.markAsPaid();
             when(orderPortOut.findPaidAndPickupDue(any())).thenReturn(List.of(order));
-            when(customerPortOut.findCustomerById(customerId))
+            when(customerPortOut.findCustomerById(customerId, null))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
             orderService.processPickupReadyOrders();
@@ -252,7 +254,7 @@ class OrderServiceTest {
             var order = Order.fromCart(cartWithItems(customerId, true));
             order.markAsPaid();
             when(orderPortOut.findPaidAndPickupDue(any())).thenReturn(List.of(order));
-            when(customerPortOut.findCustomerById(customerId)).thenReturn(Optional.empty());
+            when(customerPortOut.findCustomerById(customerId, null)).thenReturn(Optional.empty());
 
             orderService.processPickupReadyOrders();
 

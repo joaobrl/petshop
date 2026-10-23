@@ -1,6 +1,6 @@
 package com.petshop.order_service.api.rest;
 
-import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.api.rest.dto.CartResponseDto;
 import com.petshop.order_service.core.port.in.CartPortIn;
 import com.petshop.order_service.core.port.in.dto.AddCartItemRequestDto;
@@ -17,24 +17,28 @@ public class CartControllerImpl implements CartController {
 
     private final CartPortIn cartPortIn;
     private final CustomerIdentityResolver customerIdentityResolver;
+    private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<CartResponseDto> addItem(AddCartItemRequestDto request, AuthenticatedUser user) {
+    public ResponseEntity<CartResponseDto> addItem(AddCartItemRequestDto request, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var customerId = customerIdentityResolver.resolveCustomerId(request.getCustomerId(), user);
         boolean reserveStock = user != null;
-        var cart = cartPortIn.addItem(customerId, request.getProductId(), request.getQuantity(), reserveStock);
+        var cart = cartPortIn.addItem(customerId, request.getProductId(), request.getQuantity(), reserveStock, token);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 
     @Override
-    public ResponseEntity<CartResponseDto> removeItem(Long productId, UUID customerId, AuthenticatedUser user) {
+    public ResponseEntity<CartResponseDto> removeItem(Long productId, UUID customerId, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
         var cart = cartPortIn.removeItem(resolvedCustomerId, productId);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 
     @Override
-    public ResponseEntity<CartResponseDto> getCart(UUID customerId, AuthenticatedUser user) {
+    public ResponseEntity<CartResponseDto> getCart(UUID customerId, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
         var cart = cartPortIn.getCart(resolvedCustomerId);
         return ResponseEntity.ok(new CartResponseDto(cart));

@@ -3,6 +3,7 @@ package com.petshop.customermanagement.api.rest;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.customermanagement.core.domain.BookingHistory;
 import com.petshop.customermanagement.core.domain.PurchaseHistory;
 import com.petshop.customermanagement.core.port.in.HistoryPortIn;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +29,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class HistoryControllerImplTest {
+
+    private static final JwtService JWT_SERVICE =
+            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
 
     @Mock
     private HistoryPortIn historyPortIn;
@@ -38,11 +43,15 @@ class HistoryControllerImplTest {
 
     @BeforeEach
     void setUp() {
-        controller = new HistoryControllerImpl(historyPortIn, customerIdentityResolver);
+        controller = new HistoryControllerImpl(historyPortIn, customerIdentityResolver, JWT_SERVICE);
     }
 
     private AuthenticatedUser user() {
         return new AuthenticatedUser(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999", Role.CUSTOMER, AccountType.CUSTOMER);
+    }
+
+    private String tokenFor(AuthenticatedUser user) {
+        return "Bearer " + JWT_SERVICE.generateToken(user.id(), user.email(), user.name(), user.cpf(), user.phone(), user.role(), user.type());
     }
 
     @Test
@@ -53,7 +62,7 @@ class HistoryControllerImplTest {
         history.setCustomerId(customerId);
         when(historyPortIn.findCustomerBookingHistory(customerId)).thenReturn(List.of(history));
 
-        var response = controller.getCustomerBookingHistory(customerId, user);
+        var response = controller.getCustomerBookingHistory(customerId, tokenFor(user));
 
         InOrder inOrder = inOrder(customerIdentityResolver, historyPortIn);
         inOrder.verify(customerIdentityResolver).requireOwnershipIfCustomer(customerId, user);
@@ -69,7 +78,7 @@ class HistoryControllerImplTest {
         doThrow(new AccessDeniedException("nope")).when(customerIdentityResolver)
                 .requireOwnershipIfCustomer(customerId, user);
 
-        assertThatThrownBy(() -> controller.getCustomerBookingHistory(customerId, user))
+        assertThatThrownBy(() -> controller.getCustomerBookingHistory(customerId, tokenFor(user)))
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(historyPortIn, never()).findCustomerBookingHistory(any());
@@ -81,7 +90,7 @@ class HistoryControllerImplTest {
         var user = user();
         when(historyPortIn.findCustomerBookingHistory(customerId)).thenReturn(List.of());
 
-        var response = controller.getCustomerBookingHistory(customerId, user);
+        var response = controller.getCustomerBookingHistory(customerId, tokenFor(user));
 
         assertThat(response.getBody()).isEmpty();
     }
@@ -94,7 +103,7 @@ class HistoryControllerImplTest {
         history.setCustomerId(customerId);
         when(historyPortIn.findCustomerPurchaseHistory(customerId)).thenReturn(List.of(history));
 
-        var response = controller.getCustomerPurchaseHistory(customerId, user);
+        var response = controller.getCustomerPurchaseHistory(customerId, tokenFor(user));
 
         InOrder inOrder = inOrder(customerIdentityResolver, historyPortIn);
         inOrder.verify(customerIdentityResolver).requireOwnershipIfCustomer(customerId, user);
@@ -109,7 +118,7 @@ class HistoryControllerImplTest {
         doThrow(new AccessDeniedException("nope")).when(customerIdentityResolver)
                 .requireOwnershipIfCustomer(customerId, user);
 
-        assertThatThrownBy(() -> controller.getCustomerPurchaseHistory(customerId, user))
+        assertThatThrownBy(() -> controller.getCustomerPurchaseHistory(customerId, tokenFor(user)))
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(historyPortIn, never()).findCustomerPurchaseHistory(any());

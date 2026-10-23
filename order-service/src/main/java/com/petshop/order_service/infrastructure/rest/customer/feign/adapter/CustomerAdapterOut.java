@@ -3,6 +3,7 @@ package com.petshop.order_service.infrastructure.rest.customer.feign.adapter;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.port.out.CustomerPortOut;
 import com.petshop.order_service.infrastructure.rest.customer.feign.CustomerFeign;
+import com.petshop.order_service.infrastructure.security.TokenPropagation;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,11 +18,12 @@ import java.util.UUID;
 public class CustomerAdapterOut implements CustomerPortOut {
 
     private final CustomerFeign customerFeign;
+    private final TokenPropagation tokenPropagation;
 
     @Override
-    public Optional<CustomerInfo> findCustomerById(UUID customerId) {
+    public Optional<CustomerInfo> findCustomerById(UUID customerId, String token) {
         try {
-            var response = customerFeign.getCustomerById(customerId);
+            var response = customerFeign.getCustomerById(customerId, tokenPropagation.resolveAuthorizationHeader(token));
             if (response == null) {
                 return Optional.empty();
             }

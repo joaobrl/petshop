@@ -17,6 +17,7 @@ import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.core.port.out.NotificationPortOut;
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
+import com.petshop.commons.security.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,9 +27,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
@@ -78,7 +81,7 @@ class BookingServiceTest {
         lenient().when(availableSlotsPortIn.findAvailableSlots(any(), any(), any())).thenReturn(List.of());
         // Padrão "sem conflito", evita NPE em validateNoConflictingPetBooking — mesmo motivo acima.
         lenient().when(bookingPortOut.findActiveBookingsForPetOnDate(any(), any())).thenReturn(List.of());
-        service = new BookingService(bookingPortOut, customerManagementPortOut, notificationPortOut, bookingHistoryPortOut, availableSlotsPortIn);
+        service = new BookingService(bookingPortOut, customerManagementPortOut, notificationPortOut, bookingHistoryPortOut, availableSlotsPortIn, Clock.systemDefaultZone());
     }
 
     private BookingRequestDto requestDto(ServiceType serviceType, LocalDateTime dateTime) {
@@ -173,6 +176,175 @@ class BookingServiceTest {
         assertThatThrownBy(() -> service.createBooking(dto))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Agendamentos aos sábados devem ser entre 8h e 11h");
+    }
+
+    // ---------- ADMIN/RECEPTIONIST continuam sujeitos ao horário de funcionamento ----------
+    // (só a antecedência mínima de 2h é dispensada — ver o bloco de testes mais abaixo)
+
+    @Test
+    void adminStillSubjectToSundayRuleOnCreate() {
+        var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_SUNDAY.atTime(9, 0));
+
+        assertThatThrownBy(() -> service.createBooking(dto, Role.ADMIN))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A loja não funciona aos domingos");
+    }
+
+    @Test
+    void receptionistStillSubjectToOpeningHoursRuleOnCreate() {
+        var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(7, 0));
+
+        assertThatThrownBy(() -> service.createBooking(dto, Role.RECEPTIONIST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Agendamentos em dias úteis devem ser entre 9h e 17h, com intervalo de almoço entre 12h e 13h");
+    }
+
+    @Test
+    void adminStillRequiresAvailableStaffOnCreate() {
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var dto = requestDto(ServiceType.BANHO, dateTime);
+        when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER")).thenReturn(List.of());
+        when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.createBooking(dto, Role.ADMIN))
+                .isInstanceOf(BookingUnavailableException.class);
+
+        verify(bookingPortOut, never()).save(any());
+    }
+
+    @Test
+    void customerRoleDoesNotBypassBusinessHoursRuleOnCreate() {
+        var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_SUNDAY.atTime(9, 0));
+
+        assertThatThrownBy(() -> service.createBooking(dto, Role.CUSTOMER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A loja não funciona aos domingos");
+    }
+
+    // ---------- ADMIN/RECEPTIONIST dispensam só a antecedência mínima de 2h ----------
+    // Precisa de um Clock fixo: a regra compara bookingDateTime com "agora", então sem controlar
+    // "agora" não há como testar de forma determinística um agendamento a menos de 2h de distância.
+
+    private BookingService serviceWithFixedClock(LocalDateTime fixedNow) {
+        var zone = ZoneId.systemDefault();
+        var clock = Clock.fixed(fixedNow.atZone(zone).toInstant(), zone);
+        return new BookingService(bookingPortOut, customerManagementPortOut, notificationPortOut, bookingHistoryPortOut, availableSlotsPortIn, clock);
+    }
+
+    @Test
+    void adminBypassesMinimumAdvanceNoticeOnCreate() {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(10, 0);
+        var bookingDateTime = fixedNow.plusMinutes(30);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var dto = requestDto(ServiceType.BANHO, bookingDateTime);
+        when(customerManagementPortOut.getScheduledStaff(bookingDateTime, "GROOMER")).thenReturn(List.of(staff("Ciclana")));
+        when(bookingPortOut.findActiveBookingsAt(bookingDateTime)).thenReturn(List.of());
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = fixedClockService.createBooking(dto, Role.ADMIN);
+
+        assertThat(result.getEmployeeName()).isEqualTo("Ciclana");
+    }
+
+    @Test
+    void receptionistBypassesMinimumAdvanceNoticeOnCreate() {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(10, 0);
+        var bookingDateTime = fixedNow.plusMinutes(30);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var dto = requestDto(ServiceType.BANHO, bookingDateTime);
+        when(customerManagementPortOut.getScheduledStaff(bookingDateTime, "GROOMER")).thenReturn(List.of(staff("Ciclana")));
+        when(bookingPortOut.findActiveBookingsAt(bookingDateTime)).thenReturn(List.of());
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = fixedClockService.createBooking(dto, Role.RECEPTIONIST);
+
+        assertThat(result.getEmployeeName()).isEqualTo("Ciclana");
+    }
+
+    @Test
+    void customerRoleIsStillBlockedByMinimumAdvanceNoticeOnCreate() {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(10, 0);
+        var bookingDateTime = fixedNow.plusMinutes(30);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var dto = requestDto(ServiceType.BANHO, bookingDateTime);
+
+        assertThatThrownBy(() -> fixedClockService.createBooking(dto, Role.CUSTOMER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("O agendamento deve ser feito com pelo menos 2 horas de antecedência");
+    }
+
+    @Test
+    void adminBypassesMinimumAdvanceNoticeOnUpdate() {
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(10, 0);
+        var newDateTime = fixedNow.plusMinutes(30);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        when(customerManagementPortOut.getScheduledStaff(newDateTime, "GROOMER")).thenReturn(List.of(staff("Fulana")));
+        when(bookingPortOut.findActiveBookingsAt(newDateTime)).thenReturn(List.of());
+
+        var update = new BookingUpdateDto();
+        update.setBookingDateTime(newDateTime);
+        var result = fixedClockService.updateBooking(id, update, null, Role.ADMIN);
+
+        assertThat(result.getEmployeeName()).isEqualTo("Fulana");
+        assertThat(result.getBookingDateTime()).isEqualTo(newDateTime);
+    }
+
+    @Test
+    void receptionistCanCreateSecondBookingSameDayWhenExistingBookingForPetIsCompleted() {
+        var petId = UUID.randomUUID();
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var dto = requestDto(ServiceType.BANHO, dateTime, petId);
+        var completedBooking = new Booking();
+        completedBooking.setId(UUID.randomUUID());
+        completedBooking.setStatus(StatusBooking.COMPLETED);
+        when(bookingPortOut.findActiveBookingsForPetOnDate(petId, FAR_FUTURE_MONDAY))
+                .thenReturn(List.of(completedBooking));
+        when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER")).thenReturn(List.of(staff("Ciclana")));
+        when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.createBooking(dto, Role.RECEPTIONIST);
+
+        assertThat(result.getPetId()).isEqualTo(petId);
+    }
+
+    @Test
+    void adminIsStillBlockedWhenPetHasPendingBookingSameDay() {
+        var petId = UUID.randomUUID();
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var dto = requestDto(ServiceType.BANHO, dateTime, petId);
+        var pendingBooking = new Booking();
+        pendingBooking.setId(UUID.randomUUID());
+        pendingBooking.setStatus(StatusBooking.SCHEDULED);
+        when(bookingPortOut.findActiveBookingsForPetOnDate(petId, FAR_FUTURE_MONDAY))
+                .thenReturn(List.of(pendingBooking));
+
+        assertThatThrownBy(() -> service.createBooking(dto, Role.ADMIN))
+                .isInstanceOf(ConflictException.class);
+
+        verify(bookingPortOut, never()).save(any());
+    }
+
+    @Test
+    void customerRoleIsStillBlockedByCompletedBookingSameDay() {
+        var petId = UUID.randomUUID();
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var dto = requestDto(ServiceType.BANHO, dateTime, petId);
+        var completedBooking = new Booking();
+        completedBooking.setId(UUID.randomUUID());
+        completedBooking.setStatus(StatusBooking.COMPLETED);
+        when(bookingPortOut.findActiveBookingsForPetOnDate(petId, FAR_FUTURE_MONDAY))
+                .thenReturn(List.of(completedBooking));
+
+        assertThatThrownBy(() -> service.createBooking(dto, Role.CUSTOMER))
+                .isInstanceOf(ConflictException.class);
+
+        verify(bookingPortOut, never()).save(any());
     }
 
     // ---------- criação bem-sucedida / atribuição de funcionário ----------

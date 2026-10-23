@@ -6,5 +6,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface CustomerPortOut {
-    Optional<CustomerInfo> findCustomerById(UUID customerId);
+    Optional<CustomerInfo> findCustomerById(UUID customerId, String token);
 }

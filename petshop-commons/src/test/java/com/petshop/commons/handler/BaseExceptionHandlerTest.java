@@ -6,6 +6,7 @@ import com.petshop.commons.exception.NotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -89,6 +90,19 @@ class BaseExceptionHandlerTest {
 
     @SuppressWarnings("unused")
     private void dummyMethod(String param) {
+    }
+
+    @Test
+    void handlesMessageNotReadable() {
+        var ex = new HttpMessageNotReadableException("JSON parse error: Cannot deserialize value of type `java.time.LocalDateTime`");
+
+        var problem = handler.handleMessageNotReadable(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail())
+                .isEqualTo("Corpo da requisição malformado ou com um campo em formato inválido.")
+                .doesNotContain("LocalDateTime");
     }
 
     @Test

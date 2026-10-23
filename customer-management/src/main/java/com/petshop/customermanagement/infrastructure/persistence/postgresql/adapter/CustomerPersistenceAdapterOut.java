@@ -36,14 +36,6 @@ public class CustomerPersistenceAdapterOut implements CustomerPortOut {
     @Override
     public Customer save(Customer customer) {
         CustomerEntity entity = mapper.toEntity(customer);
-        // mapper.toEntity() sempre monta um CustomerEntity novo (via
-        // construtor vazio + setters), então o campo transient "isNew"
-        // volta pro default (true) em TODA chamada — mesmo quando
-        // customer já existe no banco (update/delete/add-pet chegam aqui
-        // depois de um findCustomer()). Sem checar isso, o Spring Data
-        // tentaria persist() num id que já existe -> erro de PK
-        // duplicada. Um exists() a mais aqui é barato (index scan por PK)
-        // e evita esse problema por completo.
         if (customerRepository.existsById(entity.getId())) {
             entity.setNew(false);
         }
