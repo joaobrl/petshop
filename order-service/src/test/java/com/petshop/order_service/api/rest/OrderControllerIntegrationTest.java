@@ -26,6 +26,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -86,7 +88,7 @@ class OrderControllerIntegrationTest {
 
     private UUID checkoutAndGetOrderId(UUID customerId) throws Exception {
         addItem(customerId, customerAuth(customerId));
-        when(customerPortOut.findCustomerById(customerId))
+        when(customerPortOut.findCustomerById(eq(customerId), any()))
                 .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
         var response = mockMvc.perform(post("/api/v1/orders/checkout")
@@ -138,7 +140,7 @@ class OrderControllerIntegrationTest {
         void succeedsAndReturnsCreatedOrder() throws Exception {
             var customerId = UUID.randomUUID();
             addItem(customerId, customerAuth(customerId));
-            when(customerPortOut.findCustomerById(customerId))
+            when(customerPortOut.findCustomerById(eq(customerId), any()))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
             mockMvc.perform(post("/api/v1/orders/checkout")
@@ -154,7 +156,7 @@ class OrderControllerIntegrationTest {
         void returnsNotFoundWhenCustomerDoesNotExist() throws Exception {
             var customerId = UUID.randomUUID();
             addItem(customerId, customerAuth(customerId));
-            when(customerPortOut.findCustomerById(customerId)).thenReturn(Optional.empty());
+            when(customerPortOut.findCustomerById(eq(customerId), any())).thenReturn(Optional.empty());
 
             mockMvc.perform(post("/api/v1/orders/checkout")
                             .param("customerId", customerId.toString())

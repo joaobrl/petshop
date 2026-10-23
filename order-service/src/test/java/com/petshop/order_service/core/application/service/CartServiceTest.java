@@ -40,6 +40,8 @@ class CartServiceTest {
 
     private CartService cartService;
 
+    private static final String TOKEN = "Bearer test-token";
+
     @BeforeEach
     void setUp() {
         cartService = new CartService(cartPortOut, productStockPortOut, customerPortOut, notificationPortOut);
@@ -56,26 +58,26 @@ class CartServiceTest {
             when(productStockPortOut.reserve(1L, 2)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            var cart = cartService.addItem(customerId, 1L, 2, true);
+            var cart = cartService.addItem(customerId, 1L, 2, true, TOKEN);
 
             assertThat(cart.getCustomerId()).isEqualTo(customerId);
             assertThat(cart.getItems()).hasSize(1);
             assertThat(cart.getItems().get(0).isReserved()).isTrue();
             verify(productStockPortOut).reserve(1L, 2);
-            verify(productStockPortOut, never()).getInfo(any());
+            verify(productStockPortOut, never()).getInfo(any(), any());
         }
 
         @Test
         void usesInfoOnlyWithoutReservingWhenNotLoggedIn() {
             var customerId = UUID.randomUUID();
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.empty());
-            when(productStockPortOut.getInfo(1L)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
+            when(productStockPortOut.getInfo(1L, TOKEN)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            var cart = cartService.addItem(customerId, 1L, 2, false);
+            var cart = cartService.addItem(customerId, 1L, 2, false, TOKEN);
 
             assertThat(cart.getItems().get(0).isReserved()).isFalse();
-            verify(productStockPortOut).getInfo(1L);
+            verify(productStockPortOut).getInfo(1L, TOKEN);
             verify(productStockPortOut, never()).reserve(any(), anyInt());
         }
 
@@ -87,7 +89,7 @@ class CartServiceTest {
             when(productStockPortOut.reserve(1L, 1)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            var cart = cartService.addItem(customerId, 1L, 1, true);
+            var cart = cartService.addItem(customerId, 1L, 1, true, TOKEN);
 
             assertThat(cart.getId()).isEqualTo(existingCart.getId());
         }
@@ -189,7 +191,7 @@ class CartServiceTest {
             cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, false);
             when(cartPortOut.findExpiredOpenCarts()).thenReturn(List.of(cart));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(customerPortOut.findCustomerById(customerId))
+            when(customerPortOut.findCustomerById(customerId, null))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
             cartService.expireOldCarts();
@@ -208,7 +210,7 @@ class CartServiceTest {
             cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
             when(cartPortOut.findExpiredOpenCarts()).thenReturn(List.of(cart));
             when(cartPortOut.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(customerPortOut.findCustomerById(customerId)).thenReturn(Optional.empty());
+            when(customerPortOut.findCustomerById(customerId, null)).thenReturn(Optional.empty());
 
             cartService.expireOldCarts();
 

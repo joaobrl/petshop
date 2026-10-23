@@ -9,8 +9,6 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import com.petshop.commons.security.jwt.AuthenticatedUser;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -24,7 +22,7 @@ public interface BookingController {
     ResponseEntity<BookingResponseDto> createBooking(
             @Valid @RequestBody BookingRequestDto bookingRequest,
             UriComponentsBuilder uriBuilder,
-            @AuthenticationPrincipal AuthenticatedUser user);
+            @RequestHeader("Authorization") String token);
 
 
     @GetMapping("/list")
@@ -35,21 +33,21 @@ public interface BookingController {
                                                           @RequestParam(required = false) String serviceType,
                                                           @RequestParam(required = false) String status,
                                                           @PageableDefault(size = 20) Pageable pageable,
-                                                          @AuthenticationPrincipal AuthenticatedUser user);
+                                                          @RequestHeader("Authorization") String token);
 
     @GetMapping("/find/{id}")
-    ResponseEntity<BookingResponseDto> getFindBookingById(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<BookingResponseDto> getFindBookingById(@PathVariable UUID id, @RequestHeader("Authorization") String token);
 
     @PatchMapping("/update/{id}")
-    ResponseEntity<BookingResponseDto> updateBooking(@PathVariable UUID id, @Valid @RequestBody BookingUpdateDto bookingUpdate, @RequestParam(required = false) String status, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<BookingResponseDto> updateBooking(@PathVariable UUID id, @Valid @RequestBody BookingUpdateDto bookingUpdate, @RequestParam(required = false) String status, @RequestHeader("Authorization") String token);
 
     @DeleteMapping("/cancel/{id}")
-    ResponseEntity<BookingResponseDto> cancelBooking(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<BookingResponseDto> cancelBooking(@PathVariable UUID id, @RequestHeader("Authorization") String token);
 
     @PatchMapping("/confirm-payment/{id}")
     ResponseEntity<BookingResponseDto> confirmPayment(
             @PathVariable UUID id,
             @Valid @RequestBody PaymentConfirmationRequestDto request,
-            @AuthenticationPrincipal AuthenticatedUser user);
+            @RequestHeader("Authorization") String token);
 
 }

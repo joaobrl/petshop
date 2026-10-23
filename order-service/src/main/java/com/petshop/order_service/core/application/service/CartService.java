@@ -31,13 +31,13 @@ public class CartService implements CartPortIn {
 
     @Override
     @Transactional
-    public Cart addItem(UUID customerId, Long productId, int quantity, boolean reserveStock) {
+    public Cart addItem(UUID customerId, Long productId, int quantity, boolean reserveStock, String token) {
         var cart = cartPortOut.findOpenCartByCustomerId(customerId)
                 .orElseGet(() -> Cart.openFor(customerId, reservationTtlHours));
 
         var productInfo = reserveStock
                 ? productStockPortOut.reserve(productId, quantity)
-                : productStockPortOut.getInfo(productId);
+                : productStockPortOut.getInfo(productId, token);
 
         cart.addOrIncrementItem(productId, productInfo.name(), productInfo.price(), quantity, reserveStock);
         cart.renewExpiration(reservationTtlHours);
@@ -99,7 +99,7 @@ public class CartService implements CartPortIn {
     // Só dispara lembrete se o carrinho expirou com itens; carrinho
     // anônimo (sem cliente cadastrado) não tem e-mail pra mandar, só loga.
     private void sendAbandonedCartReminder(Cart cart) {
-        customerPortOut.findCustomerById(cart.getCustomerId()).ifPresentOrElse(
+        customerPortOut.findCustomerById(cart.getCustomerId(), null).ifPresentOrElse(
                 customer -> notificationPortOut.sendCartReminder(cart, customer.email(), customer.name()),
                 () -> log.warn("Cliente {} não encontrado; lembrete de carrinho abandonado não enviado.", cart.getCustomerId())
         );

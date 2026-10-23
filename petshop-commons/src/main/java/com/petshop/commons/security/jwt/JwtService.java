@@ -2,6 +2,7 @@ package com.petshop.commons.security.jwt;
 
 import com.petshop.commons.security.Role;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 public class JwtService {
 
+    private static final String BEARER_PREFIX = "Bearer ";
     private static final String CLAIM_EMAIL = "email";
     private static final String CLAIM_NAME = "name";
     private static final String CLAIM_CPF = "cpf";
@@ -76,5 +78,16 @@ public class JwtService {
 
     public long expirationSeconds() {
         return expiration.toSeconds();
+    }
+
+    public AuthenticatedUser parseAuthorizationHeaderOrNull(String header) {
+        if (header == null || !header.startsWith(BEARER_PREFIX)) {
+            return null;
+        }
+        try {
+            return parse(header.substring(BEARER_PREFIX.length()));
+        } catch (JwtException | IllegalArgumentException ex) {
+            return null;
+        }
     }
 }

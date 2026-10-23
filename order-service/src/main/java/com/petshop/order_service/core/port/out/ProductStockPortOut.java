@@ -8,7 +8,7 @@ public interface ProductStockPortOut {
      * Consulta o produto sem reservar nada — usada quando o item é
      * adicionado ao carrinho por quem não está logado (ver CartService).
      */
-    ProductStockInfo getInfo(Long productId);
+    ProductStockInfo getInfo(Long productId, String token);
 
     /**
      * Reserva a quantidade no product-registration. Lança BusinessRuleException

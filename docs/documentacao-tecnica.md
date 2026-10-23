@@ -114,20 +114,31 @@ substituída). O esquema é um JWT próprio, assinado com HMAC-SHA256
   `customer-management` chama este método (via `AuthService`).
 - **`JwtService.generateServiceToken`** — emite um token de
   serviço-a-serviço (`Role.SERVICE`, `AccountType.SERVICE`) assinado
-  localmente com o mesmo segredo, sem round-trip de rede. Usado em dois
-  padrões distintos, cada um implementado num `RequestInterceptor` Feign
-  próprio do serviço chamador:
-  - **Relay-com-fallback** (`order-service/FeignAuthConfig`,
-    `booking-service/FeignTokenRelayConfig`): repassa o `Authorization` da
-    requisição HTTP em curso, se houver; sem requisição em andamento (ex.:
-    um `@Scheduled`), assina um token de serviço local.
-  - **Sempre serviço** (`staff-service/FeignTokenRelayConfig`, ao consultar
-    `GET /staff/all` no `customer-management`): nunca repassa o token de
-    quem originou o pedido, mesmo havendo um em andamento. Necessário
-    porque essa consulta é sempre de sistema ("quem é staff e qual o
-    cargo") — se relayasse o token de um `CUSTOMER` agendando um banho, a
-    chamada cairia numa rota que exige `ADMIN`/`SERVICE`, e um cliente
-    nunca tem essa role.
+  localmente com o mesmo segredo, sem round-trip de rede.
+- **Envio do token nas chamadas Feign é declarativo**: todo método Feign
+  declara `@RequestHeader("Authorization") String authorization`
+  explicitamente (nada de header injetado por trás dos panos). Quem resolve
+  o valor é um `TokenPropagation` (`@Component`) próprio de cada serviço
+  chamador, usado em dois padrões distintos:
+  - **Relay-com-fallback** (`TokenPropagation.resolveAuthorizationHeader`,
+    ex.: `order-service` → `CustomerFeign.getCustomerById`): repassa o
+    `Authorization` recebido pelo controller, se houver; sem token (ex.:
+    chamada disparada por um `@Scheduled`, sem requisição HTTP em curso),
+    assina um token de serviço local.
+  - **Sempre serviço** (`TokenPropagation.mintServiceToken`): nunca repassa
+    o token de quem originou o pedido, mesmo havendo um. Usado sempre que a
+    rota de destino é puramente interna —
+    `staff-service/StaffRegistryFeign` ao consultar `GET /staff/all` no
+    `customer-management` (rota com `.hasAnyRole("ADMIN", "SERVICE")`, pois
+    também tem uso direto legítimo pelo front de admin);
+    `booking-service/CustomerManagementFeign` ao consultar
+    `/api/v1/availability/**` no `staff-service`; e
+    `order-service/ProductFeign` nas rotas `reserve`/`release`/`confirm` do
+    `product-registration` — essas duas últimas travadas com
+    `.hasRole("SERVICE")` puro no `SecurityConfig` do serviço receptor, já
+    que não têm nenhum uso direto legítimo por um cliente ou funcionário. Em
+    todos os casos, um cliente com token válido não consegue chamar essas
+    rotas diretamente, mesmo conhecendo a URL.
 - **`JwtAuthenticationFilter`** — filtro `OncePerRequestFilter` presente em
   todo serviço: extrai o header `Authorization: Bearer <token>`, valida a
   assinatura e povoa o `SecurityContext` com um `AuthenticatedUser`. Token
@@ -344,9 +355,21 @@ partir do Feign.
   (`cursor % groomers.size()`), a escala dos sábados do **próximo mês ainda
   não preenchido** (`nextMonthToFill()` olha a última data já alocada).
 - `StaffRegistryFeign` — chama `GET /api/v1/staff/all` no
-  `customer-management`. `FeignTokenRelayConfig` aqui **sempre** assina um
+  `customer-management`. `TokenPropagation` aqui **sempre** assina um
   token de serviço (nunca repassa o token de quem originou a chamada) — ver
   o padrão "sempre serviço" em [2.3](#23-modelo-de-autenticação).
+- `/api/v1/availability/**` (consultado pelo `booking-service`) exige
+  `hasRole("SERVICE")` no `SecurityConfig` — não é alcançável diretamente
+  por um `CUSTOMER`/`STAFF` autenticado, só via a chamada Feign interna do
+  `booking-service`, que sempre envia um token de serviço.
+
+**Pendência:** `AvailabilityService.checkGeneralAvailability`
+(`GET /api/v1/availability/general`) não tem nenhum chamador real hoje — o
+`CustomerManagementFeign` do `booking-service` declara o método
+`getGeneralAvailability`, mas nenhum fluxo de negócio o invoca; só
+`getSchedule` (`/schedule`) é usado (ver fluxo de dados abaixo). Falta
+decidir se esse endpoint deve ser efetivamente ligado a algum fluxo ou
+removido.
 
 **Fluxo de dados (checar disponibilidade):**
 
@@ -378,10 +401,11 @@ padrão de dev) via JPA.
   os demais).
 - `CustomerManagementFeign` (o nome é histórico — na prática aponta para o
   `staff-service`, ver `external.api.staff-service.url`) — consulta
-  `/api/v1/availability/general` e `/schedule`. `FeignTokenRelayConfig`
-  segue o padrão "relay-com-fallback" ([2.3](#23-modelo-de-autenticação)):
-  repassa o token de quem chamou quando há uma requisição HTTP em
-  andamento, senão assina um token de serviço.
+  `/api/v1/availability/general` e `/schedule`, ambas travadas com
+  `hasRole("SERVICE")` no `staff-service`. `TokenPropagation` aqui segue o
+  padrão "sempre serviço" ([2.3](#23-modelo-de-autenticação)): nunca
+  repassa o token de quem chamou, mesmo havendo uma requisição HTTP em
+  andamento — essas rotas só existem pra consumo interno.
 - Produtor Kafka: eventos de histórico (`booking-scheduled`,
   `booking-completed`, `booking-canceled`) e comandos de e-mail
   (`notification-commands`, payload `{to, tipo, params}` — sem HTML, o
@@ -416,13 +440,20 @@ checkout, pagamento simulado, retirada e histórico — coordenando
   — `@Scheduled` que disparam, respectivamente, `expireOldCarts`,
   `processPendingPayments` e `processPickupReadyOrders` em intervalos
   configuráveis.
-- `ProductFeign` / `ProductStockAdapterOut` — `find/{id}`, `{id}/reserve`,
-  `{id}/release`, `{id}/confirm` no `product-registration`.
-- `FeignAuthConfig` — repassa o `Authorization` da requisição em curso
-  (token relay); se não há requisição HTTP (chamada disparada por um
-  scheduler), assina localmente um token de serviço
-  (`jwtService.generateServiceToken("order-service")`) — sem round-trip de
-  rede, porque o segredo já é compartilhado.
+- `ProductFeign` / `ProductStockAdapterOut` — `find/{id}` (leitura pública,
+  repassa o token de quem chamou via `TokenPropagation.resolveAuthorizationHeader`)
+  e `{id}/reserve`, `{id}/release`, `{id}/confirm` (rotas internas do
+  `product-registration`, travadas com `hasRole("SERVICE")` — sempre
+  chamadas com um token de serviço novo via
+  `TokenPropagation.mintServiceToken`, nunca o token do cliente).
+- `CustomerFeign` / `CustomerAdapterOut` — `find/customer/{id}` no
+  `customer-management`, endpoint de uso duplo (cliente vendo o próprio
+  perfil e order-service resolvendo dados no checkout); `TokenPropagation`
+  aqui segue o padrão relay-com-fallback: repassa o token de quem chamou
+  quando há um, senão assina um token de serviço local
+  (`jwtService.generateServiceToken("order-service")`, sem round-trip de
+  rede) — usado, por exemplo, pelos schedulers (`PaymentMockScheduler`,
+  `PickupReadyScheduler`), que não têm requisição HTTP em andamento.
 
 ### 3.7 `notification-service`
 

@@ -19,9 +19,10 @@ import java.time.Duration;
 /**
  * JWT próprio (substitui o Keycloak). product-registration não emite
  * token — só valida (o segredo tem que ser o mesmo em todos os
- * serviços). Regras inalteradas: catálogo (list/find) público,
- * reserve/release/confirm autenticado (chamado via Feign pelo
- * order-service), register/update/delete só ADMIN.
+ * serviços). Regras: catálogo (list/find) público, reserve/release/confirm
+ * só SERVICE (chamado via Feign pelo order-service, que sempre emite um
+ * token de serviço novo pra essas rotas — nunca repassa o token do
+ * cliente), register/update/delete só ADMIN.
  */
 @Configuration
 public class SecurityConfig {
@@ -48,7 +49,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/products/list", "/api/v1/products/find/**").permitAll()
-                        .requestMatchers("/api/v1/products/*/reserve", "/api/v1/products/*/release", "/api/v1/products/*/confirm").authenticated()
+                        .requestMatchers("/api/v1/products/*/reserve", "/api/v1/products/*/release", "/api/v1/products/*/confirm").hasRole("SERVICE")
                         .requestMatchers("/api/v1/products/register", "/api/v1/products/update/**", "/api/v1/products/delete/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)

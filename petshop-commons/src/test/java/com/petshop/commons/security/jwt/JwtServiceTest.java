@@ -128,4 +128,39 @@ class JwtServiceTest {
         // Sanity check: secret >= 32 bytes UTF-8 gera SecretKey HS256 válida sem lançar.
         assertThat(Keys.hmacShaKeyFor(VALID_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8))).isNotNull();
     }
+
+    @Test
+    void parseAuthorizationHeaderOrNullReturnsUserForValidBearerHeader() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+        var id = UUID.randomUUID();
+        String token = service.generateToken(id, "joao@petshop.com", "João", "12345678900", "11999999999",
+                Role.ADMIN, AccountType.STAFF);
+
+        AuthenticatedUser parsed = service.parseAuthorizationHeaderOrNull("Bearer " + token);
+
+        assertThat(parsed).isNotNull();
+        assertThat(parsed.id()).isEqualTo(id);
+    }
+
+    @Test
+    void parseAuthorizationHeaderOrNullReturnsNullForNullHeader() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+
+        assertThat(service.parseAuthorizationHeaderOrNull(null)).isNull();
+    }
+
+    @Test
+    void parseAuthorizationHeaderOrNullReturnsNullWhenMissingBearerPrefix() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+        String token = service.generateServiceToken("order-service");
+
+        assertThat(service.parseAuthorizationHeaderOrNull(token)).isNull();
+    }
+
+    @Test
+    void parseAuthorizationHeaderOrNullReturnsNullForInvalidToken() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+
+        assertThat(service.parseAuthorizationHeaderOrNull("Bearer isso-nao-e-um-jwt")).isNull();
+    }
 }

@@ -2,7 +2,7 @@ package com.petshop.product_registration.api.rest;
 
 import com.petshop.commons.dto.PageResponse;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.product_registration.api.rest.dto.ProductResponseDto;
 import com.petshop.product_registration.core.port.in.ProductPortIn;
 import com.petshop.product_registration.core.port.in.dto.ProductRequestDto;
@@ -19,6 +19,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class ProductControllerImpl implements ProductController {
 
     private final ProductPortIn portIn;
+    private final JwtService jwtService;
 
     @Override
     public ResponseEntity<ProductResponseDto> registerProduct(@Valid @RequestBody ProductRequestDto productRequest, UriComponentsBuilder uriBuilder) {
@@ -28,7 +29,8 @@ public class ProductControllerImpl implements ProductController {
     }
 
     @Override
-    public ResponseEntity<PageResponse<ProductResponseDto>> listProducts(Pageable pageable, AuthenticatedUser user) {
+    public ResponseEntity<PageResponse<ProductResponseDto>> listProducts(Pageable pageable, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         boolean includeStock = user != null && user.type() == AccountType.STAFF;
         var page = portIn.listProducts(pageable)
                 .map(product -> new ProductResponseDto(product, includeStock));
@@ -38,7 +40,8 @@ public class ProductControllerImpl implements ProductController {
     }
 
     @Override
-    public ResponseEntity<ProductResponseDto> getProductById(Long id, AuthenticatedUser user) {
+    public ResponseEntity<ProductResponseDto> getProductById(Long id, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
         boolean includeStock = user != null && user.type() == AccountType.STAFF;
         var product = portIn.getProductById(id);
         return ResponseEntity.ok(new ProductResponseDto(product, includeStock));

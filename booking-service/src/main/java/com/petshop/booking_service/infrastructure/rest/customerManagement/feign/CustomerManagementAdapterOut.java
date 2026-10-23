@@ -3,6 +3,7 @@ package com.petshop.booking_service.infrastructure.rest.customerManagement.feign
 import com.petshop.booking_service.core.domain.StaffAssignment;
 import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.infrastructure.rest.customerManagement.feign.mapper.CustomerMapper;
+import com.petshop.booking_service.infrastructure.security.TokenPropagation;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +19,14 @@ public class CustomerManagementAdapterOut implements CustomerManagementPortOut {
 
     private final CustomerManagementFeign feignClient;
     private final CustomerMapper mapper;
+    private final TokenPropagation tokenPropagation;
 
     @Override
     public List<StaffAssignment> getScheduledStaff(LocalDateTime dateTime, String role) {
         String formattedDate = mapper.toQueryParam(dateTime);
 
         try {
-            var response = feignClient.getSchedule(formattedDate, role);
+            var response = feignClient.getSchedule(formattedDate, role, tokenPropagation.mintServiceToken());
 
             if (response == null) {
                 log.warn("MS staff-service devolveu resposta vazia pra data: {}", formattedDate);

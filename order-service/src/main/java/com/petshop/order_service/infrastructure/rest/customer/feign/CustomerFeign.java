@@ -4,6 +4,7 @@ import com.petshop.order_service.infrastructure.rest.customer.feign.dto.Customer
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.util.UUID;
 
@@ -11,5 +12,5 @@ import java.util.UUID;
 public interface CustomerFeign {
 
     @GetMapping("/api/v1/customers/find/customer/{id}")
-    CustomerInfoResponseDto getCustomerById(@PathVariable("id") UUID id);
+    CustomerInfoResponseDto getCustomerById(@PathVariable("id") UUID id, @RequestHeader("Authorization") String authorization);
 }

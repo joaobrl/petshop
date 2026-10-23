@@ -24,18 +24,8 @@ public class UpdateBookingHistoryUseCase {
         this.customerPortOut = customerPortOut;
     }
 
-    // Chamado a partir do @KafkaListener, sem requisição HTTP em andamento —
-    // sem @Transactional aqui, a sessão Hibernate que carrega o Customer em
-    // customerPortOut.findByCpf() fecha assim que o método retorna, e o
-    // CustomerMapper (que acessa a coleção lazy "pet" pra montar o domínio
-    // completo) explode com LazyInitializationException. Em fluxos disparados
-    // por HTTP isso nunca aparece por causa do spring.jpa.open-in-view
-    // (default true), que mantém a sessão aberta até a resposta ser
-    // serializada — mascarando esse mesmo problema em qualquer chamada fora
-    // de um request web.
     @Transactional(readOnly = true)
     public void execute(BookingCompletedCommand command) {
-        // O command não tem customerId — busca o cliente pelo CPF.
         var customer = customerPortOut.findByCpf(command.ownerCpf())
                 .orElseThrow(() -> new NotFoundException("Cliente com CPF", command.ownerCpf()));
 
@@ -47,7 +37,6 @@ public class UpdateBookingHistoryUseCase {
                     return newHistory;
                 });
 
-        // Mongo salva data e hora em Strings separadas; o evento manda um LocalDateTime único.
         String date = command.bookingDateTime().toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         String time = command.bookingDateTime().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"));
 

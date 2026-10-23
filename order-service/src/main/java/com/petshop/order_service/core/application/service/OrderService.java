@@ -49,7 +49,7 @@ public class OrderService implements OrderPortIn {
 
     @Override
     @Transactional
-    public Order checkout(UUID customerId) {
+    public Order checkout(UUID customerId, String token) {
         var cart = cartPortOut.findOpenCartByCustomerId(customerId)
                 .orElseThrow(() -> new BusinessRuleException("Não há carrinho aberto para o cliente " + customerId));
 
@@ -67,7 +67,7 @@ public class OrderService implements OrderPortIn {
         cart.setStatus(CartStatus.CHECKED_OUT);
         cartPortOut.save(cart);
 
-        var customer = requireCustomer(customerId);
+        var customer = requireCustomer(customerId, token);
         notificationPortOut.sendOrderAwaitingPayment(savedOrder, customer.email(), customer.name());
 
         log.info("Pedido {} criado para o cliente {} (total: {}), aguardando pagamento.",
@@ -111,7 +111,7 @@ public class OrderService implements OrderPortIn {
                 productStockPortOut.confirm(item.getProductId(), item.getQuantity());
             }
 
-            customerPortOut.findCustomerById(order.getCustomerId()).ifPresentOrElse(
+            customerPortOut.findCustomerById(order.getCustomerId(), null).ifPresentOrElse(
                     customer -> {
                         notificationPortOut.sendPaymentConfirmed(order, customer.email(), customer.name());
                         notificationPortOut.sendInvoiceIssued(order, customer.email(), customer.name());
@@ -139,7 +139,7 @@ public class OrderService implements OrderPortIn {
             order.markReadyForPickup();
             orderPortOut.save(order);
 
-            customerPortOut.findCustomerById(order.getCustomerId()).ifPresentOrElse(
+            customerPortOut.findCustomerById(order.getCustomerId(), null).ifPresentOrElse(
                     customer -> notificationPortOut.sendOrderReadyForPickup(order, customer.email(), customer.name()),
                     () -> log.warn("Cliente {} não encontrado; e-mail de retirada do pedido {} não enviado.",
                             order.getCustomerId(), order.getId())
@@ -149,8 +149,8 @@ public class OrderService implements OrderPortIn {
         }
     }
 
-    private CustomerInfo requireCustomer(UUID customerId) {
-        return customerPortOut.findCustomerById(customerId)
+    private CustomerInfo requireCustomer(UUID customerId, String token) {
+        return customerPortOut.findCustomerById(customerId, token)
                 .orElseThrow(() -> new NotFoundException("Cliente", customerId));
     }
 }

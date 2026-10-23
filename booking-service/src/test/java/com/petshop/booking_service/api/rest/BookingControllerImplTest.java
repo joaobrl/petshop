@@ -8,6 +8,7 @@ import com.petshop.booking_service.core.port.in.dto.BookingUpdateDto;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.petshop.commons.security.jwt.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BookingControllerImplTest {
 
+    private static final JwtService JWT_SERVICE =
+            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+
     @Mock
     private BookingPortIn bookingPortIn;
 
@@ -37,7 +42,7 @@ class BookingControllerImplTest {
 
     @BeforeEach
     void setUp() {
-        controller = new BookingControllerImpl(bookingPortIn);
+        controller = new BookingControllerImpl(bookingPortIn, JWT_SERVICE);
     }
 
     private AuthenticatedUser customer(String cpf) {
@@ -48,6 +53,10 @@ class BookingControllerImplTest {
     private AuthenticatedUser receptionist() {
         return new AuthenticatedUser(UUID.randomUUID(), "recepcao@petshop.com", "Recepcao", "00000000000",
                 "11988887777", Role.RECEPTIONIST, AccountType.STAFF);
+    }
+
+    private String tokenFor(AuthenticatedUser user) {
+        return "Bearer " + JWT_SERVICE.generateToken(user.id(), user.email(), user.name(), user.cpf(), user.phone(), user.role(), user.type());
     }
 
     private BookingRequestDto requestDto() {
@@ -74,9 +83,9 @@ class BookingControllerImplTest {
         var user = customer("12345678900");
         var request = requestDto();
         var savedBooking = bookingWithOwnerCpf("12345678900");
-        when(bookingPortIn.createBooking(request)).thenReturn(savedBooking);
+        when(bookingPortIn.createBooking(request, Role.CUSTOMER)).thenReturn(savedBooking);
 
-        var response = controller.createBooking(request, UriComponentsBuilder.newInstance(), user);
+        var response = controller.createBooking(request, UriComponentsBuilder.newInstance(), tokenFor(user));
 
         assertThat(request.getOwnerName()).isEqualTo("Cliente Nome");
         assertThat(request.getOwnerCpf()).isEqualTo("12345678900");
@@ -91,9 +100,9 @@ class BookingControllerImplTest {
     void createBookingKeepsRequestBodyOwnerForReceptionist() {
         var user = receptionist();
         var request = requestDto();
-        when(bookingPortIn.createBooking(request)).thenReturn(bookingWithOwnerCpf("00000000000"));
+        when(bookingPortIn.createBooking(request, Role.RECEPTIONIST)).thenReturn(bookingWithOwnerCpf("00000000000"));
 
-        controller.createBooking(request, UriComponentsBuilder.newInstance(), user);
+        controller.createBooking(request, UriComponentsBuilder.newInstance(), tokenFor(user));
 
         assertThat(request.getOwnerName()).isEqualTo("Nome Original");
         assertThat(request.getOwnerCpf()).isEqualTo("00000000000");
@@ -102,7 +111,7 @@ class BookingControllerImplTest {
     @Test
     void createBookingKeepsRequestBodyOwnerWhenUserIsNull() {
         var request = requestDto();
-        when(bookingPortIn.createBooking(request)).thenReturn(bookingWithOwnerCpf("00000000000"));
+        when(bookingPortIn.createBooking(request, null)).thenReturn(bookingWithOwnerCpf("00000000000"));
 
         controller.createBooking(request, UriComponentsBuilder.newInstance(), null);
 
@@ -116,7 +125,7 @@ class BookingControllerImplTest {
         var user = customer("12345678900");
         when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new PageImpl<>(List.of()));
 
-        controller.listBookings("outro-cpf-qualquer", null, null, null, null, null, pageable, user);
+        controller.listBookings("outro-cpf-qualquer", null, null, null, null, null, pageable, tokenFor(user));
 
         var captor = org.mockito.ArgumentCaptor.forClass(
                 com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto.class);
@@ -129,7 +138,7 @@ class BookingControllerImplTest {
         var user = receptionist();
         when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new PageImpl<>(List.of()));
 
-        controller.listBookings("11122233344", null, null, null, null, null, pageable, user);
+        controller.listBookings("11122233344", null, null, null, null, null, pageable, tokenFor(user));
 
         var captor = org.mockito.ArgumentCaptor.forClass(
                 com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto.class);
@@ -145,7 +154,7 @@ class BookingControllerImplTest {
         when(bookingPortIn.findBookings(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new PageImpl<>(List.of()));
 
         controller.listBookings(null, null, null, "Funcionario Um", ServiceType.BANHO.name(),
-                com.petshop.booking_service.core.domain.enums.StatusBooking.SCHEDULED.name(), pageable, user);
+                com.petshop.booking_service.core.domain.enums.StatusBooking.SCHEDULED.name(), pageable, tokenFor(user));
 
         var captor = org.mockito.ArgumentCaptor.forClass(
                 com.petshop.booking_service.core.port.in.dto.BookingSearchCriteriaDto.class);
@@ -162,7 +171,7 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
 
-        var response = controller.getFindBookingById(booking.getId(), user);
+        var response = controller.getFindBookingById(booking.getId(), tokenFor(user));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -173,7 +182,7 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
 
-        assertThatThrownBy(() -> controller.getFindBookingById(booking.getId(), user))
+        assertThatThrownBy(() -> controller.getFindBookingById(booking.getId(), tokenFor(user)))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -183,7 +192,7 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
 
-        var response = controller.getFindBookingById(booking.getId(), user);
+        var response = controller.getFindBookingById(booking.getId(), tokenFor(user));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -194,7 +203,7 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
 
-        assertThatThrownBy(() -> controller.updateBooking(booking.getId(), new BookingUpdateDto(), null, user))
+        assertThatThrownBy(() -> controller.updateBooking(booking.getId(), new BookingUpdateDto(), null, tokenFor(user)))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -204,9 +213,10 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
         when(bookingPortIn.updateBooking(org.mockito.ArgumentMatchers.eq(booking.getId()),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull())).thenReturn(booking);
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(Role.CUSTOMER))).thenReturn(booking);
 
-        var response = controller.updateBooking(booking.getId(), new BookingUpdateDto(), null, user);
+        var response = controller.updateBooking(booking.getId(), new BookingUpdateDto(), null, tokenFor(user));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -217,7 +227,7 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
 
-        assertThatThrownBy(() -> controller.cancelBooking(booking.getId(), user))
+        assertThatThrownBy(() -> controller.cancelBooking(booking.getId(), tokenFor(user)))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -228,7 +238,7 @@ class BookingControllerImplTest {
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
         when(bookingPortIn.cancelBooking(booking.getId())).thenReturn(booking);
 
-        var response = controller.cancelBooking(booking.getId(), user);
+        var response = controller.cancelBooking(booking.getId(), tokenFor(user));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -240,7 +250,7 @@ class BookingControllerImplTest {
         request.setPaymentMethod(com.petshop.booking_service.core.domain.enums.PaymentMethod.PIX);
         when(bookingPortIn.confirmPayment(booking.getId(), request)).thenReturn(booking);
 
-        var response = controller.confirmPayment(booking.getId(), request, receptionist());
+        var response = controller.confirmPayment(booking.getId(), request, tokenFor(receptionist()));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -253,7 +263,7 @@ class BookingControllerImplTest {
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
 
-        assertThatThrownBy(() -> controller.getFindBookingById(booking.getId(), user))
+        assertThatThrownBy(() -> controller.getFindBookingById(booking.getId(), tokenFor(user)))
                 .isInstanceOf(AccessDeniedException.class);
     }
 }

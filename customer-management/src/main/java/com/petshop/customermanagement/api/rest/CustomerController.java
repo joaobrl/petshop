@@ -10,20 +10,12 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import com.petshop.commons.security.jwt.AuthenticatedUser;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Cadastro é público. Para o resto, CUSTOMER só acessa o próprio
- * cadastro/pets (ownership checado em CustomerControllerImpl via
- * CustomerIdentityResolver); ADMIN/RECEPTIONIST acessam qualquer um.
- * Listagens gerais (visão da loja) são só ADMIN/RECEPTIONIST.
- */
 @RequestMapping("/api/v1/customers")
 public interface CustomerController {
 
@@ -34,27 +26,27 @@ public interface CustomerController {
     ResponseEntity<PageResponse<CustomerResponseDto>> listCustomers(@PageableDefault(size = 20) Pageable pageable);
 
     @GetMapping("/find/customer/{id}")
-    ResponseEntity<CustomerResponseDto> getCustomerById(@PathVariable String id, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<CustomerResponseDto> getCustomerById(@PathVariable String id, @RequestHeader("Authorization") String token);
 
     @PatchMapping("/update/customer/{id}")
-    ResponseEntity<CustomerResponseDto> updateCustomer(@PathVariable UUID id, @RequestBody @Valid CustomerUpdateDto dto, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<CustomerResponseDto> updateCustomer(@PathVariable UUID id, @RequestBody @Valid CustomerUpdateDto dto, @RequestHeader("Authorization") String token);
 
     @DeleteMapping("/delete/customer/{id}")
-    ResponseEntity<CustomerResponseDto> deleteCustomer(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user);
-    
+    ResponseEntity<CustomerResponseDto> deleteCustomer(@PathVariable UUID id, @RequestHeader("Authorization") String token);
+
     @PatchMapping("register/{customerId}/pet")
-    ResponseEntity<CustomerResponseDto> addPetToCustomer(@PathVariable UUID customerId, @RequestBody @Valid List<PetRequestDto> pets, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<CustomerResponseDto> addPetToCustomer(@PathVariable UUID customerId, @RequestBody @Valid List<PetRequestDto> pets, @RequestHeader("Authorization") String token);
 
     @GetMapping("/list/pets")
     ResponseEntity<List<PetResponseDto>> listPets(@RequestHeader(value = "typePets", required = false) String typePets);
 
     @GetMapping("/{customerId}/pets")
-    ResponseEntity<List<PetResponseDto>> listPetsOfCustomer(@PathVariable UUID customerId, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<List<PetResponseDto>> listPetsOfCustomer(@PathVariable UUID customerId, @RequestHeader("Authorization") String token);
 
     @PatchMapping("/{customerId}/pets/{petId}")
-    ResponseEntity<CustomerResponseDto> updatePet(@PathVariable UUID customerId, @PathVariable UUID petId, @RequestBody @Valid PetRequestDto pet, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<CustomerResponseDto> updatePet(@PathVariable UUID customerId, @PathVariable UUID petId, @RequestBody @Valid PetRequestDto pet, @RequestHeader("Authorization") String token);
 
     @DeleteMapping("/{customerId}/pets/{petId}")
-    ResponseEntity<CustomerResponseDto> removePetFromCustomer(@PathVariable UUID customerId, @PathVariable UUID petId, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<CustomerResponseDto> removePetFromCustomer(@PathVariable UUID customerId, @PathVariable UUID petId, @RequestHeader("Authorization") String token);
 
 }
