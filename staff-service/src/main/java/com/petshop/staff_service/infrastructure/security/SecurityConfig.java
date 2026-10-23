@@ -34,10 +34,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // /availability/** só é chamado internamente pelo booking-service
-                        // (relay desativado lá, sempre token de serviço) — nunca por um
-                        // cliente com o próprio token, mesmo que ele conheça a URL.
-                        .requestMatchers("/api/v1/availability/**").hasRole("SERVICE")
+                        // /availability/** é chamado internamente pelo booking-service, que
+                        // repassa o token de quem originou a requisição quando há um (relay-
+                        // com-fallback) — por isso aceita tanto um token de serviço quanto o
+                        // de um usuário autenticado, não só hasRole("SERVICE").
+                        .requestMatchers("/api/v1/availability/**").authenticated()
                         .requestMatchers("/api/v1/weekend-allocation/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)

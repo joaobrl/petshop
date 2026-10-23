@@ -99,7 +99,7 @@ class CartControllerIntegrationTest {
         void addsItemAndReservesStockUsingTokenOwnerAsCustomer() throws Exception {
             var tokenCustomerId = UUID.randomUUID();
             var bodyCustomerId = UUID.randomUUID();
-            when(productStockPortOut.reserve(1L, 2)).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
+            when(productStockPortOut.reserve(eq(1L), eq(2), any())).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
 
             mockMvc.perform(post("/api/v1/cart/items")
                             .with(customerAuth(tokenCustomerId))
@@ -113,7 +113,7 @@ class CartControllerIntegrationTest {
         @Test
         void addsItemForRequestedCustomerWhenCalledByStaff() throws Exception {
             var customerId = UUID.randomUUID();
-            when(productStockPortOut.reserve(1L, 1)).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
+            when(productStockPortOut.reserve(eq(1L), eq(1), any())).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
 
             mockMvc.perform(post("/api/v1/cart/items")
                             .with(adminAuth())

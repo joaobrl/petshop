@@ -17,15 +17,16 @@ public interface BookingPortIn {
      * {@code requesterRole} ADMIN/RECEPTIONIST dispensa só a antecedência mínima de 2h e a duplicidade de
      * agendamento do mesmo pet no mesmo dia (desde que não haja atendimento pendente/em andamento pra esse
      * pet) — ver BookingService#isBookingRestrictionExempt. Horário de funcionamento/dia da semana e
-     * disponibilidade de funcionário continuam valendo pra todo mundo.
+     * disponibilidade de funcionário continuam valendo pra todo mundo. {@code token} é o Authorization de
+     * quem chamou, repassado pro staff-service na checagem de disponibilidade (ver TokenPropagation).
      */
-    Booking createBooking(BookingRequestDto request, Role requesterRole);
+    Booking createBooking(BookingRequestDto request, Role requesterRole, String token);
 
     Page<Booking> findBookings(BookingSearchCriteriaDto criteria, Pageable pageable);
 
     Booking findBookingById(UUID id);
 
-    Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole);
+    Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole, String token);
 
     Booking cancelBooking(UUID id);
 

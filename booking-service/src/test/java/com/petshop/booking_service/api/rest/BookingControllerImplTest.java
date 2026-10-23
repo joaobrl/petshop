@@ -83,7 +83,8 @@ class BookingControllerImplTest {
         var user = customer("12345678900");
         var request = requestDto();
         var savedBooking = bookingWithOwnerCpf("12345678900");
-        when(bookingPortIn.createBooking(request, Role.CUSTOMER)).thenReturn(savedBooking);
+        when(bookingPortIn.createBooking(org.mockito.ArgumentMatchers.eq(request), org.mockito.ArgumentMatchers.eq(Role.CUSTOMER),
+                org.mockito.ArgumentMatchers.any())).thenReturn(savedBooking);
 
         var response = controller.createBooking(request, UriComponentsBuilder.newInstance(), tokenFor(user));
 
@@ -100,7 +101,8 @@ class BookingControllerImplTest {
     void createBookingKeepsRequestBodyOwnerForReceptionist() {
         var user = receptionist();
         var request = requestDto();
-        when(bookingPortIn.createBooking(request, Role.RECEPTIONIST)).thenReturn(bookingWithOwnerCpf("00000000000"));
+        when(bookingPortIn.createBooking(org.mockito.ArgumentMatchers.eq(request), org.mockito.ArgumentMatchers.eq(Role.RECEPTIONIST),
+                org.mockito.ArgumentMatchers.any())).thenReturn(bookingWithOwnerCpf("00000000000"));
 
         controller.createBooking(request, UriComponentsBuilder.newInstance(), tokenFor(user));
 
@@ -111,7 +113,7 @@ class BookingControllerImplTest {
     @Test
     void createBookingKeepsRequestBodyOwnerWhenUserIsNull() {
         var request = requestDto();
-        when(bookingPortIn.createBooking(request, null)).thenReturn(bookingWithOwnerCpf("00000000000"));
+        when(bookingPortIn.createBooking(request, null, null)).thenReturn(bookingWithOwnerCpf("00000000000"));
 
         controller.createBooking(request, UriComponentsBuilder.newInstance(), null);
 
@@ -214,7 +216,7 @@ class BookingControllerImplTest {
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
         when(bookingPortIn.updateBooking(org.mockito.ArgumentMatchers.eq(booking.getId()),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.eq(Role.CUSTOMER))).thenReturn(booking);
+                org.mockito.ArgumentMatchers.eq(Role.CUSTOMER), org.mockito.ArgumentMatchers.any())).thenReturn(booking);
 
         var response = controller.updateBooking(booking.getId(), new BookingUpdateDto(), null, tokenFor(user));
 

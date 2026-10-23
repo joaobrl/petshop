@@ -32,7 +32,7 @@ public class CartControllerImpl implements CartController {
     public ResponseEntity<CartResponseDto> removeItem(Long productId, UUID customerId, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
-        var cart = cartPortIn.removeItem(resolvedCustomerId, productId);
+        var cart = cartPortIn.removeItem(resolvedCustomerId, productId, token);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 

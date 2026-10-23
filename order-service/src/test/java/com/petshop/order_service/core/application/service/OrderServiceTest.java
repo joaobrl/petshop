@@ -98,14 +98,14 @@ class OrderServiceTest {
             var cart = cartWithItems(customerId, false);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(productStockPortOut.reserve(2L, 1)).thenReturn(new ProductStockInfo(2L, "Brinquedo", 5.0));
+            when(productStockPortOut.reserve(2L, 1, TOKEN)).thenReturn(new ProductStockInfo(2L, "Brinquedo", 5.0));
             when(customerPortOut.findCustomerById(customerId, TOKEN))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
             orderService.checkout(customerId, TOKEN);
 
-            verify(productStockPortOut).reserve(2L, 1);
-            verify(productStockPortOut, never()).reserve(eq(1L), anyInt());
+            verify(productStockPortOut).reserve(2L, 1, TOKEN);
+            verify(productStockPortOut, never()).reserve(eq(1L), anyInt(), any());
         }
 
         @Test
@@ -187,8 +187,8 @@ class OrderServiceTest {
             assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
             assertThat(order.getPickupReadyAt()).isNotNull();
             verify(orderPortOut).save(order);
-            verify(productStockPortOut).confirm(1L, 2);
-            verify(productStockPortOut).confirm(2L, 1);
+            verify(productStockPortOut).confirm(1L, 2, null);
+            verify(productStockPortOut).confirm(2L, 1, null);
             verify(notificationPortOut).sendPaymentConfirmed(order, "maria@mail.com", "Maria");
             verify(notificationPortOut).sendInvoiceIssued(order, "maria@mail.com", "Maria");
             verify(notificationPortOut).sendPickupWindow(order, "maria@mail.com", "Maria");

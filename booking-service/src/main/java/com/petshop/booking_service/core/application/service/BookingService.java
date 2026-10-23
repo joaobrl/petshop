@@ -53,13 +53,13 @@ public class BookingService implements BookingPortIn {
     @Override
     @Transactional
     @CacheEvict(cacheNames = "availableSlots", allEntries = true)
-    public Booking createBooking(BookingRequestDto bookingRequest, Role requesterRole) {
+    public Booking createBooking(BookingRequestDto bookingRequest, Role requesterRole, String token) {
         validateBookingTime(bookingRequest.getBookingDateTime(), bookingRequest.getServiceType(), requesterRole);
 
         validateNoConflictingPetBooking(
                 UUID.fromString(bookingRequest.getPetId()), bookingRequest.getBookingDateTime(), null, requesterRole);
         var employeeName = ensureAvailabilityAndAssignEmployee(
-                bookingRequest.getBookingDateTime(), bookingRequest.getServiceType());
+                bookingRequest.getBookingDateTime(), bookingRequest.getServiceType(), token);
 
         var booking = new Booking(bookingRequest);
         booking.setEmployeeName(employeeName);
@@ -87,7 +87,7 @@ public class BookingService implements BookingPortIn {
     @Override
     @Transactional
     @CacheEvict(cacheNames = "availableSlots", allEntries = true)
-    public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole) {
+    public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole, String token) {
         var booking = findBookingById(id);
 
         if (StatusBooking.COMPLETED.name().equalsIgnoreCase(status)) {
@@ -107,7 +107,7 @@ public class BookingService implements BookingPortIn {
             validateBookingTime(bookingUpdate.getBookingDateTime(), effectiveServiceType, requesterRole);
 
             validateNoConflictingPetBooking(booking.getPetId(), bookingUpdate.getBookingDateTime(), id, requesterRole);
-            var employeeName = ensureAvailabilityAndAssignEmployee(bookingUpdate.getBookingDateTime(), effectiveServiceType);
+            var employeeName = ensureAvailabilityAndAssignEmployee(bookingUpdate.getBookingDateTime(), effectiveServiceType, token);
             booking.setEmployeeName(employeeName);
         }
 
@@ -211,8 +211,8 @@ public class BookingService implements BookingPortIn {
         return requesterRole == Role.ADMIN || requesterRole == Role.RECEPTIONIST;
     }
 
-    private String ensureAvailabilityAndAssignEmployee(LocalDateTime bookingDateTime, ServiceType serviceType) {
-        var scheduledStaff = customerManagementPortOut.getScheduledStaff(bookingDateTime, serviceType.requiredStaffRole());
+    private String ensureAvailabilityAndAssignEmployee(LocalDateTime bookingDateTime, ServiceType serviceType, String token) {
+        var scheduledStaff = customerManagementPortOut.getScheduledStaff(bookingDateTime, serviceType.requiredStaffRole(), token);
 
         var alreadyAssigned = bookingPortOut.findActiveBookingsAt(bookingDateTime).stream()
                 .map(Booking::getEmployeeName)
