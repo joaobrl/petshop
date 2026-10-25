@@ -1,8 +1,10 @@
 package com.petshop.order_service.core.application.service;
 
+import com.petshop.commons.exception.BusinessException;
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.NotFoundException;
 import com.petshop.order_service.core.domain.Cart;
+import com.petshop.order_service.core.domain.CartItem;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.domain.Order;
 import com.petshop.order_service.core.domain.enums.CartStatus;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -75,12 +79,33 @@ public class OrderService implements OrderPortIn {
         return savedOrder;
     }
 
+    // Tenta reservar todos os itens ainda não reservados antes de desistir,
+    // em vez de parar no primeiro erro — assim o cliente fica sabendo de
+    // todos os itens com problema de uma só vez, não um por tentativa.
     private void ensureAllItemsReserved(Cart cart, String token) {
+        List<String> failures = new ArrayList<>();
+        List<CartItem> reservedInThisAttempt = new ArrayList<>();
+
         for (var item : cart.getItems()) {
             if (!item.isReserved()) {
-                productStockPortOut.reserve(item.getProductId(), item.getQuantity(), token);
-                item.setReserved(true);
+                try {
+                    productStockPortOut.reserve(item.getProductId(), item.getQuantity(), token);
+                    item.setReserved(true);
+                    reservedInThisAttempt.add(item);
+                } catch (BusinessException e) {
+                    failures.add(e.getMessage());
+                }
             }
+        }
+
+        if (!failures.isEmpty()) {
+            // Libera o que foi reservado nesta tentativa para não deixar
+            // reserva "órfã" de um checkout que vai falhar como um todo.
+            for (var item : reservedInThisAttempt) {
+                productStockPortOut.release(item.getProductId(), item.getQuantity(), token);
+                item.setReserved(false);
+            }
+            throw new BusinessRuleException(String.join(" | ", failures));
         }
     }
 

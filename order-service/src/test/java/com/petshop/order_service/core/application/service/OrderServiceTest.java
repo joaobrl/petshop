@@ -109,6 +109,46 @@ class OrderServiceTest {
         }
 
         @Test
+        void reportsAllOutOfStockItemsInOneFailureInsteadOfJustTheFirst() {
+            var customerId = UUID.randomUUID();
+            var cart = Cart.openFor(customerId, 24);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, false);
+            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, false);
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            when(productStockPortOut.reserve(1L, 2, TOKEN))
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Racao': disponível 0, solicitado 2"));
+            when(productStockPortOut.reserve(2L, 1, TOKEN))
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo': disponível 0, solicitado 1"));
+
+            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Racao")
+                    .hasMessageContaining("Brinquedo");
+
+            verify(productStockPortOut, never()).release(anyLong(), anyInt(), any());
+            verify(orderPortOut, never()).save(any());
+        }
+
+        @Test
+        void releasesItemsReservedInTheSameAttemptWhenAnotherItemFails() {
+            var customerId = UUID.randomUUID();
+            var cart = Cart.openFor(customerId, 24);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, false);
+            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, false);
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            when(productStockPortOut.reserve(1L, 2, TOKEN)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
+            when(productStockPortOut.reserve(2L, 1, TOKEN))
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo': disponível 0, solicitado 1"));
+
+            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Brinquedo");
+
+            verify(productStockPortOut).release(1L, 2, TOKEN);
+            verify(orderPortOut, never()).save(any());
+        }
+
+        @Test
         void createsOrderMarksCartCheckedOutAndNotifiesCustomer() {
             var customerId = UUID.randomUUID();
             var cart = cartWithItems(customerId, true);
