@@ -18,6 +18,12 @@ public class ProductResponseDto {
     private Integer availableStock;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Double reservedPercentage;
+    /**
+     * Disponibilidade simples (sem expor quantidade), visível a qualquer
+     * chamador — inclusive sem autenticação — para o front poder marcar o
+     * item como "sem estoque".
+     */
+    private Boolean inStock;
     private DimensionsResponseDto dimensions;
 
     public ProductResponseDto(Product product) {
@@ -25,14 +31,16 @@ public class ProductResponseDto {
     }
 
     /**
-     * includeStock=false omite estoque do JSON (campos ficam null;
-     * @JsonInclude NON_NULL tira do corpo) — usado quando o usuário não é STAFF.
+     * includeStock=false omite a quantidade exata do JSON (campos ficam
+     * null; @JsonInclude NON_NULL tira do corpo) — usado quando o usuário
+     * não é STAFF. {@code inStock} não depende disso: é sempre informado.
      */
     public ProductResponseDto(Product product, boolean includeStock) {
         this.id = product.getId();
         this.name = product.getName();
         this.description = product.getDescription();
         this.price = product.getPrice();
+        this.inStock = product.availableStock() > 0;
         if (includeStock) {
             this.stock = product.getStock();
             this.reservedStock = product.getReservedStock();

@@ -22,6 +22,7 @@ class ProductResponseDtoTest {
         assertThat(dto.getReservedStock()).isEqualTo(10);
         assertThat(dto.getAvailableStock()).isEqualTo(40);
         assertThat(dto.getReservedPercentage()).isEqualTo(20.0);
+        assertThat(dto.getInStock()).isTrue();
     }
 
     @Test
@@ -54,6 +55,7 @@ class ProductResponseDtoTest {
         var dto = new ProductResponseDto(product);
 
         assertThat(dto.getAvailableStock()).isZero();
+        assertThat(dto.getInStock()).isFalse();
     }
 
     @Test
@@ -80,5 +82,16 @@ class ProductResponseDtoTest {
         assertThat(dto.getReservedPercentage()).isNull();
         assertThat(dto.getName()).isEqualTo("Racao");
         assertThat(dto.getPrice()).isEqualTo(79.90);
+        assertThat(dto.getInStock()).isTrue();
+    }
+
+    @Test
+    void inStockIsFalseWhenNoStockEvenIfIncludeStockIsFalse() {
+        var product = new Product(1L, "Racao", "Descricao", 79.90, 10, 10, null, true);
+
+        var dto = new ProductResponseDto(product, false);
+
+        assertThat(dto.getStock()).isNull();
+        assertThat(dto.getInStock()).isFalse();
     }
 }

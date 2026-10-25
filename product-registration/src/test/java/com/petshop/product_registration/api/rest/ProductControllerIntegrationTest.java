@@ -135,7 +135,20 @@ class ProductControllerIntegrationTest {
             mockMvc.perform(get("/api/v1/products/list"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].stock").doesNotExist())
-                    .andExpect(jsonPath("$.content[0].reservedPercentage").doesNotExist());
+                    .andExpect(jsonPath("$.content[0].reservedPercentage").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].inStock", is(true)));
+        }
+
+        @Test
+        void listProductsReportsInStockFalseWhenOutOfStockEvenWhenAnonymous() throws Exception {
+            var outOfStock = sampleProduct(1L);
+            outOfStock.setReservedStock(50);
+            when(productRepository.findByEnabledTrue(any())).thenReturn(new PageImpl<>(List.of(outOfStock)));
+
+            mockMvc.perform(get("/api/v1/products/list"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].stock").doesNotExist())
+                    .andExpect(jsonPath("$.content[0].inStock", is(false)));
         }
 
         @Test
