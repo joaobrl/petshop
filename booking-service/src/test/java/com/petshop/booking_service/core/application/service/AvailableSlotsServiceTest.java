@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,7 +49,7 @@ class AvailableSlotsServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AvailableSlotsService(bookingPortOut, customerManagementPortOut);
+        service = new AvailableSlotsService(bookingPortOut, customerManagementPortOut, Clock.systemDefaultZone());
     }
 
     private StaffAssignment staff(String name) {

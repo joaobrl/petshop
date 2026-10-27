@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +43,7 @@ public class AvailableSlotsService implements AvailableSlotsPortIn {
 
     private final BookingPortOut bookingPortOut;
     private final CustomerManagementPortOut customerManagementPortOut;
+    private final Clock clock;
 
     @Override
     @Cacheable(cacheNames = "availableSlots")
@@ -52,7 +54,7 @@ public class AvailableSlotsService implements AvailableSlotsPortIn {
 
         var isVet = serviceType == ServiceType.CONSULTA_VETERINARIA;
         var role = serviceType.requiredStaffRole();
-        var earliestBookable = LocalDateTime.now().plusHours(MIN_HOURS_IN_ADVANCE);
+        var earliestBookable = LocalDateTime.now(clock).plusHours(MIN_HOURS_IN_ADVANCE);
 
         List<AvailableSlot> result = new ArrayList<>();
 
