@@ -15,7 +15,7 @@
         Aggregator só de orquestração de build (packaging=pom, sem &lt;parent&gt;) —
         cada módulo continua herdando spring-boot-starter-parent diretamente,
         já que Maven só permite um &lt;parent&gt; por módulo. O ganho aqui é só
-        `mvn clean install` na raiz buildar os 7 na ordem certa (Maven resolve
+        `mvn clean install` na raiz buildar os 8 na ordem certa (Maven resolve
         pelo grafo de &lt;dependency&gt; do reactor), sem precisar do passo manual
         de instalar petshop-commons primeiro.
     </description>
@@ -24,6 +24,7 @@
         <module>petshop-commons</module>
         <module>booking-service</module>
         <module>customer-management</module>
+        <module>gateway-service</module>
         <module>notification-service</module>
         <module>order-service</module>
         <module>product-registration</module>
