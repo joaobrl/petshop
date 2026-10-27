@@ -2,13 +2,15 @@ package com.petshop.booking_service.core.application.service;
 
 import com.petshop.booking_service.core.domain.AvailableSlot;
 import com.petshop.booking_service.core.domain.Booking;
+import com.petshop.booking_service.core.domain.StaffAssignment;
 import com.petshop.booking_service.core.domain.enums.RangeType;
 import com.petshop.booking_service.core.domain.enums.ServiceType;
 import com.petshop.booking_service.core.port.in.AvailableSlotsPortIn;
 import com.petshop.booking_service.core.port.out.BookingPortOut;
 import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
+import com.petshop.booking_service.infrastructure.config.CacheConfig;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -40,57 +42,92 @@ public class AvailableSlotsService implements AvailableSlotsPortIn {
 
     private static final int SLOT_MINUTES = 30;
     private static final int MIN_HOURS_IN_ADVANCE = 2;
+    private static final String VETERINARIAN_ROLE = ServiceType.CONSULTA_VETERINARIA.requiredStaffRole();
 
     private final BookingPortOut bookingPortOut;
     private final CustomerManagementPortOut customerManagementPortOut;
+    private final CacheManager cacheManager;
     private final Clock clock;
 
     @Override
-    @Cacheable(cacheNames = "availableSlots")
     public List<AvailableSlot> findAvailableSlots(ServiceType serviceType, LocalDate referenceDate, RangeType range) {
         if (serviceType == null) throw new IllegalArgumentException("Tipo de serviço não pode ser nulo");
         if (referenceDate == null) throw new IllegalArgumentException("Data de referência não pode ser nula");
         if (range == null) throw new IllegalArgumentException("Intervalo não pode ser nulo");
 
-        var isVet = serviceType == ServiceType.CONSULTA_VETERINARIA;
         var role = serviceType.requiredStaffRole();
         var earliestBookable = LocalDateTime.now(clock).plusHours(MIN_HOURS_IN_ADVANCE);
 
         List<AvailableSlot> result = new ArrayList<>();
 
         for (LocalDate day : datesOf(referenceDate, range)) {
-            var dayOfWeek = day.getDayOfWeek();
-            if (dayOfWeek == DayOfWeek.SUNDAY) continue;
-            if (dayOfWeek == DayOfWeek.SATURDAY && isVet) continue;
-
-            var representativeTime = dayOfWeek == DayOfWeek.SATURDAY ? SATURDAY_START : WEEKDAY_START;
-            // Resposta é cacheada por (serviceType, referenceDate, range), sem o chamador na chave — por isso
-            // sempre consulta com token de serviço aqui, nunca repassa o de quem pediu (evitaria vazar o
-            // resultado cacheado pra um token diferente do que gerou o cache).
-            var roster = customerManagementPortOut.getScheduledStaff(day.atTime(representativeTime), role, null);
-            if (roster.isEmpty()) continue;
-
-            for (LocalTime slotTime : slotsOf(dayOfWeek)) {
-                var slotDateTime = day.atTime(slotTime);
-                if (!slotDateTime.isAfter(earliestBookable)) continue;
-
-                Set<String> alreadyAssigned = bookingPortOut.findActiveBookingsAt(slotDateTime).stream()
-                        .map(Booking::getEmployeeName)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet());
-
-                long freeStaff = roster.stream()
-                        .map(staffAssignment -> staffAssignment.name())
-                        .filter(name -> !alreadyAssigned.contains(name))
-                        .count();
-
-                if (freeStaff > 0) {
-                    result.add(new AvailableSlot(slotDateTime, (int) freeStaff));
+            for (AvailableSlot slot : findOrComputeDailySlots(role, day)) {
+                if (slot.dateTime().isAfter(earliestBookable)) {
+                    result.add(slot);
                 }
             }
         }
 
         return result;
+    }
+
+    @Override
+    public void evictAvailableSlots(ServiceType serviceType, LocalDate date) {
+        if (serviceType == null || date == null) {
+            return;
+        }
+        Objects.requireNonNull(cacheManager.getCache(CacheConfig.AVAILABLE_SLOTS_CACHE))
+                .evict(cacheKey(serviceType.requiredStaffRole(), date));
+    }
+
+    private List<AvailableSlot> findOrComputeDailySlots(String role, LocalDate day) {
+        var dayOfWeek = day.getDayOfWeek();
+        if (dayOfWeek == DayOfWeek.SUNDAY) {
+            return List.of();
+        }
+        if (dayOfWeek == DayOfWeek.SATURDAY && VETERINARIAN_ROLE.equals(role)) {
+            return List.of();
+        }
+
+        var cache = Objects.requireNonNull(cacheManager.getCache(CacheConfig.AVAILABLE_SLOTS_CACHE));
+        return cache.get(cacheKey(role, day), () -> computeDailySlots(role, day, dayOfWeek));
+    }
+
+    private List<AvailableSlot> computeDailySlots(String role, LocalDate day, DayOfWeek dayOfWeek) {
+        var representativeTime = dayOfWeek == DayOfWeek.SATURDAY ? SATURDAY_START : WEEKDAY_START;
+        // Resposta é cacheada por (role, day), sem o chamador na chave — por isso sempre consulta com
+        // token de serviço aqui, nunca repassa o de quem pediu (evitaria vazar o resultado cacheado pra
+        // um token diferente do que gerou o cache).
+        var roster = customerManagementPortOut.getScheduledStaff(day.atTime(representativeTime), role, null);
+        if (roster.isEmpty()) {
+            return List.of();
+        }
+
+        List<AvailableSlot> dailySlots = new ArrayList<>();
+
+        for (LocalTime slotTime : slotsOf(dayOfWeek)) {
+            var slotDateTime = day.atTime(slotTime);
+
+            Set<String> alreadyAssigned = bookingPortOut.findActiveBookingsAt(slotDateTime).stream()
+                    .map(Booking::getEmployeeName)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            long freeStaff = roster.stream()
+                    .map(StaffAssignment::name)
+                    .filter(name -> !alreadyAssigned.contains(name))
+                    .count();
+
+            if (freeStaff > 0) {
+                dailySlots.add(new AvailableSlot(slotDateTime, (int) freeStaff));
+            }
+        }
+
+        return List.copyOf(dailySlots);
+    }
+
+    static String cacheKey(String role, LocalDate date) {
+        return role + ":" + date;
     }
 
     private List<LocalDate> datesOf(LocalDate referenceDate, RangeType range) {

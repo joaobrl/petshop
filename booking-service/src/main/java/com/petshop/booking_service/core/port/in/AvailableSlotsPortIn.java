@@ -15,4 +15,10 @@ public interface AvailableSlotsPortIn {
      * {@code referenceDate} (o próprio dia, a semana ou o mês que o contém).
      */
     List<AvailableSlot> findAvailableSlots(ServiceType serviceType, LocalDate referenceDate, RangeType range);
+
+    /**
+     * Invalida no cache a disponibilidade do dia {@code date} para o cargo
+     * exigido por {@code serviceType}.
+     */
+    void evictAvailableSlots(ServiceType serviceType, LocalDate date);
 }

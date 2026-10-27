@@ -405,7 +405,16 @@ padrão de dev) via JPA.
 
 **Principais classes:**
 - `BookingService` (implementa `BookingPortIn`) — toda a regra de negócio
-  de agendamento. Ver [4.4](#44-criação-de-agendamento).
+  de agendamento e invalidação seletiva do cache de horários disponíveis.
+  Ver [4.4](#44-criação-de-agendamento).
+- `AvailableSlotsService` (implementa `AvailableSlotsPortIn`) — calcula os
+  horários disponíveis para `DAY`/`WEEK`/`MONTH` cacheando a disponibilidade
+  diária por cargo (`<requiredStaffRole>:<yyyy-MM-dd>`) no cache
+  `availableSlots` (`CacheConfig`) e aplicando na leitura o filtro de 2h de
+  antecedência mínima via `Clock` (`ClockConfig`). Assim, `BANHO`, `TOSAGEM`
+  e `TOSA_E_BANHO` compartilham a mesma entrada diária de `GROOMER`,
+  janelas `WEEK`/`MONTH` reaproveitam os dias já cacheados e slots do dia
+  atual nunca ficam defasados pela passagem do tempo.
 - `Booking` (domínio) — estado (`SCHEDULED`/`COMPLETED`/`CANCELED`),
   `completeBooking` só permite a transição a partir de `SCHEDULED`.
 - `ServiceType` (enum) — `TOSAGEM`, `BANHO`, `TOSA_E_BANHO`,
@@ -695,8 +704,12 @@ livre. Se ninguém sobra → `BusinessRuleException("Não há funcionário
 disponível para o horário selecionado: " + bookingDateTime)` → **422**.
 
 **Efeitos colaterais no sucesso:** grava o `Booking` (`status =
-SCHEDULED`), invalida o cache `availableSlots` (`@CacheEvict`), publica o
-e-mail de confirmação (`notification-commands`) e o evento de histórico
+SCHEDULED`), invalida no cache `availableSlots` apenas a chave `<cargo>:<data>`
+afetada (`AvailableSlotsPortIn.evictAvailableSlots`, preservando outros dias e
+outros cargos; em `updateBooking`, só invalida se o horário ou o cargo mudar,
+incluindo a chave antiga e a nova quando o dia ou o cargo mudam, e não invalida
+nada ao concluir atendimento com `status=COMPLETED` ou editar só `observations`),
+publica o e-mail de confirmação (`notification-commands`) e o evento de histórico
 (`booking-scheduled`) — se qualquer publicação falhar, a transação de
 banco **não é desfeita** por causa disso (a chamada acontece depois do
 `save`, dentro do mesmo método `@Transactional`, mas o Kafka não participa
