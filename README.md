@@ -11,6 +11,12 @@ notificação por e-mail).
 > completo (múltiplos serviços, mensageria, bancos poliglota, autenticação,
 > testes de integração, CI) e servir de material de aprendizado.
 
+## Frontend
+
+[`web`](web) — SPA em React + Vite + TypeScript (loja, agendamento e um
+painel interno simples), integrada aos microsserviços reais via `fetch`; ver
+[`web/README.md`](web/README.md) para como rodar, CORS e o script de seed.
+
 ## Arquitetura
 
 ```
