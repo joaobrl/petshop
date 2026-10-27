@@ -5,12 +5,12 @@ Microsserviço de agendamento de serviços (banho, tosa, consultas veterinárias
 ## Stack técnica
 
 - Java 21, Spring Boot 4.0.3, Spring Cloud 2025.1.2 (`spring-cloud-starter-openfeign` + `-loadbalancer`, sem Eureka/Consul — URLs estáticas por variável de ambiente)
-- Spring Web, Spring Data JPA (PostgreSQL em produção, H2 em testes), Bean Validation, Spring Cache (`@EnableCaching`), Spring Security (infra apenas — validação de token feita pelo `petshop-commons`)
+- Spring Web, Spring Data JPA (PostgreSQL em produção, H2 em testes), Bean Validation, Spring Cache (`@EnableCaching` + `ConcurrentMapCacheManager` com cache granular por cargo e dia), Spring Security (infra apenas — validação de token feita pelo `petshop-commons`)
 - Spring Kafka (produtor)
 - MapStruct + Lombok
 - [`petshop-commons`](../petshop-commons) — JWT próprio e `BaseExceptionHandler`
 - Testcontainers (PostgreSQL) nos testes de integração
-- JaCoCo — gate de 90% de cobertura de instruções
+- JaCoCo — gate de 90% de cobertura de instruções (100% de cobertura de branches nas classes de serviço e cache)
 
 ## Endpoints — `/api/v1/bookings`
 
@@ -25,13 +25,21 @@ Microsserviço de agendamento de serviços (banho, tosa, consultas veterinárias
 
 A checagem de "dono só acessa o próprio agendamento" é feita na camada de controller (`AccountType` do `AuthenticatedUser`), não no `SecurityConfig`.
 
+## Cache de horários disponíveis (`availableSlots`)
+
+- **Granularidade por `(cargo, dia)` (`<requiredStaffRole>:<yyyy-MM-dd>`)**: `AvailableSlotsService` armazena no cache `availableSlots` (`CacheConfig`) a disponibilidade diária por cargo exigido (`GROOMER` para `BANHO`, `TOSAGEM` e `TOSA_E_BANHO`; `VETERINARIAN` para `CONSULTA_VETERINARIA`). Consultas `DAY`, `WEEK` e `MONTH` compõem o resultado a partir dos mesmos dias cacheados, e os três serviços de banho/tosa compartilham a mesma entrada diária de `GROOMER`.
+- **Filtro dinâmico de antecedência mínima (`Clock`)**: a regra de 2 horas de antecedência (`LocalDateTime.now(clock).plusHours(2)`) é avaliada na leitura sobre a lista diária cacheada, evitando que slots do dia atual fiquem defasados à medida que o relógio avança.
+- **Invalidação seletiva (`AvailableSlotsPortIn.evictAvailableSlots`)**:
+  - `createBooking` e `cancelBooking` invalidam apenas a chave `<cargo>:<data>` do agendamento afetado.
+  - `updateBooking` não invalida o cache ao concluir um atendimento (`status=COMPLETED`, pois agendamentos concluídos continuam `!= CANCELED`), ao alterar apenas `observations` ou ao trocar entre serviços do mesmo cargo (`BANHO` ↔ `TOSAGEM`) mantendo data e hora. Quando há mudança de horário no mesmo dia/cargo, invalida apenas aquela data; quando muda o dia ou o cargo (`GROOMER` ↔ `VETERINARIAN`), invalida tanto a chave anterior quanto a nova.
+
 ## Segurança
 
 JWT próprio via [`petshop-commons`](../petshop-commons) — booking-service apenas valida tokens (não emite). `/api/v1/bookings/available-slots` é público; todo o restante exige autenticação. 401 (não 403) em requisições sem token válido.
 
 ## Integração com outros serviços
 
-- **Feign → staff-service**: `CustomerManagementFeign` (`external.api.staff-service.url`) consulta `GET /api/v1/availability/general` e `GET /api/v1/availability/schedule` para checar disponibilidade e escala de funcionários antes de confirmar um agendamento. O token da requisição original é repassado via `FeignTokenRelayConfig`.
+- **Feign → staff-service**: `CustomerManagementFeign` (`external.api.staff-service.url`) consulta `GET /api/v1/availability/general` e `GET /api/v1/availability/schedule` para checar disponibilidade e escala de funcionários antes de confirmar um agendamento. O token enviado é sempre um token interno de serviço (`TokenPropagation`).
 - **Kafka (produtor apenas — sem `@KafkaListener`)**:
   - Tópico `booking-scheduled`, `booking-canceled`, `booking-completed` — eventos de histórico (consumidos pelo `customer-management` para popular o histórico de agendamentos)
   - Tópico `notification-commands` — comandos de e-mail (`{to, tipo, params}`, sem HTML — o `notification-service` resolve `tipo` pro template gerenciado no Brevo)

@@ -21,7 +21,6 @@ import com.petshop.commons.security.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
@@ -40,9 +39,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +55,7 @@ class BookingServiceTest {
 
     private static final LocalDate FAR_FUTURE_MONDAY =
             LocalDate.now().plusYears(1).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+    private static final LocalDate FAR_FUTURE_TUESDAY = FAR_FUTURE_MONDAY.plusDays(1);
     private static final LocalDate FAR_FUTURE_SATURDAY =
             FAR_FUTURE_MONDAY.with(TemporalAdjusters.next(DayOfWeek.SATURDAY));
     private static final LocalDate FAR_FUTURE_SUNDAY =
@@ -170,12 +170,39 @@ class BookingServiceTest {
     }
 
     @Test
+    void rejectsSaturdayBookingBeforeOpeningHours() {
+        var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_SATURDAY.atTime(7, 30));
+
+        assertThatThrownBy(() -> service.createBooking(dto, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Agendamentos aos sábados devem ser entre 8h e 11h");
+    }
+
+    @Test
     void rejectsSaturdayBookingOutsideAllowedHours() {
         var dto = requestDto(ServiceType.BANHO, FAR_FUTURE_SATURDAY.atTime(11, 30));
 
         assertThatThrownBy(() -> service.createBooking(dto, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Agendamentos aos sábados devem ser entre 8h e 11h");
+    }
+
+    @Test
+    void acceptsWeekdayAfternoonAndSaturdayMorningBookings() {
+        var afternoonSlot = FAR_FUTURE_MONDAY.atTime(14, 0);
+        var saturdaySlot = FAR_FUTURE_SATURDAY.atTime(9, 0);
+        when(customerManagementPortOut.getScheduledStaff(afternoonSlot, "GROOMER", null))
+                .thenReturn(List.of(staff("Ciclana")));
+        when(customerManagementPortOut.getScheduledStaff(saturdaySlot, "GROOMER", null))
+                .thenReturn(List.of(staff("Ciclana")));
+        when(bookingPortOut.findActiveBookingsAt(any())).thenReturn(List.of());
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var afternoonBooking = service.createBooking(requestDto(ServiceType.BANHO, afternoonSlot), null, null);
+        var saturdayBooking = service.createBooking(requestDto(ServiceType.BANHO, saturdaySlot), null, null);
+
+        assertThat(afternoonBooking.getBookingDateTime()).isEqualTo(afternoonSlot);
+        assertThat(saturdayBooking.getBookingDateTime()).isEqualTo(saturdaySlot);
     }
 
     // ---------- ADMIN/RECEPTIONIST continuam sujeitos ao horário de funcionamento ----------
@@ -347,10 +374,10 @@ class BookingServiceTest {
         verify(bookingPortOut, never()).save(any());
     }
 
-    // ---------- criação bem-sucedida / atribuição de funcionário ----------
+    // ---------- criação bem-sucedida / atribuição de funcionário / invalidação granular ----------
 
     @Test
-    void createBookingAssignsFirstFreeStaffAndPublishesEvents() {
+    void createBookingAssignsFirstFreeStaffEvictsTargetDateAndPublishesEvents() {
         var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
         var dto = requestDto(ServiceType.BANHO, dateTime);
         when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER", null))
@@ -361,6 +388,7 @@ class BookingServiceTest {
         var result = service.createBooking(dto, null, null);
 
         assertThat(result.getEmployeeName()).isEqualTo("Ciclana");
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
         verify(notificationPortOut).sendBookingScheduled(result);
         verify(bookingHistoryPortOut).publishBookingScheduled(any());
     }
@@ -393,6 +421,7 @@ class BookingServiceTest {
                 .hasMessageContaining("Não há funcionário disponível");
 
         verify(bookingPortOut, never()).save(any());
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
     }
 
     @Test
@@ -531,10 +560,10 @@ class BookingServiceTest {
                 .hasMessageContaining(id.toString());
     }
 
-    // ---------- atualização ----------
+    // ---------- atualização e invalidação seletiva ----------
 
     @Test
-    void updateBookingCompletesWhenStatusIsCompleted() {
+    void updateBookingCompletesWhenStatusIsCompletedWithoutEvictingAvailableSlots() {
         var id = UUID.randomUUID();
         var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
         when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
@@ -545,12 +574,13 @@ class BookingServiceTest {
         var result = service.updateBooking(id, update, "COMPLETED", null, null);
 
         assertThat(result.getStatus()).isEqualTo(StatusBooking.COMPLETED);
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
         verify(notificationPortOut).sendBookingCompleted(booking);
         verify(bookingHistoryPortOut).publishBookingCompleted(any());
     }
 
     @Test
-    void updateBookingReassignsStaffWhenDateTimeChanges() {
+    void updateBookingReassignsStaffAndEvictsOnceWhenDateTimeChangesWithinSameDay() {
         var id = UUID.randomUUID();
         var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
         when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
@@ -567,8 +597,81 @@ class BookingServiceTest {
 
         assertThat(result.getEmployeeName()).isEqualTo("Fulana");
         assertThat(result.getBookingDateTime()).isEqualTo(newDateTime);
+        verify(availableSlotsPortIn, times(1)).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
         verify(notificationPortOut).sendBookingScheduled(result);
         verify(bookingHistoryPortOut).publishBookingScheduled(any());
+    }
+
+    @Test
+    void updateBookingMovingToAnotherDayEvictsBothPreviousAndNewDates() {
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var newDateTime = FAR_FUTURE_TUESDAY.atTime(10, 0);
+        when(customerManagementPortOut.getScheduledStaff(newDateTime, "GROOMER", null))
+                .thenReturn(List.of(staff("Fulana")));
+        when(bookingPortOut.findActiveBookingsAt(newDateTime)).thenReturn(List.of());
+
+        var update = new BookingUpdateDto();
+        update.setBookingDateTime(newDateTime);
+        service.updateBooking(id, update, null, null, null);
+
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_TUESDAY);
+    }
+
+    @Test
+    void updateBookingChangingServiceTypeToDifferentRoleOnSameDayEvictsBothRoles() {
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var update = new BookingUpdateDto();
+        update.setServiceType(ServiceType.CONSULTA_VETERINARIA);
+        service.updateBooking(id, update, null, null, null);
+
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.CONSULTA_VETERINARIA, FAR_FUTURE_MONDAY);
+    }
+
+    @Test
+    void updateBookingChangingServiceTypeWithinSameRoleWithoutDateTimeChangeDoesNotEvictCache() {
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var update = new BookingUpdateDto();
+        update.setServiceType(ServiceType.TOSAGEM);
+        service.updateBooking(id, update, null, null, null);
+
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
+    }
+
+    @Test
+    void updateBookingChangingBothDateTimeAndServiceTypeUsesNewServiceTypeAndEvictsBoth() {
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var newDateTime = FAR_FUTURE_TUESDAY.atTime(10, 0);
+        when(customerManagementPortOut.getScheduledStaff(newDateTime, "VETERINARIAN", null))
+                .thenReturn(List.of(staff("Dr. Fulano")));
+        when(bookingPortOut.findActiveBookingsAt(newDateTime)).thenReturn(List.of());
+
+        var update = new BookingUpdateDto();
+        update.setBookingDateTime(newDateTime);
+        update.setServiceType(ServiceType.CONSULTA_VETERINARIA);
+        var result = service.updateBooking(id, update, null, null, null);
+
+        assertThat(result.getEmployeeName()).isEqualTo("Dr. Fulano");
+        verify(customerManagementPortOut).getScheduledStaff(newDateTime, "VETERINARIAN", null);
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.CONSULTA_VETERINARIA, FAR_FUTURE_TUESDAY);
     }
 
     @Test
@@ -591,7 +694,7 @@ class BookingServiceTest {
     }
 
     @Test
-    void updateBookingWithoutDateTimeChangeSkipsRevalidationAndReassignment() {
+    void updateBookingWithoutDateTimeChangeSkipsRevalidationReassignmentAndEviction() {
         var id = UUID.randomUUID();
         var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
         booking.setEmployeeName("Ciclana");
@@ -605,6 +708,7 @@ class BookingServiceTest {
         assertThat(result.getObservations()).isEqualTo("Só mudando observação");
         assertThat(result.getEmployeeName()).isEqualTo("Ciclana");
         verify(customerManagementPortOut, never()).getScheduledStaff(any(), any(), any());
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
     }
 
     @Test
@@ -627,6 +731,7 @@ class BookingServiceTest {
                 .isInstanceOf(ConflictException.class);
 
         verify(bookingPortOut, never()).save(any());
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
     }
 
     @Test
@@ -656,7 +761,7 @@ class BookingServiceTest {
     // ---------- cancelamento ----------
 
     @Test
-    void cancelBookingSetsStatusAndPublishesEvents() {
+    void cancelBookingSetsStatusEvictsTargetDateAndPublishesEvents() {
         var id = UUID.randomUUID();
         var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
         when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
@@ -665,6 +770,7 @@ class BookingServiceTest {
         var result = service.cancelBooking(id);
 
         assertThat(result.getStatus()).isEqualTo(StatusBooking.CANCELED);
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
         verify(notificationPortOut).sendBookingCanceled(booking);
         verify(bookingHistoryPortOut).publishBookingCanceled(any());
     }
@@ -672,7 +778,7 @@ class BookingServiceTest {
     // ---------- confirmação de pagamento ----------
 
     @Test
-    void confirmPaymentUpdatesBookingAndSavesWithoutNotifyingOrPublishingHistory() {
+    void confirmPaymentUpdatesBookingAndSavesWithoutNotifyingPublishingOrEvicting() {
         var id = UUID.randomUUID();
         var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
         when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
@@ -687,6 +793,7 @@ class BookingServiceTest {
         assertThat(result.getServiceDetails().getPaymentMethod())
                 .isEqualTo(com.petshop.booking_service.core.domain.enums.PaymentMethod.PIX);
         verify(bookingPortOut).save(booking);
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
         verify(notificationPortOut, never()).sendBookingScheduled(any());
         verify(notificationPortOut, never()).sendBookingCompleted(any());
         verify(bookingHistoryPortOut, never()).publishBookingScheduled(any());

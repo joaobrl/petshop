@@ -21,7 +21,6 @@ import com.petshop.booking_service.core.port.out.dto.BookingResponseDto;
 import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.security.Role;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,7 +31,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -52,7 +50,6 @@ public class BookingService implements BookingPortIn {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking createBooking(BookingRequestDto bookingRequest, Role requesterRole, String token) {
         validateBookingTime(bookingRequest.getBookingDateTime(), bookingRequest.getServiceType(), requesterRole);
 
@@ -64,6 +61,10 @@ public class BookingService implements BookingPortIn {
         var booking = new Booking(bookingRequest);
         booking.setEmployeeName(employeeName);
         var savedBooking = bookingPortOut.save(booking);
+        availableSlotsPortIn.evictAvailableSlots(
+                savedBooking.getServiceDetails().getServiceType(),
+                savedBooking.getBookingDateTime().toLocalDate());
+
         var dto = new BookingResponseDto(savedBooking);
 
         notificationPortOut.sendBookingScheduled(savedBooking);
@@ -72,9 +73,8 @@ public class BookingService implements BookingPortIn {
         return savedBooking;
     }
 
-   
     @Override
-    public Page<Booking> findBookings(BookingSearchCriteriaDto criteria, Pageable pageable){
+    public Page<Booking> findBookings(BookingSearchCriteriaDto criteria, Pageable pageable) {
         return bookingPortOut.findByCriteria(criteria, pageable);
     }
 
@@ -86,7 +86,6 @@ public class BookingService implements BookingPortIn {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole, String token) {
         var booking = findBookingById(id);
 
@@ -100,10 +99,13 @@ public class BookingService implements BookingPortIn {
             return saved;
         }
 
+        var previousDateTime = booking.getBookingDateTime();
+        var previousServiceType = booking.getServiceDetails().getServiceType();
+
         if (bookingUpdate.getBookingDateTime() != null) {
             var effectiveServiceType = bookingUpdate.getServiceType() != null
                     ? bookingUpdate.getServiceType()
-                    : booking.getServiceDetails().getServiceType();
+                    : previousServiceType;
             validateBookingTime(bookingUpdate.getBookingDateTime(), effectiveServiceType, requesterRole);
 
             validateNoConflictingPetBooking(booking.getPetId(), bookingUpdate.getBookingDateTime(), id, requesterRole);
@@ -113,6 +115,7 @@ public class BookingService implements BookingPortIn {
 
         booking.update(bookingUpdate);
         var saved = bookingPortOut.save(booking);
+        evictUpdatedBookingSlots(previousDateTime, previousServiceType, saved);
 
         var dto = new BookingResponseDto(saved);
         notificationPortOut.sendBookingScheduled(saved);
@@ -123,11 +126,13 @@ public class BookingService implements BookingPortIn {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "availableSlots", allEntries = true)
     public Booking cancelBooking(UUID id) {
         var booking = findBookingById(id);
         booking.setStatus(CANCELED);
         var saved = bookingPortOut.save(booking);
+        availableSlotsPortIn.evictAvailableSlots(
+                saved.getServiceDetails().getServiceType(),
+                saved.getBookingDateTime().toLocalDate());
 
         var dto = new BookingResponseDto(saved);
         notificationPortOut.sendBookingCanceled(saved);
@@ -142,6 +147,24 @@ public class BookingService implements BookingPortIn {
         var booking = findBookingById(id);
         booking.confirmPayment(request.getPaymentMethod());
         return bookingPortOut.save(booking);
+    }
+
+    private void evictUpdatedBookingSlots(
+            LocalDateTime previousDateTime, ServiceType previousServiceType, Booking saved) {
+        var newDateTime = saved.getBookingDateTime();
+        var newServiceType = saved.getServiceDetails().getServiceType();
+        var previousDate = previousDateTime.toLocalDate();
+        var newDate = newDateTime.toLocalDate();
+
+        boolean slotChanged = !previousDateTime.equals(newDateTime);
+        boolean roleChanged = !previousServiceType.requiredStaffRole().equals(newServiceType.requiredStaffRole());
+
+        if (slotChanged || roleChanged) {
+            availableSlotsPortIn.evictAvailableSlots(previousServiceType, previousDate);
+            if (roleChanged || !previousDate.equals(newDate)) {
+                availableSlotsPortIn.evictAvailableSlots(newServiceType, newDate);
+            }
+        }
     }
 
     private void validateNoConflictingPetBooking(UUID petId, LocalDateTime bookingDateTime, UUID excludeBookingId, Role requesterRole) {
