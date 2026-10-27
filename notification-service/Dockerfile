@@ -21,6 +21,7 @@ RUN mvn clean package -DskipTests
 
 # Etapa 2: Execução
 FROM eclipse-temurin:21-jre
+ENV TZ=America/Sao_Paulo
 RUN addgroup --system spring && adduser --system --ingroup spring spring
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar

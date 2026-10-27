@@ -53,6 +53,7 @@ Não existe front-end neste repositório: o sistema é consumido via API REST
 
 | Serviço | Responsabilidade | Porta | Banco |
 |---|---|---|---|
+| `gateway-service` | API Gateway (Spring Cloud Gateway) — ponto único de entrada para o frontend, roteia por path e centraliza CORS | `8080` | — |
 | `customer-management` | Identidade: clientes, pets, funcionários, login/JWT, histórico | `8082` | PostgreSQL + MongoDB |
 | `product-registration` | Catálogo e controle de estoque | `8081` | MongoDB |
 | `staff-service` | Disponibilidade e escala de funcionários | `8085` | PostgreSQL |
@@ -65,6 +66,13 @@ Não existe front-end neste repositório: o sistema é consumido via API REST
 
 ```mermaid
 graph TB
+    FE["Frontend"] -- "/api/v1/**" --> GW["gateway-service<br/>(roteamento + CORS)"]
+    GW --> CM
+    GW --> PR
+    GW --> SS
+    GW --> BS
+    GW --> OS
+
     subgraph Identidade
         CM["customer-management<br/>(emite o JWT)"]
     end
@@ -102,6 +110,11 @@ protegido) validam o mesmo JWT via `petshop-commons`; só o
 service discovery — URL estática por variável de ambiente); eventos
 assíncronos usam **Kafka** (`SASL_PLAINTEXT`, um usuário por
 serviço produtor/consumidor).
+
+`gateway-service` fica na frente dos 5 serviços REST (não do
+`notification-service`, que não tem API), mas não participa dessa validação
+de JWT — é puro roteamento por path, cada serviço continua validando o
+próprio token exatamente como antes. Ver [3.8](#38-gateway-service).
 
 ### 2.3 Modelo de autenticação
 
@@ -491,6 +504,46 @@ pagamento, pagamento confirmado, nota emitida, janela de retirada, pedido
 pronto, carrinho abandonado), `booking-service` (agendamento
 criado/concluído/cancelado) e `customer-management` (recuperação de
 senha).
+
+### 3.8 `gateway-service`
+
+API Gateway (Spring Cloud Gateway, modelo reativo — WebFlux/Netty, único
+módulo do repositório que não é MVC/servlet). Ponto único de entrada HTTP
+pensado para o frontend: antes dele, um frontend em browser precisava
+conhecer 5 URLs base diferentes e nenhum serviço tinha `CorsConfigurationSource`
+configurada (bloqueador real para qualquer chamada vinda de um browser).
+
+**Sem persistência, sem `petshop-commons`** — não tem lógica de domínio,
+não valida JWT (cada serviço continua validando o próprio token, como
+antes do gateway existir).
+
+**Roteamento:** por `Path` predicate, sem `StripPrefix`/`RewritePath` —
+nenhum dos 6 serviços colide em prefixo (`/api/v1/<recurso>`), então o path
+que chega no gateway é exatamente o path que o serviço downstream já
+esperava receber direto:
+
+- `/api/v1/auth/**`, `/api/v1/customers/**`, `/api/v1/staff/**`,
+  `/api/v1/history/**` → `customer-management`
+- `/api/v1/products/**` → `product-registration`
+- `/api/v1/availability/**`, `/api/v1/weekend-allocation/**` → `staff-service`
+- `/api/v1/bookings/**` → `booking-service`
+- `/api/v1/orders/**`, `/api/v1/cart/**` → `order-service`
+
+`notification-service` não tem rota aqui — não expõe REST, só consome
+Kafka.
+
+**CORS:** centralizado em `spring.cloud.gateway.server.webflux.globalcors`
+(`GATEWAY_CORS_ALLOWED_ORIGINS`) — os 5 serviços downstream não precisam
+mais de CORS próprio, porque o browser passa a falar só com o gateway.
+`allowCredentials: false` (Bearer token no header `Authorization`, não
+cookie de sessão).
+
+**Fora do escopo deste módulo, de propósito:** validação de JWT
+centralizada (ligado à pendência maior de autenticação —
+`docs/pendencias/seguranca-autenticacao.md`), rate limiting (hoje só existe
+em login/forgot-password, no `customer-management`) e service discovery
+(URLs downstream continuam estáticas por variável de ambiente, mesmo
+padrão das chamadas Feign entre os outros serviços).
 
 ---
 

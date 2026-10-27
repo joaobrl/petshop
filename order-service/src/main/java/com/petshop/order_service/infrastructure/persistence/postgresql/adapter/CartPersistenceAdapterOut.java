@@ -35,7 +35,11 @@ public class CartPersistenceAdapterOut implements CartPortOut {
 
     @Override
     public Optional<Cart> findOpenCartByCustomerId(UUID customerId) {
-        return repository.findByCustomerIdAndStatus(customerId, CartStatus.OPEN)
+        // See CartRepository: more than one OPEN cart can exist for a
+        // customer (no DB constraint prevents it) — take the most recent one.
+        return repository.findByCustomerIdAndStatusOrderByCreatedAtDesc(customerId, CartStatus.OPEN)
+                .stream()
+                .findFirst()
                 .map(mapper::toDomain);
     }
 

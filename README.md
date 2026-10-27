@@ -11,9 +11,17 @@ notificação por e-mail).
 > completo (múltiplos serviços, mensageria, bancos poliglota, autenticação,
 > testes de integração, CI) e servir de material de aprendizado.
 
+## Frontend
+
+[`web`](web) — SPA em React + Vite + TypeScript (loja, agendamento e um
+painel interno simples), integrada aos microsserviços reais via `fetch`; ver
+[`web/README.md`](web/README.md) para como rodar, CORS e o script de seed.
+
 ## Arquitetura
 
 ```
+   Frontend ──/api/v1/**──► gateway-service (roteamento + CORS)
+                                  │
                         ┌─────────────────────┐
                         │  customer-management │◄──────────────┐
                         │  (emite o JWT)        │                │
@@ -37,6 +45,7 @@ assíncronos (histórico, notificação) usam Kafka.
 
 | Serviço | Responsabilidade | Porta (compose) | Banco | README |
 |---|---|---|---|---|
+| [`gateway-service`](gateway-service) | API Gateway (Spring Cloud Gateway) — ponto único de entrada para o frontend, roteia por path e centraliza CORS | `8080` | — | [detalhes](gateway-service/README.md) |
 | [`customer-management`](customer-management) | Identidade: clientes, pets, funcionários, login/JWT, histórico consultável | `8082` | PostgreSQL (`customer_db`) + MongoDB (histórico) | [detalhes](customer-management/README.md) |
 | [`product-registration`](product-registration) | Catálogo de produtos e controle de estoque (reserve/release/confirm) | `8081` | MongoDB (`produtos_db`) | [detalhes](product-registration/README.md) |
 | [`staff-service`](staff-service) | Disponibilidade de funcionários e escala rotativa de sábado | `8085` | PostgreSQL (`staff_db`) | [detalhes](staff-service/README.md) |
@@ -54,7 +63,9 @@ um com seu próprio banco lógico dentro da mesma instância), e um Kafka
 
 ## Stack técnica
 
-- **Java 21**, **Spring Boot 4.0.3** em todos os 7 módulos
+- **Java 21**, **Spring Boot 4.0.3** em todos os 8 módulos
+- `gateway-service` é o único módulo reativo (Spring Cloud Gateway,
+  WebFlux/Netty) — os outros 7 são MVC/servlet
 - Spring Web, Spring Data JPA, Spring Data MongoDB, Spring Kafka, Spring
   Cloud OpenFeign (sem service discovery — URLs estáticas por variável de
   ambiente), Bean Validation, Actuator
@@ -62,8 +73,9 @@ um com seu próprio banco lógico dentro da mesma instância), e um Kafka
   `customer-management`, validado por todos via `petshop-commons`
 - MapStruct + Lombok
 - Testcontainers (PostgreSQL/MongoDB/Kafka) e JUnit 5 + Mockito nos testes
-  de integração/unitários; gate de cobertura JaCoCo (90% de instruções em
-  todos os 7 módulos)
+  de integração/unitários; gate de cobertura JaCoCo (90% de instruções nos
+  7 módulos com lógica de domínio — `gateway-service` não tem esse gate,
+  é só configuração de roteamento)
 - Docker + Docker Compose para rodar tudo localmente; manifests Kubernetes
   em [`k8s/`](k8s) para os 6 serviços + Postgres/Mongo/Kafka
 
@@ -106,9 +118,13 @@ um com seu próprio banco lógico dentro da mesma instância), e um Kafka
    docker compose up --build
    ```
 
-   Serviços expostos: `8081` produtos, `8082` clientes, `8083` agendamentos,
-   `8084` notificações, `8085` staff, `8086` pedidos; Postgres em `5432`,
-   MongoDB em `27017`, Kafka (listener externo) em `9094`.
+   Serviços expostos: `8080` gateway (use este a partir do frontend —
+   ver [`gateway-service/README.md`](gateway-service/README.md)), `8081`
+   produtos, `8082` clientes, `8083` agendamentos, `8084` notificações,
+   `8085` staff, `8086` pedidos; Postgres em `5432`, MongoDB em `27017`,
+   Kafka (listener externo) em `9094`. As portas `8081`–`8086` continuam
+   abertas pra depuração direta de cada serviço; nenhuma delas tem CORS
+   configurado (de propósito — só o gateway precisa).
 
 Sem `BREVO_API_KEY`/`BREVO_TEMPLATE_*` o `notification-service` sobe
 normalmente, mas o envio de e-mail falha silenciosamente (só logado).
@@ -127,7 +143,7 @@ cd petshop-commons && ./mvnw clean install
 cd ../<algum-servico>
 ./mvnw spring-boot:run
 
-# opção 2: builda os 7 módulos na ordem certa a partir da raiz
+# opção 2: builda os 8 módulos na ordem certa a partir da raiz
 mvn clean install
 ```
 
@@ -189,6 +205,10 @@ local: réplica única, `NodePort`, `imagePullPolicy: Never` (build da imagem
 local, sem registry) e credenciais placeholder nos `Secret` — trocar antes
 de qualquer uso real. Ver a seção "Kubernetes" de cada README de serviço
 para a porta `NodePort` específica.
+
+> `gateway-service` ainda não tem manifests em `k8s/` — ficou fora do
+> escopo desta rodada, que focou em viabilizar a conexão local
+> backend/frontend via Docker Compose.
 
 ## Documentação adicional
 
