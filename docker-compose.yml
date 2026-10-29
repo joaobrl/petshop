@@ -48,8 +48,12 @@ services:
       BOOTSTRAP_ADMIN_CPF: ${BOOTSTRAP_ADMIN_CPF:-00000000000}
       BOOTSTRAP_ADMIN_PHONE: ${BOOTSTRAP_ADMIN_PHONE:-00000000000}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-      # Faixa padrão das redes bridge do Docker, onde o api-gateway roda.
-      RATE_LIMIT_TRUSTED_PROXIES: ${RATE_LIMIT_TRUSTED_PROXIES:-172.16.0.0/12}
+      # Só o api-gateway (IP fixo, ver "networks" no fim do arquivo) pode
+      # informar o IP do cliente via X-Forwarded-For (SDD-003 RNF3, SDD-028).
+      # Nada de faixa: com 172.16.0.0/12 o IP do bridge pelo qual chegam as
+      # chamadas do host na porta 8082 também era "confiável", e um XFF
+      # forjado direto em 127.0.0.1:8082 escapava do rate limit.
+      RATE_LIMIT_TRUSTED_PROXIES: ${RATE_LIMIT_TRUSTED_PROXIES:-172.28.0.10/32}
     ports:
       - "8082:8080"
     depends_on:
@@ -163,6 +167,13 @@ services:
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
     ports:
       - "8080:8080"
+    networks:
+      default:
+        # IP fixo: é o único que o api-customers aceita como proxy confiável
+        # (RATE_LIMIT_TRUSTED_PROXIES). Fica fora do ip_range dinâmico da
+        # rede, então nenhum outro container recebe este IP por acaso.
+        # Mudou aqui, muda lá.
+        ipv4_address: 172.28.0.10
     depends_on:
       - api-products
       - api-customers
@@ -202,6 +213,32 @@ services:
 
       - KAFKA_INTER_BROKER_USER=${KAFKA_INTER_BROKER_USER:-petbooking_app}
       - KAFKA_INTER_BROKER_PASSWORD=${KAFKA_INTER_BROKER_PASSWORD}
+# Rede única do projeto, com subnet fixa para o api-gateway ter IP fixo
+# (SDD-028). É a rede "default" do compose redefinida: todo serviço continua
+# entrando nela sem declarar nada, e a resolução por nome (db, kafka,
+# api-customers...) segue igual. Sem "name:" fixo, para o compose continuar
+# prefixando com o nome do projeto.
+#
+# Riscos:
+# - 172.28.0.0/16 é faixa pouco usada, mas pode colidir com uma rede já
+#   existente na máquina (outra rede Docker, VPN, rede corporativa) — aí o
+#   "up" falha com "Pool overlaps with other one on this address space".
+#   Trocar a subnet exige trocar junto o ipv4_address do api-gateway e o
+#   RATE_LIMIT_TRUSTED_PROXIES do api-customers.
+# - Dois projetos compose deste repositório no ar ao mesmo tempo (ex.: outro
+#   worktree) disputam a mesma subnet, como já acontece com os container_name
+#   fixos: "docker compose down" no outro antes.
+# - Quem conseguir um container nesta rede com o IP 172.28.0.10 (ou
+#   comprometer o gateway) passa a escolher o IP que o rate limit enxerga.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+          # IPs dinâmicos só saem de 172.28.1.0/24; 172.28.0.x fica reservado
+          # para IPs fixos (hoje só o api-gateway).
+          ip_range: 172.28.1.0/24
+
 volumes:
   shared_db_data:
     driver: local

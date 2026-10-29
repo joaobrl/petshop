@@ -11,6 +11,11 @@ data:
   SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-svc:9092
   KAFKA_CONSUMER_GROUP: customer-group
   JWT_EXPIRATION_MINUTES: "15"
-  # Rede interna do cluster (pods) — só dela o X-Forwarded-For é aceito
-  # pelo rate limit de login. Ajustar ao pod CIDR real do cluster.
-  RATE_LIMIT_TRUSTED_PROXIES: 10.0.0.0/8
+  # Vazio de propósito = não confia em ninguém: o rate limit de login ignora
+  # X-Forwarded-For e conta pelo remoteAddr (SDD-003 RNF4). Não há gateway
+  # nem ingress nos manifests e o Service é NodePort, então uma faixa como
+  # 10.0.0.0/8 confiaria em IPs de nó e aceitaria XFF forjado por qualquer
+  # cliente. Preencher só quando o gateway/ingress rodar no cluster, com o
+  # IP/CIDR mais estreito possível dele (pod CIDR do gateway ou IP do
+  # ingress controller), nunca a faixa do cluster inteira.
+  RATE_LIMIT_TRUSTED_PROXIES: ""
