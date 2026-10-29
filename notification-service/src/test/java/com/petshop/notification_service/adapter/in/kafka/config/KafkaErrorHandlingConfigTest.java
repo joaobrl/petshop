@@ -28,7 +28,7 @@ import org.springframework.kafka.listener.KafkaMessageListenerContainer;
 import org.springframework.kafka.listener.MessageListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
@@ -159,7 +159,7 @@ class KafkaErrorHandlingConfigTest {
         var consumer = new NotificationCommandConsumer((tipo, to, params) -> onSend.accept(to), meterRegistry);
 
         var valueDeserializer = new ErrorHandlingDeserializer<>(
-                new JsonDeserializer<>(SendEmailCommandDto.class).trustedPackages("*"));
+                new JacksonJsonDeserializer<>(SendEmailCommandDto.class).trustedPackages("*"));
         var consumerFactory = new DefaultKafkaConsumerFactory<String, SendEmailCommandDto>(
                 Map.of(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, broker.getBrokersAsString(),
                         ConsumerConfig.GROUP_ID_CONFIG, "notification-group-" + UUID.randomUUID(),
