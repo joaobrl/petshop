@@ -3,8 +3,15 @@ package com.petshop.commons.handler;
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -139,6 +146,50 @@ class BaseExceptionHandlerTest {
     }
 
     @Test
+    void handlesDataIntegrityViolationAsConflict() {
+        var ex = new DataIntegrityViolationException("violação de constraint");
+
+        var problem = handler.handleDataIntegrity(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getTitle()).isEqualTo("Resource conflict");
+        assertThat(problem.getDetail()).isEqualTo("Já existe um registro com esses dados.");
+    }
+
+    @Test
+    void dataIntegrityDetailDoesNotLeakDatabaseDetails() {
+        var ex = new DataIntegrityViolationException(
+                "could not execute statement [ERROR: duplicate key value violates unique constraint "
+                        + "\"uk_customer_cpf\" Detail: Key (cpf)=(123.456.789-00) already exists.] "
+                        + "SQL: insert into customer (cpf, email) values (?, ?)");
+
+        var problem = handler.handleDataIntegrity(ex);
+
+        assertThat(problem.getDetail())
+                .doesNotContain("cpf")
+                .doesNotContain("email")
+                .doesNotContain("constraint")
+                .doesNotContain("uk_customer")
+                .doesNotContain("123.456.789-00")
+                .doesNotContain("insert")
+                .doesNotContain("SQL");
+        assertThat(problem.getProperties()).isNullOrEmpty();
+    }
+
+    @Test
+    void handlesDuplicateKeyAsConflict() {
+        var ex = new DuplicateKeyException("E11000 duplicate key error collection: products index: sku_1");
+
+        var problem = handler.handleDataIntegrity(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getTitle()).isEqualTo("Resource conflict");
+        assertThat(problem.getDetail())
+                .isEqualTo("Já existe um registro com esses dados.")
+                .doesNotContain("sku_1");
+    }
+
+    @Test
     void handlesGenericExceptionWithoutLeakingDetails() {
         var ex = new RuntimeException("detalhe interno sensível, stack trace, etc.");
 
@@ -149,5 +200,76 @@ class BaseExceptionHandlerTest {
         assertThat(problem.getDetail())
                 .isEqualTo("Ocorreu um erro inesperado. Tente novamente mais tarde.")
                 .doesNotContain("detalhe interno sensível");
+    }
+
+    private List<String> captureWarnLogs(Runnable action) {
+        var logger = (Logger) LoggerFactory.getLogger(BaseExceptionHandler.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
+    }
+
+    @Test
+    void logMasksPostgresValuesButKeepsColumn() {
+        var cause = new RuntimeException("ERROR: duplicate key value violates unique constraint \"uk_cpf\"\n"
+                + "  Detail: Key (cpf)=(12345678900) already exists.");
+
+        var logs = captureWarnLogs(() ->
+                handler.handleDataIntegrity(new DataIntegrityViolationException("x", cause)));
+
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0)).contains("uk_cpf").contains("Key (cpf)=(***)")
+                .doesNotContain("12345678900");
+    }
+
+    @Test
+    void logMasksMongoValuesAndKeepsIndexName() {
+        var cause = new RuntimeException("E11000 duplicate key error collection: db.customers index: cpf_1 "
+                + "dup key: { cpf: \"12345678900\" }");
+
+        var logs = captureWarnLogs(() ->
+                handler.handleDataIntegrity(new DuplicateKeyException("x", cause)));
+
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0)).contains("cpf_1").contains("dup key: { *** }")
+                .doesNotContain("12345678900");
+    }
+
+    @Test
+    void maskValuesHandlesNullAndMessagesWithoutValues() {
+        assertThat(BaseExceptionHandler.maskValues(null)).isNull();
+        assertThat(BaseExceptionHandler.maskValues("violates foreign key constraint fk_x"))
+                .isEqualTo("violates foreign key constraint fk_x");
+    }
+
+    @Test
+    void maskValuesMasksCompositeKeys() {
+        assertThat(BaseExceptionHandler.maskValues("Key (cpf, email)=(123, a@b.com) already exists."))
+                .isEqualTo("Key (cpf, email)=(***) already exists.");
+    }
+
+    @Test
+    void maskValuesMasksFailingRowOfNotNullViolation() {
+        assertThat(BaseExceptionHandler.maskValues(
+                "null value in column \"phone\" violates not-null constraint\n  Detail: Failing row contains (7, 12345678900, a@b.com, null)."))
+                .isEqualTo("null value in column \"phone\" violates not-null constraint\n  Detail: Failing row contains (***).");
+        assertThat(BaseExceptionHandler.maskValues("Detalhe: A linha que falhou contém (7, 12345678900, null)."))
+                .isEqualTo("Detalhe: A linha que falhou contém (***).");
+    }
+
+    @Test
+    void handlerDoesNotFailWhenCauseMessageIsNull() {
+        var problem = handler.handleDataIntegrity(new DataIntegrityViolationException(null));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
     }
 }

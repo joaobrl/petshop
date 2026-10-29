@@ -190,6 +190,7 @@ automaticamente — ver [6](#6-como-rodar-localmente)).
   |---|---|---|
   | `NotFoundException` | 404 | Recurso não encontrado |
   | `ConflictException` | 409 | Ex.: CPF já cadastrado |
+  | `DataIntegrityViolationException` (e `DuplicateKeyException`, do Mongo) | 409 | Violação de constraint do banco (corrida no cadastro, índice único). Mensagem genérica; detalhe do banco só no log (`WARN`) |
   | `BusinessRuleException` | 422 | Regra de negócio violada (estoque insuficiente, sem funcionário disponível...) |
   | `MethodArgumentNotValidException` | 400 | Bean Validation — lista de erros por campo em `problem.errors` |
   | `AccessDeniedException` | 403 | Autenticado, mas sem permissão |

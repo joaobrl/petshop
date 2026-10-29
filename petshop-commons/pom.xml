@@ -37,6 +37,15 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Spring TX: DataIntegrityViolationException e DuplicateKeyException
+             (org.springframework.dao) usados pelo BaseExceptionHandler -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+            <version>6.1.14</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Bean Validation: MethodArgumentNotValidException -->
         <dependency>
             <groupId>jakarta.validation</groupId>

@@ -5,6 +5,7 @@ import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -35,6 +36,32 @@ public abstract class BaseExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Resource conflict");
         return problem;
+    }
+
+    // Cobre também DuplicateKeyException (subclasse, usada pelo Spring Data Mongo em índice único)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", maskValues(ex.getMostSpecificCause().getMessage()));
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "Já existe um registro com esses dados.");
+        problem.setTitle("Resource conflict");
+        return problem;
+    }
+
+    // RNF3 (LGPD): a mensagem do banco traz o valor duplicado (CPF/e-mail); o log
+    // mantém coluna/constraint e mascara os valores.
+    //   Postgres: Key (cpf)=(123) already exists  ->  Key (cpf)=(***) already exists
+    //   Mongo:    dup key: { cpf: "123" }         ->  dup key: { *** }
+    //   Postgres (not-null/check): Failing row contains (1, 123, ...)  ->  Failing row contains (***)
+    static String maskValues(String message) {
+        if (message == null) {
+            return null;
+        }
+        return message
+                .replaceAll("(Key \\([^)]*\\)=)\\([^)]*\\)", "$1(***)")
+                .replaceAll("dup key: \\{[^}]*}", "dup key: { *** }")
+                // lc_messages pt_BR do Postgres traduz o texto ("A linha que falhou contém")
+                .replaceAll("(Failing row contains|A linha que falhou contém) \\(.*\\)", "$1 (***)");
     }
 
     @ExceptionHandler(BusinessRuleException.class)
