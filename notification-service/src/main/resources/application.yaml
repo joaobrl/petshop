@@ -22,6 +22,15 @@ spring:
         spring.json.trusted.packages: "com.petshop.notification_service.adapter.in.kafka.dto"
         spring.json.use.type.headers: false
 
+notification:
+  kafka:
+    # Retry com backoff exponencial antes de mandar pro "notification-commands.DLT"
+    # (KafkaErrorHandlingConfig): 3 novas tentativas = 1s, 2s, 4s.
+    retry:
+      max-attempts: 3
+      initial-interval-ms: 1000
+      multiplier: 2.0
+
 brevo:
   # Único serviço que conhece os templateId do Brevo — resolve tipo →
   # templateId internamente (BrevoProperties/BrevoEmailAdapterOut). Sem

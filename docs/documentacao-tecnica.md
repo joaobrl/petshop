@@ -278,8 +278,9 @@ eventos Kafka — não por escrita direta de outro serviço.
   duas factories): um payload que não desserializa vira
   `DeserializationException`, tratada com retry + `DeadLetterPublishingRecoverer`
   publicando no tópico `.DLT`, sem travar o `poll()` nem o consumo dos
-  próximos registros. Diferente do `notification-service` (ver
-  [3.7](#37-notification-service)), que ainda não tem essa proteção.
+  próximos registros. O `notification-service` (ver
+  [3.7](#37-notification-service)) tem proteção equivalente, com backoff
+  exponencial.
 - `BootstrapAdminRunner` — `ApplicationRunner` que roda no start: se a
   tabela de staff estiver vazia, cria um `ADMIN` inicial com senha aleatória
   de 20 caracteres (ou `BOOTSTRAP_ADMIN_PASSWORD`, se configurada), logada
@@ -486,8 +487,11 @@ serviço não renderiza HTML). Sem API REST própria, sem persistência.
 **Principais classes:**
 - `NotificationCommandConsumer` — `@KafkaListener(topics =
   KafkaTopics.NOTIFICATION_COMMANDS, groupId = "notification-group")`;
-  qualquer exceção no processamento é capturada e só logada (sem retry,
-  sem dead-letter topic).
+  a exceção do envio é relançada (e contada em `notification.send.failed`),
+  e o `DefaultErrorHandler` de `KafkaErrorHandlingConfig` decide: falha
+  transitória é retentada (3 novas tentativas, backoff 1s/2s/4s) e, se
+  persistir, vai para `notification-commands.DLT`; 4xx do Brevo e erro de
+  desserialização vão direto pro DLT, sem retry.
 - `NotificationSender` (porta de saída, `enviar(TipoNotificacao,
   destinatarioEmail, variaveis)`) — implementada por `BrevoEmailAdapterOut`.
 - `BrevoEmailAdapterOut` — resolve `TipoNotificacao` → `templateId` via
@@ -835,17 +839,24 @@ sequenceDiagram
         BE-->>NC: sucesso (log info)
     else status 4xx/5xx
         API-->>BE: erro
-        BE-->>NC: RuntimeException
-        NC->>NC: catch genérico, log error
+        BE-->>NC: FeignException
+        NC->>NC: conta notification.send.failed e relança
+        Note over NC: DefaultErrorHandler: retry (5xx/timeout) ou DLT (4xx)
     end
 ```
 
-**Ponto importante:** não há retry nem dead-letter topic. Se o envio falhar
-(Brevo fora do ar, chave inválida, `templateId` não encontrado), o
-`NotificationCommandConsumer` captura a exceção, loga e segue — a mensagem
-Kafka é considerada consumida (offset avança) mesmo assim. Sem
-`BREVO_API_KEY`/`BREVO_TEMPLATE_*` configurados, o serviço sobe
-normalmente e todo envio falha silenciosamente (só logado).
+**Ponto importante:** falha de envio não é mais engolida. Falha retentável
+(5xx do Brevo, timeout, erro de conexão) é reprocessada até 3 vezes com
+backoff exponencial (1s, 2s, 4s); 4xx (chave inválida, `templateId`
+inexistente, payload inválido) e JSON inválido vão direto para
+`notification-commands.DLT`, assim como as mensagens que esgotam as
+tentativas, com os headers padrão do Spring Kafka
+(`kafka_dlt-exception-message`, `-fqcn`, offset/partição originais). O DLT
+não é reprocessado automaticamente; a métrica `notification.dlt.published`
+permite alertar quando for > 0. Se o Brevo aceitou o envio mas a resposta
+se perdeu, o retry reenvia o e-mail (duplicidade aceitável para e-mail
+transacional). Sem `BREVO_API_KEY`/`BREVO_TEMPLATE_*` configurados, o
+serviço sobe normalmente e todo envio falha (vai pro DLT).
 
 ---
 

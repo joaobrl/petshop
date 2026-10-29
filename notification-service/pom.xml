@@ -77,6 +77,12 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 		<!-- spring-kafka's JsonSerializer/JsonDeserializer ainda usam um
 		     ObjectMapper Jackson 2 internamente (não o JsonMapper/Jackson 3
 		     que o Boot 4 autoconfigura para o Spring MVC). Sem este módulo no
