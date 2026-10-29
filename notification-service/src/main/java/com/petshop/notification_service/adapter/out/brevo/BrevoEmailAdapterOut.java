@@ -2,6 +2,7 @@ package com.petshop.notification_service.adapter.out.brevo;
 
 import com.petshop.notification_service.adapter.out.brevo.dto.SendSmtpEmailRequest;
 import com.petshop.notification_service.core.application.port.out.NotificationSender;
+import com.petshop.notification_service.core.application.support.EmailMasker;
 import com.petshop.notification_service.core.domain.TipoNotificacao;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,12 +30,12 @@ public class BrevoEmailAdapterOut implements NotificationSender {
 
         try {
             brevoFeignClient.enviarEmail(brevoProperties.apiKey(), request);
-            log.info("E-mail '{}' enviado via Brevo (template {}) para [{}]", tipo, templateId, destinatarioEmail);
+            log.info("E-mail '{}' enviado via Brevo (template {}) para [{}]", tipo, templateId, EmailMasker.mask(destinatarioEmail));
         } catch (Exception ex) {
             // FeignException é unchecked e já cobre qualquer resposta não-2xx
             // (diferente do SDK do SendGrid, que exigia checagem manual);
             // só logamos com o contexto do destinatário e repropagamos.
-            log.error("Falha ao enviar e-mail '{}' via Brevo (template {}) para [{}]", tipo, templateId, destinatarioEmail, ex);
+            log.error("Falha ao enviar e-mail '{}' via Brevo (template {}) para [{}]", tipo, templateId, EmailMasker.mask(destinatarioEmail), ex);
             throw ex;
         }
     }

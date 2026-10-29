@@ -77,15 +77,10 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 
-		<!-- spring-kafka's JsonSerializer/JsonDeserializer ainda usam um
-		     ObjectMapper Jackson 2 internamente (não o JsonMapper/Jackson 3
-		     que o Boot 4 autoconfigura para o Spring MVC). Sem este módulo no
-		     classpath, o findAndRegisterModules() deles não acha suporte a
-		     java.time e a serialização de LocalDateTime quebra com
-		     InvalidDefinitionException. -->
 		<dependency>
-			<groupId>com.fasterxml.jackson.datatype</groupId>
-			<artifactId>jackson-datatype-jsr310</artifactId>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka-test</artifactId>
+			<scope>test</scope>
 		</dependency>
 
 		<dependency>
@@ -96,6 +91,16 @@
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
+		</dependency>
+
+		<!-- Brevo falso para o teste de integração com o BrevoFeignClient real.
+		     A variante standalone embute Jetty/Jackson sombreados, então não
+		     conflita com o Jetty 12 / Jackson 3 gerenciados pelo Boot 4. -->
+		<dependency>
+			<groupId>org.wiremock</groupId>
+			<artifactId>wiremock-standalone</artifactId>
+			<version>3.13.1</version>
+			<scope>test</scope>
 		</dependency>
 
 		<dependency>

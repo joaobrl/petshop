@@ -30,7 +30,14 @@ Kafka (tópico "notification-commands")
   - [`order-service`](../order-service) — pedido aguardando pagamento, pagamento confirmado, nota emitida, janela de retirada, pedido pronto, lembrete de carrinho abandonado
   - [`booking-service`](../booking-service) — agendamento criado, concluído, cancelado
   - [`customer-management`](../customer-management) — cadastro confirmado (boas-vindas), recuperação de senha
-- Erros no envio são capturados e logados, sem retry nem dead-letter topic configurado.
+- **Retry e dead-letter topic** (`KafkaErrorHandlingConfig`, `DefaultErrorHandler` + `DeadLetterPublishingRecoverer`): o consumer não engole mais a exceção do envio.
+  - Falha retentável (5xx do Brevo, timeout, erro de conexão): até **3 novas tentativas** com backoff exponencial (1 s, 2 s, 4 s) — configurável em `notification.kafka.retry.*`. A partição fica parada durante esse tempo (~7 s).
+  - Falha não retentável (4xx do Brevo — chave inválida, template inexistente, payload inválido — ou erro de desserialização): vai direto para o DLT, sem retry.
+  - Esgotadas as tentativas, a mensagem é publicada em `notification-commands.DLT` com os headers padrão do Spring Kafka (`kafka_dlt-exception-message`, `kafka_dlt-exception-fqcn`, tópico/partição/offset originais). O DLT é auto-criado e **não é reprocessado automaticamente** (reprocessamento é manual).
+  - JSON inválido ("poison pill") vai para o DLT e não trava a partição (`ErrorHandlingDeserializer`).
+  - Métricas (Micrometer/Actuator): `notification.send.failed` (tag `reason`: `http_4xx`, `http_5xx`, `connection_error`, `unexpected`) e `notification.dlt.published` (tag `topic`) — alerte quando esta última for > 0.
+  - Os logs de falha trazem só o destinatário mascarado e o `templateId`, nunca o conteúdo do e-mail (pode ter token de reset de senha).
+  - **Duplicidade:** se o Brevo aceitou o envio mas a resposta se perdeu (timeout), o retry envia o e-mail de novo. Aceitável para e-mail transacional; idempotência real exigiria uma chave de deduplicação no comando.
 
 ## Envio de e-mail (Brevo)
 

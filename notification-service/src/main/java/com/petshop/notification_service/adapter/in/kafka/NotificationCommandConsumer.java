@@ -4,6 +4,9 @@ import com.petshop.commons.messaging.KafkaTopics;
 import com.petshop.commons.web.CorrelationIdFilter;
 import com.petshop.notification_service.adapter.in.kafka.dto.SendEmailCommandDto;
 import com.petshop.notification_service.core.application.port.out.NotificationSender;
+import com.petshop.notification_service.core.application.support.EmailMasker;
+import feign.FeignException;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -20,6 +23,7 @@ import java.util.UUID;
 public class NotificationCommandConsumer {
 
     private final NotificationSender notificationSender;
+    private final MeterRegistry meterRegistry;
 
     @KafkaListener(topics = KafkaTopics.NOTIFICATION_COMMANDS, groupId = "notification-group")
     public void consume(SendEmailCommandDto command,
@@ -29,13 +33,23 @@ public class NotificationCommandConsumer {
                 : UUID.randomUUID().toString();
         MDC.put(CorrelationIdFilter.MDC_KEY, correlationId);
         try {
-            log.info("Received command '{}' to send email to: {}", command.tipo(), command.to());
+            log.info("Received command '{}' to send email to: {}", command.tipo(), EmailMasker.mask(command.to()));
             notificationSender.enviar(command.tipo(), command.to(), command.params());
-            log.info("Successfully processed email command '{}' for: {}", command.tipo(), command.to());
-        } catch (Exception e) {
-            log.error("Failed to process email command '{}' for: {}", command.tipo(), command.to(), e);
+            log.info("Successfully processed email command '{}' for: {}", command.tipo(), EmailMasker.mask(command.to()));
+        } catch (RuntimeException e) {
+            // Não engole: o DefaultErrorHandler (KafkaErrorHandlingConfig)
+            // decide entre retry e dead-letter topic.
+            meterRegistry.counter("notification.send.failed", "reason", reason(e)).increment();
+            throw e;
         } finally {
             MDC.remove(CorrelationIdFilter.MDC_KEY);
         }
+    }
+
+    private static String reason(RuntimeException e) {
+        if (e instanceof FeignException feign) {
+            return feign.status() > 0 ? "http_" + feign.status() / 100 + "xx" : "connection_error";
+        }
+        return "unexpected";
     }
 }
