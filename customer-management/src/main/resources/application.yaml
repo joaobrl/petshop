@@ -75,6 +75,13 @@ bootstrap:
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{correlationId}] --- [%15.15t] %-40.40logger{39} : %m%n%wEx"
+  level:
+    # O Hibernate 7 (categoria org.hibernate.orm.jdbc.error, antigo
+    # SqlExceptionHelper) loga a mensagem crua do Postgres, com o valor que
+    # violou a constraint ("Key (cpf)=(...)") — CPF em texto claro (SDD-029).
+    # A exceção continua subindo e o BaseExceptionHandler loga a mesma falha
+    # com os valores mascarados, então o diagnóstico não se perde.
+    org.hibernate.orm.jdbc.error: "OFF"
 
 # DEBUG/TRACE de segurança e Hibernate (loga parâmetros de bind SQL — CPF,
 # hashes de senha, dados pessoais — em texto claro) gatiados atrás do

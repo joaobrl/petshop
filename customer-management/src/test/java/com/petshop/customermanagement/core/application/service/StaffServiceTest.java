@@ -88,7 +88,8 @@ class StaffServiceTest {
 
             assertThatThrownBy(() -> staffService.createStaff(request))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining(request.getCpf());
+                    .hasMessage("CPF já cadastrado")
+                    .message().doesNotContain(request.getCpf());
 
             verify(staffPortOut, never()).save(any());
         }
@@ -101,7 +102,8 @@ class StaffServiceTest {
 
             assertThatThrownBy(() -> staffService.createStaff(request))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining(request.getEmail());
+                    .hasMessage("Email já cadastrado")
+                    .message().doesNotContain(request.getEmail());
 
             verify(staffPortOut, never()).save(any());
         }

@@ -27,7 +27,7 @@ public class UpdateBookingHistoryUseCase {
     @Transactional(readOnly = true)
     public void execute(BookingCompletedCommand command) {
         var customer = customerPortOut.findByCpf(command.ownerCpf())
-                .orElseThrow(() -> new NotFoundException("Cliente com CPF", command.ownerCpf()));
+                .orElseThrow(() -> new NotFoundException("Cliente do agendamento " + command.bookingId() + " não encontrado(a)"));
 
         BookingHistory history = bookingHistoryPortOut.findByBookingId(command.bookingId())
                 .orElseGet(() -> {
@@ -47,6 +47,6 @@ public class UpdateBookingHistoryUseCase {
 
         bookingHistoryPortOut.save(history);
 
-        log.info("Histórico atualizado com sucesso para o cliente CPF: {}", command.ownerCpf());
+        log.info("Histórico atualizado com sucesso: customerId={}, bookingId={}", customer.getId(), command.bookingId());
     }
 }

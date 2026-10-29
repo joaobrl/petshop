@@ -34,7 +34,7 @@ public class CustomerService implements CustomerPortIn {
     public Customer registerCustomer (CustomerRequestDto request) {
         customerPortOut.findByCpf(request.getCpf())
                 .ifPresent(c -> {
-                    throw new ConflictException("CPF já cadastrado: " + request.getCpf());
+                    throw new ConflictException("CPF já cadastrado");
                 });
 
         var customer = new Customer(
@@ -52,7 +52,7 @@ public class CustomerService implements CustomerPortIn {
         customer.setMustChangePassword(false);
         var saved = customerPortOut.save(customer);
         notificationPortOut.sendRegistrationConfirmation(saved.getEmail(), saved.getName());
-        log.info("Customer registered with CPF: {}", request.getCpf());
+        log.info("Customer registered: id={}", saved.getId());
         return saved;
     }
 
@@ -84,7 +84,7 @@ public class CustomerService implements CustomerPortIn {
     public Customer findCustomerByIdOrCpf(String idOrCpf) {
         return findByUuidIfValid(idOrCpf)
                 .or(() -> customerPortOut.findByCpf(idOrCpf))
-                .orElseThrow(() -> new NotFoundException("Cliente", idOrCpf));
+                .orElseThrow(() -> new NotFoundException("Cliente não encontrado(a)"));
     }
 
     private Optional<Customer> findByUuidIfValid(String idOrCpf) {

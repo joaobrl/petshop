@@ -98,7 +98,8 @@ class UpdateBookingHistoryUseCaseTest {
 
         assertThatThrownBy(() -> useCase.execute(command))
                 .isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("12345678900");
+                .hasMessageContaining(command.bookingId().toString())
+                .message().doesNotContain("12345678900");
 
         verifyNoInteractions(bookingHistoryPortOut);
     }

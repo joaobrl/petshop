@@ -85,7 +85,8 @@ class CustomerServiceTest {
 
             assertThatThrownBy(() -> customerService.registerCustomer(request))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("12345678900");
+                    .hasMessage("CPF já cadastrado")
+                    .message().doesNotContain("12345678900");
 
             verify(customerPortOut, never()).save(any());
             verify(notificationPortOut, never()).sendRegistrationConfirmation(any(), any());
