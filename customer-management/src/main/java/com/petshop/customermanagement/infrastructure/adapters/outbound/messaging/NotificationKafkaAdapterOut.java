@@ -42,7 +42,7 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
         var record = new ProducerRecord<String, Object>(
                 KafkaTopics.NOTIFICATION_COMMANDS, null, null, command, correlationIdHeaders());
         kafkaTemplate.send(record);
-        log.info("Published password-reset email command for: {}", to);
+        log.info("Published password-reset email command");
     }
 
     @Override
@@ -52,7 +52,7 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
         var record = new ProducerRecord<String, Object>(
                 KafkaTopics.NOTIFICATION_COMMANDS, null, null, command, correlationIdHeaders());
         kafkaTemplate.send(record);
-        log.info("Published registration-confirmation email command for: {}", to);
+        log.info("Published registration-confirmation email command");
     }
 
     // O consumer (notification-service) extrai este header de volta pro MDC dele,

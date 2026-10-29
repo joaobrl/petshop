@@ -56,7 +56,7 @@ logging:
     # Mensagem crua do Postgres traz os valores da linha que violou a
     # constraint (owner_cpf em texto claro, SDD-029); a falha continua
     # logada pelo BaseExceptionHandler.
-    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+    org.hibernate.orm.jdbc.error: "OFF"
 
 # DEBUG/TRACE de segurança e Hibernate (loga parâmetros de bind SQL — CPF,
 # hashes de senha, dados pessoais — em texto claro) gatiados atrás do
