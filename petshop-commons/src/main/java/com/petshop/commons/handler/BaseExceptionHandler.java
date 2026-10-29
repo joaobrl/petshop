@@ -5,6 +5,7 @@ import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -33,6 +34,16 @@ public abstract class BaseExceptionHandler {
     public ProblemDetail handleConflict(ConflictException ex) {
         log.warn("Conflict: {}", ex.getMessage());
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Resource conflict");
+        return problem;
+    }
+
+    // Cobre também DuplicateKeyException (subclasse, usada pelo Spring Data Mongo em índice único)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "Já existe um registro com esses dados.");
         problem.setTitle("Resource conflict");
         return problem;
     }
