@@ -52,6 +52,13 @@ jwt:
   secret: ${JWT_SECRET:}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
 
+# CIDRs (separados por vírgula) dos proxies cujo X-Forwarded-For o
+# RateLimitingFilter aceita para achar o IP real do cliente (ver
+# ClientIpResolver). Vazio = não confia em ninguém, limita por remoteAddr.
+# docker-compose/k8s setam a rede interna onde o gateway roda.
+rate-limit:
+  trusted-proxies: ${RATE_LIMIT_TRUSTED_PROXIES:}
+
 # Funcionário ADMIN criado automaticamente no primeiro start (ver
 # BootstrapAdminRunner), só quando a tabela de staff está vazia. Senha
 # inicial é BOOTSTRAP_ADMIN_PASSWORD se setada, senão uma senha aleatória

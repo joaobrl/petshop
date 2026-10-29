@@ -21,6 +21,7 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.time.Duration;
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
@@ -42,7 +43,13 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+    public ClientIpResolver clientIpResolver(@Value("${rate-limit.trusted-proxies:}") List<String> trustedProxies) {
+        return new ClientIpResolver(trustedProxies);
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
+                                           ClientIpResolver clientIpResolver) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -71,7 +78,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/history/purchases/*").authenticated()
                         .anyRequest().hasAnyRole("ADMIN", "RECEPTIONIST"))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(new RateLimitingFilter(), JwtAuthenticationFilter.class)
+                .addFilterBefore(new RateLimitingFilter(clientIpResolver), JwtAuthenticationFilter.class)
                 .addFilterBefore(new CorrelationIdFilter(), RateLimitingFilter.class);
         return http.build();
     }
