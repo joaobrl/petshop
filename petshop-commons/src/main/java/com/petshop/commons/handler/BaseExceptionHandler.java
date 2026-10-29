@@ -41,11 +41,24 @@ public abstract class BaseExceptionHandler {
     // Cobre também DuplicateKeyException (subclasse, usada pelo Spring Data Mongo em índice único)
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
-        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        log.warn("Data integrity violation: {}", maskValues(ex.getMostSpecificCause().getMessage()));
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "Já existe um registro com esses dados.");
         problem.setTitle("Resource conflict");
         return problem;
+    }
+
+    // RNF3 (LGPD): a mensagem do banco traz o valor duplicado (CPF/e-mail); o log
+    // mantém coluna/constraint e mascara os valores.
+    //   Postgres: Key (cpf)=(123) already exists  ->  Key (cpf)=(***) already exists
+    //   Mongo:    dup key: { cpf: "123" }         ->  dup key: { *** }
+    static String maskValues(String message) {
+        if (message == null) {
+            return null;
+        }
+        return message
+                .replaceAll("(Key \\([^)]*\\)=)\\([^)]*\\)", "$1(***)")
+                .replaceAll("dup key: \\{[^}]*}", "dup key: { *** }");
     }
 
     @ExceptionHandler(BusinessRuleException.class)

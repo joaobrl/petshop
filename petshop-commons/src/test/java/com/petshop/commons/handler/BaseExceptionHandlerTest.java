@@ -3,7 +3,12 @@ package com.petshop.commons.handler;
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
@@ -195,5 +200,67 @@ class BaseExceptionHandlerTest {
         assertThat(problem.getDetail())
                 .isEqualTo("Ocorreu um erro inesperado. Tente novamente mais tarde.")
                 .doesNotContain("detalhe interno sensível");
+    }
+
+    private List<String> captureWarnLogs(Runnable action) {
+        var logger = (Logger) LoggerFactory.getLogger(BaseExceptionHandler.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
+    }
+
+    @Test
+    void logMasksPostgresValuesButKeepsColumn() {
+        var cause = new RuntimeException("ERROR: duplicate key value violates unique constraint \"uk_cpf\"\n"
+                + "  Detail: Key (cpf)=(12345678900) already exists.");
+
+        var logs = captureWarnLogs(() ->
+                handler.handleDataIntegrity(new DataIntegrityViolationException("x", cause)));
+
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0)).contains("uk_cpf").contains("Key (cpf)=(***)")
+                .doesNotContain("12345678900");
+    }
+
+    @Test
+    void logMasksMongoValuesAndKeepsIndexName() {
+        var cause = new RuntimeException("E11000 duplicate key error collection: db.customers index: cpf_1 "
+                + "dup key: { cpf: \"12345678900\" }");
+
+        var logs = captureWarnLogs(() ->
+                handler.handleDataIntegrity(new DuplicateKeyException("x", cause)));
+
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0)).contains("cpf_1").contains("dup key: { *** }")
+                .doesNotContain("12345678900");
+    }
+
+    @Test
+    void maskValuesHandlesNullAndMessagesWithoutValues() {
+        assertThat(BaseExceptionHandler.maskValues(null)).isNull();
+        assertThat(BaseExceptionHandler.maskValues("violates foreign key constraint fk_x"))
+                .isEqualTo("violates foreign key constraint fk_x");
+    }
+
+    @Test
+    void maskValuesMasksCompositeKeys() {
+        assertThat(BaseExceptionHandler.maskValues("Key (cpf, email)=(123, a@b.com) already exists."))
+                .isEqualTo("Key (cpf, email)=(***) already exists.");
+    }
+
+    @Test
+    void handlerDoesNotFailWhenCauseMessageIsNull() {
+        var problem = handler.handleDataIntegrity(new DataIntegrityViolationException(null));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
     }
 }
