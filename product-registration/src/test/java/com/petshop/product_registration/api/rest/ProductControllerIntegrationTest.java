@@ -265,15 +265,15 @@ class ProductControllerIntegrationTest {
         }
 
         @Test
-        void registerProductMapsDuplicateNameToInternalServerErrorProblemDetail() throws Exception {
+        void registerProductMapsDuplicateNameToConflictProblemDetail() throws Exception {
             when(productRepository.save(any(ProductDocument.class))).thenThrow(new DataIntegrityViolationException("duplicate"));
 
             mockMvc.perform(post("/api/v1/products/register")
                             .with(adminAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(validRequest())))
-                    .andExpect(status().isInternalServerError())
-                    .andExpect(jsonPath("$.title", is("Internal server error")));
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.title", is("Resource conflict")));
         }
 
         @Test
