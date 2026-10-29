@@ -27,18 +27,19 @@ public class StaffService implements StaffPortIn {
     @Override
     public Staff createStaff(StaffRequestDto request) {
         staffPortOut.findByCpf(request.getCpf()).ifPresent(employee -> {
-            throw new ConflictException("CPF já cadastrado: " + request.getCpf());
+            throw new ConflictException("CPF já cadastrado");
         });
         staffPortOut.findByEmail(request.getEmail()).ifPresent(employee -> {
-            throw new ConflictException("Email já cadastrado: " + request.getEmail());
+            throw new ConflictException("Email já cadastrado");
         });
 
         var staff = new Staff(request);
         // Senha inicial = o próprio cpf, igual Customer — troca no primeiro
         // login (ver AuthService/mustChangePassword).
         staff.setPasswordHash(passwordEncoder.encode(request.getCpf()));
-        log.info("Staff registered with CPF: {}", request.getCpf());
-        return staffPortOut.save(staff);
+        var saved = staffPortOut.save(staff);
+        log.info("Staff registered: id={}", saved.getId());
+        return saved;
     }
 
     @Override
@@ -56,7 +57,7 @@ public class StaffService implements StaffPortIn {
     public Staff getStaffByIdOrCpf(String idOrCpf) {
         return findByUuidIfValid(idOrCpf)
                 .or(() -> staffPortOut.findByCpf(idOrCpf))
-                .orElseThrow(() -> new NotFoundException("Funcionário", idOrCpf));
+                .orElseThrow(() -> new NotFoundException("Funcionário não encontrado(a)"));
     }
 
     private Optional<Staff> findByUuidIfValid(String idOrCpf) {
