@@ -52,13 +52,16 @@ public abstract class BaseExceptionHandler {
     // mantém coluna/constraint e mascara os valores.
     //   Postgres: Key (cpf)=(123) already exists  ->  Key (cpf)=(***) already exists
     //   Mongo:    dup key: { cpf: "123" }         ->  dup key: { *** }
+    //   Postgres (not-null/check): Failing row contains (1, 123, ...)  ->  Failing row contains (***)
     static String maskValues(String message) {
         if (message == null) {
             return null;
         }
         return message
                 .replaceAll("(Key \\([^)]*\\)=)\\([^)]*\\)", "$1(***)")
-                .replaceAll("dup key: \\{[^}]*}", "dup key: { *** }");
+                .replaceAll("dup key: \\{[^}]*}", "dup key: { *** }")
+                // lc_messages pt_BR do Postgres traduz o texto ("A linha que falhou contém")
+                .replaceAll("(Failing row contains|A linha que falhou contém) \\(.*\\)", "$1 (***)");
     }
 
     @ExceptionHandler(BusinessRuleException.class)

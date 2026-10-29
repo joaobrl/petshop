@@ -258,6 +258,15 @@ class BaseExceptionHandlerTest {
     }
 
     @Test
+    void maskValuesMasksFailingRowOfNotNullViolation() {
+        assertThat(BaseExceptionHandler.maskValues(
+                "null value in column \"phone\" violates not-null constraint\n  Detail: Failing row contains (7, 12345678900, a@b.com, null)."))
+                .isEqualTo("null value in column \"phone\" violates not-null constraint\n  Detail: Failing row contains (***).");
+        assertThat(BaseExceptionHandler.maskValues("Detalhe: A linha que falhou contém (7, 12345678900, null)."))
+                .isEqualTo("Detalhe: A linha que falhou contém (***).");
+    }
+
+    @Test
     void handlerDoesNotFailWhenCauseMessageIsNull() {
         var problem = handler.handleDataIntegrity(new DataIntegrityViolationException(null));
 
