@@ -115,6 +115,10 @@ class KafkaErrorHandlingConfigTest {
         assertThat(header(dlt.get(0), KafkaHeaders.DLT_EXCEPTION_MESSAGE)).isNotBlank();
         assertThat(header(dlt.get(0), KafkaHeaders.DLT_EXCEPTION_FQCN)).isNotBlank();
         assertThat(header(dlt.get(0), KafkaHeaders.DLT_ORIGINAL_TOPIC)).isEqualTo(topic);
+        // Formato do payload publicado no DLT (RNF3): JSON do DTO + header de tipo.
+        assertThat(new String(dlt.get(0).value(), StandardCharsets.UTF_8))
+                .isEqualTo("{\"to\":\"cliente@petshop.com\",\"tipo\":\"RESET_SENHA\",\"params\":{}}");
+        assertThat(header(dlt.get(0), "__TypeId__")).isEqualTo(SendEmailCommandDto.class.getName());
         assertThat(meterRegistry.counter("notification.dlt.published", "topic", topic).count()).isEqualTo(1.0);
     }
 

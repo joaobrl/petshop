@@ -104,6 +104,16 @@
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
+		<!-- Brevo falso para o teste de integração com o BrevoFeignClient real.
+		     A variante standalone embute Jetty/Jackson sombreados, então não
+		     conflita com o Jetty 12 / Jackson 3 gerenciados pelo Boot 4. -->
+		<dependency>
+			<groupId>org.wiremock</groupId>
+			<artifactId>wiremock-standalone</artifactId>
+			<version>3.13.1</version>
+			<scope>test</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>

@@ -19,7 +19,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
 import org.springframework.kafka.support.serializer.DeserializationException;
-import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.util.Map;
@@ -91,7 +91,7 @@ public class KafkaErrorHandlingConfig {
                 String.class, new StringSerializer());
         Map<Class<?>, Serializer<?>> valueSerializers = Map.of(
                 byte[].class, new ByteArraySerializer(),
-                SendEmailCommandDto.class, new JsonSerializer<SendEmailCommandDto>());
+                SendEmailCommandDto.class, new JacksonJsonSerializer<SendEmailCommandDto>());
 
         var producerFactory = new DefaultKafkaProducerFactory<Object, Object>(
                 kafkaProperties.buildProducerProperties(),
