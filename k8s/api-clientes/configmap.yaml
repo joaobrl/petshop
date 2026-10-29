@@ -11,3 +11,6 @@ data:
   SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-svc:9092
   KAFKA_CONSUMER_GROUP: customer-group
   JWT_EXPIRATION_MINUTES: "15"
+  # Rede interna do cluster (pods) — só dela o X-Forwarded-For é aceito
+  # pelo rate limit de login. Ajustar ao pod CIDR real do cluster.
+  RATE_LIMIT_TRUSTED_PROXIES: 10.0.0.0/8

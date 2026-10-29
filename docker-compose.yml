@@ -48,6 +48,8 @@ services:
       BOOTSTRAP_ADMIN_CPF: ${BOOTSTRAP_ADMIN_CPF:-00000000000}
       BOOTSTRAP_ADMIN_PHONE: ${BOOTSTRAP_ADMIN_PHONE:-00000000000}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Faixa padrão das redes bridge do Docker, onde o api-gateway roda.
+      RATE_LIMIT_TRUSTED_PROXIES: ${RATE_LIMIT_TRUSTED_PROXIES:-172.16.0.0/12}
     ports:
       - "8082:8080"
     depends_on:
