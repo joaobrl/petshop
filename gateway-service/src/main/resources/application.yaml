@@ -1,5 +1,10 @@
 server:
   port: ${SERVER_PORT:8080}
+  # O gateway é a borda: o IP do cliente é o do socket, nunca o que vem em
+  # header. Explícito porque o Spring Boot liga "native" sozinho quando
+  # detecta Kubernetes, e aí o Netty trocaria o remoteAddress pelo 1º
+  # elemento do X-Forwarded-For enviado pelo cliente (SDD-028).
+  forward-headers-strategy: none
 
 spring:
   application:
@@ -12,6 +17,31 @@ spring:
       # direto (resíduo da época em que só existia a variante reativa).
       server:
         webflux:
+          # X-Forwarded-For (SDD-028): o downstream (rate limit de login do
+          # customer-management, SDD-003) precisa receber o IP real do cliente
+          # como último elemento da cadeia, e nada forjado pelo cliente.
+          #
+          # "trusted-proxies" fica DE PROPÓSITO sem valor. Na 5.0.2 (conferido
+          # no bytecode), sem ele o gateway registra o
+          # RemoveXForwardedHeadersFilter e o RemoveForwardedHeadersFilter, que
+          # apagam todo X-Forwarded-* / Forwarded recebido do cliente. Depois
+          # deles, o ClientIpXForwardedForHeadersFilter (código deste módulo)
+          # escreve X-Forwarded-For = IP do peer TCP, e só ele.
+          #
+          # Por que não só "trusted-proxies": com uma regex restrita, peer que
+          # não casa tem o header APAGADO e o IP dele não é acrescentado (o
+          # downstream fica sem XFF); com ".*", o peer é acrescentado no fim
+          # mas o que o cliente mandou fica à esquerda — e, se o IP do cliente
+          # estiver na allowlist do downstream, o valor forjado vira o "IP
+          # real". Também NÃO ligar httpserver.customizer-enabled: com
+          # trusted-proxies setado ele faz o Netty adotar o 1º elemento do XFF
+          # do cliente como remoteAddress.
+          #
+          # Quando houver LB/ingress na frente do gateway: o peer passa a ser o
+          # LB. Aí o filtro deve manter a cadeia recebida e acrescentar o peer
+          # SÓ quando o peer for o LB (IP/CIDR fixo), e descartá-la nos demais
+          # casos; e RATE_LIMIT_TRUSTED_PROXIES do customer-management passa a
+          # ter o gateway E o LB (ele lê a cadeia da direita para a esquerda).
           httpclient:
             connect-timeout: 5000
             response-timeout: 15s

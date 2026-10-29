@@ -1,5 +1,11 @@
 server:
   port: 8080
+  # Explícito porque o Spring Boot liga "native" sozinho quando detecta
+  # Kubernetes, e aí o RemoteIpValve do Tomcat reescreveria o remoteAddr a
+  # partir do X-Forwarded-For (confiando em 10/8, 172.16/12, 192.168/16...),
+  # contornando a allowlist do ClientIpResolver — que é quem decide sobre
+  # esse header no rate limit de login (SDD-003, SDD-029).
+  forward-headers-strategy: none
 
 spring:
   datasource:
