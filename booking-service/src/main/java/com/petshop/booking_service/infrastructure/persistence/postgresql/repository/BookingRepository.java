@@ -15,11 +15,7 @@ import java.util.UUID;
 
 public interface BookingRepository extends JpaRepository<BookingEntity, UUID> {
 
-    // Filtro de data compara bookingDateTime direto contra um intervalo [inícioDoDia, inícioDoDiaSeguinte) em vez
-    // de CAST(bookingDateTime AS date) = CAST(:date AS date): com bind nulo, o Postgres não consegue inferir o
-    // tipo do parâmetro isolado em "? IS NULL" nem dentro de um CAST via SpEL ("could not determine data type of
-    // parameter"). O CAST(:startOfDay AS timestamp) abaixo resolve esse mesmo problema pro @Param startOfDay,
-    // já que aqui (diferente das expressões SpEL :#{#criteria.xxx}) o Hibernate não infere o tipo sozinho.
+
     @Query("""
         SELECT b FROM BookingEntity b
         WHERE (:#{#criteria.petId} IS NULL OR b.petId = :#{#criteria.petId})
@@ -36,8 +32,6 @@ public interface BookingRepository extends JpaRepository<BookingEntity, UUID> {
 
     List<BookingEntity> findByBookingDateTimeAndStatusNot(LocalDateTime bookingDateTime, StatusBooking status);
 
-    // pg_advisory_xact_lock devolve "void", que o Hibernate não sabe mapear como resultado — por isso a função vai
-    // no FROM e o SELECT devolve uma constante. Lock liberado sozinho no commit/rollback. Específico de Postgres.
     @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(:namespace, :slotKey)", nativeQuery = true)
     Integer lockSlot(@Param("namespace") int namespace, @Param("slotKey") int slotKey);
 

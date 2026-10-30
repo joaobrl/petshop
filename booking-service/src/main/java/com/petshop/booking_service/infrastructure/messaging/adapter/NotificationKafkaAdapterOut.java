@@ -25,8 +25,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class NotificationKafkaAdapterOut implements NotificationPortOut {
 
-    // Precisam bater exatamente com os nomes das constantes de TipoNotificacao
-    // no notification-service — ver tabela de mapeamento tipo → templateId lá.
     private static final String TIPO_AGENDAMENTO_CONFIRMADO = "AGENDAMENTO_CONFIRMADO";
     private static final String TIPO_AGENDAMENTO_CONCLUIDO = "AGENDAMENTO_CONCLUIDO";
     private static final String TIPO_AGENDAMENTO_CANCELADO = "AGENDAMENTO_CANCELADO";
@@ -68,9 +66,6 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
         publishCommand(booking.getId().toString(), booking.getOwnerEmail(), TIPO_AGENDAMENTO_CANCELADO, params);
     }
 
-    // NumberFormat.getCurrencyInstance(pt-BR) usa NBSP (não espaço comum)
-    // entre "R$" e o valor — formata manualmente pra garantir "R$ 45,90"
-    // com espaço normal, igual ao esperado no template do Brevo.
     private String formatCurrency(BigDecimal value) {
         return "R$ " + String.format(Locale.of("pt", "BR"), "%.2f", value);
     }
@@ -87,8 +82,6 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
         }
     }
 
-    // O consumer (notification-service) extrai este header de volta pro MDC dele,
-    // pra conseguir seguir o e-mail nos logs até a chamada real ao Brevo.
     private List<org.apache.kafka.common.header.Header> correlationIdHeaders() {
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
         if (correlationId == null || correlationId.isBlank()) {

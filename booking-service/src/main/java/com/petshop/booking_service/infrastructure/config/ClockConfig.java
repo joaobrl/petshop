@@ -6,11 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 import java.time.ZoneId;
 
-/**
- * {@code Clock} como bean pra fixar o fuso horário de Brasília (America/Sao_Paulo) em todo "agora"
- * usado nas regras de agendamento, independente do fuso configurado no sistema/container, e pra
- * permitir injetar um relógio fixo nos testes de {@code BookingService} sem tocar no relógio do sistema.
- */
 @Configuration
 public class ClockConfig {
 

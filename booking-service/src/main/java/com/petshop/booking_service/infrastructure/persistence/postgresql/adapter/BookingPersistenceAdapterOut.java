@@ -22,8 +22,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookingPersistenceAdapterOut implements BookingPortOut {
 
-    // Primeira metade da chave do advisory lock (pg_advisory_xact_lock(int, int)): separa os locks de horário de
-    // agendamento de qualquer outro advisory lock que venha a usar o mesmo banco.
     static final int SLOT_LOCK_NAMESPACE = 5001;
 
     private final BookingRepository bookingRepository;
@@ -37,8 +35,7 @@ public class BookingPersistenceAdapterOut implements BookingPortOut {
 
     @Override
     public Page<Booking> findByCriteria(BookingSearchCriteriaDto criteria, Pageable pageable) {
-        // Filtro de data vira intervalo [inícioDoDia, inícioDoDiaSeguinte) em vez de CAST(bookingDateTime AS date)
-        // — ver BookingRepository.findByCriteria pro motivo (CAST não é confiável aqui com Postgres + Hibernate).
+
         var date = criteria.getDate();
         var startOfDay = date != null ? date.atStartOfDay() : null;
         var endOfDay = date != null ? date.plusDays(1).atStartOfDay() : null;
@@ -57,8 +54,7 @@ public class BookingPersistenceAdapterOut implements BookingPortOut {
 
     @Override
     public void lockSlot(LocalDateTime dateTime) {
-        // Chave = minutos desde a epoch (o horário é um LocalDateTime "de parede", então UTC aqui é só uma
-        // referência fixa pra conversão, não um fuso). Cabe em int até o ano ~6000.
+
         var slotKey = Math.toIntExact(dateTime.toEpochSecond(ZoneOffset.UTC) / 60);
         bookingRepository.lockSlot(SLOT_LOCK_NAMESPACE, slotKey);
     }

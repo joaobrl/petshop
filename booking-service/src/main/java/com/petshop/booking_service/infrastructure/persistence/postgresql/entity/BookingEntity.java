@@ -47,11 +47,6 @@ public class BookingEntity {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    // Sem @Enumerated de propósito: o Booking.java original (antes da
-    // separação domínio/persistência) não tinha essa anotação, então a
-    // coluna já persiste como ORDINAL no banco. Adicionar @Enumerated(STRING)
-    // aqui mudaria silenciosamente o formato da coluna pros dados já
-    // existentes — mantido igual ao comportamento original.
     private StatusBooking status;
 
     private String employeeName;
