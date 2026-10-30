@@ -1,6 +1,6 @@
 # order-service
 
-Microsserviço de carrinho, pedidos e pagamento simulado do WebCommerce/PetShop. Orquestra o fluxo completo de compra: carrinho com reserva de estoque, checkout, pagamento mockado, retirada e histórico, coordenando `product-registration` e `customer-management` via Feign e publicando eventos de notificação/histórico via Kafka.
+Microsserviço de carrinho, pedidos e pagamento simulado do WebCommerce/PetShop. Orquestra o fluxo completo de compra: carrinho (só intenção, sem reserva), checkout com reserva de estoque dos itens selecionados, pagamento mockado, retirada e histórico, coordenando `product-registration` e `customer-management` via Feign e publicando eventos de notificação/histórico via Kafka.
 
 ## Stack técnica
 
@@ -16,16 +16,18 @@ Microsserviço de carrinho, pedidos e pagamento simulado do WebCommerce/PetShop.
 
 | Método | Path | Acesso | Descrição |
 |---|---|---|---|
-| `POST` | `/checkout?customerId={uuid}` | Autenticado | Cria pedido a partir do carrinho aberto do cliente; retorna `201` com `Location` |
+| `POST` | `/checkout?customerId={uuid}` | Autenticado | Corpo `{ "productIds": [..] }`: cria pedido só com os itens selecionados do carrinho, reservando o estoque deles; retorna `201` com `Location` |
 | `GET` | `/{id}` | Autenticado (dono ou staff) | Busca pedido por id |
 
-O carrinho (`/api/v1/cart/**`) é acessível sem autenticação, permitindo montar carrinho antes do login (sem reserva de estoque nesse caso — ver abaixo).
+O carrinho (`/api/v1/cart/**`) é acessível sem autenticação, permitindo montar carrinho antes do login. O carrinho nunca reserva estoque — ver abaixo.
 
 ## Fluxo de carrinho e estoque
 
-- `addItem` — reserva estoque no `product-registration` (`reserve`) quando o usuário está autenticado; caso contrário, apenas consulta informações do produto sem reservar.
-- `removeItem` — libera a reserva de estoque (`release`) se havia uma.
-- **Expiração automática** (`CartExpirationScheduler`, a cada `order.cart.expiration-check-interval-ms`, padrão 10 min): carrinhos abertos há mais de `order.cart.reservation-ttl-hours` (padrão 24h) são expirados, o estoque reservado é liberado e um e-mail de lembrete de carrinho abandonado é disparado.
+- **Carrinho é só intenção**: `addItem` não reserva nada — só consulta o produto (`GET /find/{id}`) e aceita produto ativo com estoque (`404` se desativado, `422` "Produto sem estoque" se zerado). A quantidade pedida não é comparada com o disponível aqui, só no checkout.
+- `GET /cart` consulta todos os produtos do carrinho numa chamada só (`GET /find?ids=`) e devolve `availability` por item (`AVAILABLE`, `LOW` = "Poucas unidades", `UNAVAILABLE` = fora do total). Produto desativado sai do carrinho (persistido) e vem em `removedItems`. Se o `product-registration` estiver fora, o carrinho volta sem `availability` e nada é removido.
+- **Checkout** reserva, item a item, a quantidade de cada produto selecionado (reserva atômica no `product-registration`) — tudo ou nada: se algum falhar, libera o que reservou e responde `422` listando todos os itens sem estoque. Os itens não selecionados continuam no carrinho `OPEN`.
+- O pedido fica `AWAITING_PAYMENT` com a reserva válida até `expiresAt` (`order.payment.reservation-ttl-minutes`, padrão 30 min). `OrderExpirationScheduler` (a cada `order.payment.expiration-check-interval-ms`, padrão 1 min) cancela o pedido vencido e libera o estoque. Pagamento e expiração usam transição condicional de status (`UPDATE ... WHERE status = AWAITING_PAYMENT`): só um dos dois vence.
+- **Carrinho abandonado** (`CartExpirationScheduler`, a cada `order.cart.expiration-check-interval-ms`, padrão 10 min): carrinhos abertos há mais de `order.cart.abandoned-after-hours` (padrão 24h) viram `EXPIRED` e disparam o e-mail de lembrete.
 
 ## Pagamento e retirada (simulados)
 
@@ -38,7 +40,7 @@ JWT próprio via [`petshop-commons`](../petshop-commons) — este serviço só v
 
 ## Integração com outros serviços
 
-- **Feign → product-registration** (`ProductFeign`, `external.api.product-service.url`): `GET /find/{id}`, `POST /{id}/reserve`, `POST /{id}/release`, `POST /{id}/confirm`
+- **Feign → product-registration** (`ProductFeign`, `external.api.product-service.url`): `GET /find/{id}`, `GET /find?ids=`, `POST /{id}/reserve`, `POST /{id}/release`, `POST /{id}/confirm`
 - **Feign → customer-management** (`CustomerFeign`, `external.api.customer-service.url`): `GET /api/v1/customers/find/customer/{id}`
 - **Kafka (produtor)**:
   - `notification-commands` — e-mails de pedido aguardando pagamento, pagamento confirmado, nota emitida, janela de retirada, pedido pronto e lembrete de carrinho abandonado
@@ -56,7 +58,8 @@ JWT próprio via [`petshop-commons`](../petshop-commons) — este serviço só v
 | `EXTERNAL_API_CUSTOMER_SERVICE_URL` | `http://localhost:8082` | URL do customer-management (Feign) |
 | `JWT_SECRET` | *(vazio)* | Segredo HS256 compartilhado (mín. 32 bytes) |
 | `JWT_EXPIRATION_MINUTES` | `60` | Validade do token |
-| `order.cart.reservation-ttl-hours` | `24` | TTL do carrinho antes de expirar |
+| `order.cart.abandoned-after-hours` | `24` | Tempo sem atividade até o carrinho ser considerado abandonado |
+| `order.payment.reservation-ttl-minutes` | `30` | Por quanto tempo o estoque fica reservado esperando pagamento |
 | `order.payment.mock-delay-seconds` | `30` | Delay simulado de aprovação de pagamento |
 | `order.pickup.min/max-delay-minutes` | `1` / `60` | Janela simulada até o pedido ficar pronto |
 

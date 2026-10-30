@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Product } from "../../types/product";
 import { Button } from "../ui/Button";
+import { StockBadge } from "./StockBadge";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { ApiError } from "../../services/http";
@@ -65,7 +66,10 @@ export function ProductCard({ product }: { product: Product }) {
       <p className="body-strong">
         {product.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
       </p>
-      <Button variant="primary" disabled={adding} onClick={handleAdd}>
+      <div>
+        <StockBadge stockRange={product.stockRange} />
+      </div>
+      <Button variant="primary" disabled={adding || !product.inStock} onClick={handleAdd}>
         {adding ? "Adicionando…" : "Adicionar ao carrinho"}
       </Button>
       {error && (

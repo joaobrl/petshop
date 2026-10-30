@@ -3,7 +3,6 @@ package com.petshop.order_service.core.application.service;
 import com.petshop.commons.exception.BusinessException;
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.NotFoundException;
-import com.petshop.order_service.core.domain.Cart;
 import com.petshop.order_service.core.domain.CartItem;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.domain.Order;
@@ -23,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -42,6 +42,10 @@ public class OrderService implements OrderPortIn {
     @Value("${order.payment.mock-delay-seconds:30}")
     private int mockPaymentDelaySeconds;
 
+    // Por quanto tempo o estoque dos itens fica reservado esperando pagamento.
+    @Value("${order.payment.reservation-ttl-minutes:30}")
+    private int reservationTtlMinutes = 30;
+
     // Prazo de preparo sorteado nessa faixa a cada pedido pago, só para
     // fins de teste (em produção seria fixo/real). O e-mail ao cliente
     // continua fixo ("até 1h").
@@ -53,48 +57,77 @@ public class OrderService implements OrderPortIn {
 
     @Override
     @Transactional
-    public Order checkout(UUID customerId, String token) {
+    public Order checkout(UUID customerId, List<Long> productIds, String token) {
+        if (productIds == null || productIds.isEmpty()) {
+            throw new BusinessRuleException("Selecione ao menos um item do carrinho para finalizar.");
+        }
+
         var cart = cartPortOut.findOpenCartByCustomerId(customerId)
                 .orElseThrow(() -> new BusinessRuleException("Não há carrinho aberto para o cliente " + customerId));
 
-        if (cart.isEmpty()) {
-            throw new BusinessRuleException("Não é possível finalizar um carrinho vazio.");
+        var selectedIds = new LinkedHashSet<>(productIds);
+        List<CartItem> selectedItems = new ArrayList<>();
+        List<Long> notInCart = new ArrayList<>();
+        for (var productId : selectedIds) {
+            cart.findItem(productId).ifPresentOrElse(selectedItems::add, () -> notInCart.add(productId));
+        }
+        if (!notInCart.isEmpty()) {
+            throw new BusinessRuleException("Itens selecionados não estão no carrinho: " + notInCart);
         }
 
-        // Itens adicionados sem login não reservam estoque na hora; garante
-        // aqui que tudo esteja reservado antes de virar pedido de verdade.
-        ensureAllItemsReserved(cart, token);
+        // Antes de reservar: cliente inexistente faria o pedido falhar depois
+        // da reserva, deixando estoque preso sem pedido que o expire.
+        var customer = requireCustomer(customerId, token);
 
-        var order = Order.fromCart(cart);
+        ensureAllProductsOnSale(selectedItems, token);
+        reserveAllOrNothing(selectedItems, token);
+
+        var order = Order.fromCartItems(customerId, selectedItems, reservationTtlMinutes);
         var savedOrder = orderPortOut.save(order);
 
-        cart.setStatus(CartStatus.CHECKED_OUT);
+        cart.removeItems(selectedIds);
+        if (cart.isEmpty()) {
+            cart.setStatus(CartStatus.CHECKED_OUT);
+        }
         cartPortOut.save(cart);
 
-        var customer = requireCustomer(customerId, token);
         notificationPortOut.sendOrderAwaitingPayment(savedOrder, customer.email(), customer.name());
 
-        log.info("Pedido {} criado para o cliente {} (total: {}), aguardando pagamento.",
-                savedOrder.getId(), customerId, savedOrder.getTotalAmount());
+        log.info("Pedido {} criado para o cliente {} (total: {}), aguardando pagamento até {}.",
+                savedOrder.getId(), customerId, savedOrder.getTotalAmount(), savedOrder.getExpiresAt());
         return savedOrder;
     }
 
-    // Tenta reservar todos os itens ainda não reservados antes de desistir,
-    // em vez de parar no primeiro erro — assim o cliente fica sabendo de
-    // todos os itens com problema de uma só vez, não um por tentativa.
-    private void ensureAllItemsReserved(Cart cart, String token) {
+    // Produto desativado (ou que deixou de existir) entre o GET /cart e o
+    // "Finalizar" é recusado aqui, sem gastar reserva.
+    private void ensureAllProductsOnSale(List<CartItem> items, String token) {
+        var infos = productStockPortOut.getInfos(items.stream().map(CartItem::getProductId).toList(), token);
+        var unavailable = items.stream()
+                .filter(item -> {
+                    var info = infos.get(item.getProductId());
+                    return info == null || !info.isEnabled();
+                })
+                .map(item -> "Produto indisponível: '%s'".formatted(item.getProductName()))
+                .toList();
+        if (!unavailable.isEmpty()) {
+            throw new BusinessRuleException(String.join(" | ", unavailable));
+        }
+    }
+
+    // Tenta reservar todos os itens antes de desistir, em vez de parar no
+    // primeiro erro — assim o cliente fica sabendo de todos os itens com
+    // problema de uma só vez, não um por tentativa. A reserva é atômica por
+    // produto no product-registration; o tudo-ou-nada é feito aqui.
+    private void reserveAllOrNothing(List<CartItem> items, String token) {
         List<String> failures = new ArrayList<>();
         List<CartItem> reservedInThisAttempt = new ArrayList<>();
 
-        for (var item : cart.getItems()) {
-            if (!item.isReserved()) {
-                try {
-                    productStockPortOut.reserve(item.getProductId(), item.getQuantity(), token);
-                    item.setReserved(true);
-                    reservedInThisAttempt.add(item);
-                } catch (BusinessException e) {
-                    failures.add(e.getMessage());
-                }
+        for (var item : items) {
+            try {
+                productStockPortOut.reserve(item.getProductId(), item.getQuantity(), token);
+                reservedInThisAttempt.add(item);
+            } catch (BusinessException e) {
+                failures.add(e.getMessage());
             }
         }
 
@@ -103,7 +136,6 @@ public class OrderService implements OrderPortIn {
             // reserva "órfã" de um checkout que vai falhar como um todo.
             for (var item : reservedInThisAttempt) {
                 productStockPortOut.release(item.getProductId(), item.getQuantity(), token);
-                item.setReserved(false);
             }
             throw new BusinessRuleException(String.join(" | ", failures));
         }
@@ -130,7 +162,13 @@ public class OrderService implements OrderPortIn {
             int pickupDelayMinutes = ThreadLocalRandom.current()
                     .nextInt(pickupMinDelayMinutes, pickupMaxDelayMinutes + 1);
             order.schedulePickup(pickupDelayMinutes);
-            orderPortOut.save(order);
+
+            // Transição condicional: se a expiração já cancelou o pedido (ou
+            // a reserva venceu), o pagamento perde e não dá baixa em nada.
+            if (!orderPortOut.markAsPaidIfAwaitingPayment(order)) {
+                log.warn("Pedido {} não está mais aguardando pagamento (expirado/cancelado); pagamento ignorado.", order.getId());
+                continue;
+            }
 
             for (var item : order.getItems()) {
                 // Scheduler, sem requisição HTTP em curso — TokenPropagation assina um token de serviço.
@@ -151,6 +189,29 @@ public class OrderService implements OrderPortIn {
 
             log.info("Pagamento simulado aprovado para o pedido {}. Retirada estimada em {} min (prazo de teste).",
                     order.getId(), pickupDelayMinutes);
+        }
+    }
+
+    // Chamado periodicamente pelo OrderExpirationScheduler: pedido que não foi
+    // pago dentro do prazo de reserva é cancelado e o estoque volta. Os itens
+    // não voltam para o carrinho.
+    @Override
+    @Transactional
+    public void expireUnpaidOrders() {
+        var expiredOrders = orderPortOut.findAwaitingPaymentExpiredBefore(LocalDateTime.now());
+
+        for (var order : expiredOrders) {
+            // Mesma transição condicional do pagamento: só um dos dois vence.
+            if (!orderPortOut.cancelIfAwaitingPayment(order.getId())) {
+                log.info("Pedido {} já saiu de aguardando pagamento; expiração ignorada.", order.getId());
+                continue;
+            }
+
+            for (var item : order.getItems()) {
+                // Scheduler, sem requisição HTTP em curso — TokenPropagation assina um token de serviço.
+                productStockPortOut.release(item.getProductId(), item.getQuantity(), null);
+            }
+            log.info("Pedido {} cancelado por falta de pagamento; reserva de estoque liberada.", order.getId());
         }
     }
 

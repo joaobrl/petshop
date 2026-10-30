@@ -75,6 +75,28 @@ class ProductControllerImplTest {
         assertThat(response.getHeaders().getLocation().toString()).contains("/products/1");
     }
 
+    @Test
+    void getProductsByIdsOmitsStockForCustomer() {
+        when(portIn.getProductsByIds(List.of(1L))).thenReturn(List.of(sampleProduct()));
+
+        var response = controller.getProductsByIds(List.of(1L), tokenFor(customerUser()));
+
+        assertThat(response.getBody()).singleElement().satisfies(dto -> {
+            assertThat(dto.getStock()).isNull();
+            assertThat(dto.getStockRange()).isEqualTo("50+");
+        });
+    }
+
+    @Test
+    void getProductsByIdsIncludesStockForStaff() {
+        when(portIn.getProductsByIds(List.of(1L))).thenReturn(List.of(sampleProduct()));
+
+        var response = controller.getProductsByIds(List.of(1L), tokenFor(staffUser()));
+
+        assertThat(response.getBody()).singleElement()
+                .satisfies(dto -> assertThat(dto.getStock()).isEqualTo(50));
+    }
+
     private final PageRequest pageable = PageRequest.of(0, 20);
 
     @Test

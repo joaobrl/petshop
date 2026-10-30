@@ -21,6 +21,11 @@ jwt:
   secret: ${JWT_SECRET:}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
 
+product:
+  batch:
+    # Limite de ids no GET /api/v1/products/find?ids= (busca em lote).
+    max-ids: 100
+
 server:
   port: 8080
 

@@ -46,8 +46,8 @@ class NotificationKafkaAdapterOutTest {
 
     private Order sampleOrder() {
         var cart = Cart.openFor(UUID.randomUUID(), 24);
-        cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-        var order = Order.fromCart(cart);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+        var order = Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
         order.setId(UUID.randomUUID());
         return order;
     }
@@ -130,7 +130,7 @@ class NotificationKafkaAdapterOutTest {
     @Test
     void sendCartReminderPublishesExpectedTypeAndParamsKeyedByCartId() {
         var cart = Cart.openFor(UUID.randomUUID(), 24);
-        cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
         adapter.sendCartReminder(cart, "maria@mail.com", "Maria");
 

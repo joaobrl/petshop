@@ -45,6 +45,22 @@ public class OrderPersistenceAdapterOut implements OrderPortOut {
     }
 
     @Override
+    public List<Order> findAwaitingPaymentExpiredBefore(LocalDateTime now) {
+        return mapper.toDomainList(repository.findByStatusAndExpiresAtBefore(OrderStatus.AWAITING_PAYMENT, now));
+    }
+
+    @Override
+    public boolean markAsPaidIfAwaitingPayment(Order order) {
+        return repository.markAsPaidIfAwaitingPayment(order.getId(), order.getPaidAt(), order.getPickupReadyAt(),
+                LocalDateTime.now(), OrderStatus.AWAITING_PAYMENT, OrderStatus.PAID) == 1;
+    }
+
+    @Override
+    public boolean cancelIfAwaitingPayment(UUID orderId) {
+        return repository.cancelIfAwaitingPayment(orderId, OrderStatus.AWAITING_PAYMENT, OrderStatus.CANCELED) == 1;
+    }
+
+    @Override
     public List<Order> findPaidAndPickupDue(LocalDateTime now) {
         return mapper.toDomainList(repository.findByStatusAndPickupReadyAtLessThanEqual(OrderStatus.PAID, now));
     }

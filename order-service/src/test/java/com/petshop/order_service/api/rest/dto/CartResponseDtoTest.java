@@ -1,11 +1,14 @@
 package com.petshop.order_service.api.rest.dto;
 
 import com.petshop.order_service.core.domain.Cart;
+import com.petshop.order_service.core.domain.CartView;
+import com.petshop.order_service.core.domain.enums.StockAvailability;
 import com.petshop.order_service.core.domain.enums.CartStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,9 +18,9 @@ class CartResponseDtoTest {
     @Test
     void copiesAllFieldsIncludingMappedItemsAndTotal() {
         var cart = Cart.openFor(UUID.randomUUID(), 24);
-        cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
-        var dto = new CartResponseDto(cart);
+        var dto = new CartResponseDto(CartView.withoutAvailability(cart));
 
         assertThat(dto.getId()).isEqualTo(cart.getId());
         assertThat(dto.getCustomerId()).isEqualTo(cart.getCustomerId());
@@ -28,10 +31,26 @@ class CartResponseDtoTest {
     }
 
     @Test
+    void mapsAvailabilityPerItemExcludesUnavailableFromTotalAndListsRemoved() {
+        var cart = Cart.openFor(UUID.randomUUID(), 24);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+        cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1);
+        var view = new CartView(cart,
+                Map.of(1L, StockAvailability.AVAILABLE, 2L, StockAvailability.UNAVAILABLE), List.of("Coleira"));
+
+        var dto = new CartResponseDto(view);
+
+        assertThat(dto.getItems()).extracting(CartItemResponseDto::getAvailability)
+                .containsExactly(StockAvailability.AVAILABLE, StockAvailability.UNAVAILABLE);
+        assertThat(dto.getTotal()).isEqualTo(20.0);
+        assertThat(dto.getRemovedItems()).containsExactly("Coleira");
+    }
+
+    @Test
     void handlesEmptyCart() {
         var cart = Cart.openFor(UUID.randomUUID(), 24);
 
-        var dto = new CartResponseDto(cart);
+        var dto = new CartResponseDto(CartView.withoutAvailability(cart));
 
         assertThat(dto.getItems()).isEmpty();
         assertThat(dto.getTotal()).isZero();
@@ -39,7 +58,7 @@ class CartResponseDtoTest {
 
     @Test
     void settersUpdateFieldsDirectly() {
-        var dto = new CartResponseDto(Cart.openFor(UUID.randomUUID(), 24));
+        var dto = new CartResponseDto(CartView.withoutAvailability(Cart.openFor(UUID.randomUUID(), 24)));
         var newId = UUID.randomUUID();
 
         dto.setId(newId);

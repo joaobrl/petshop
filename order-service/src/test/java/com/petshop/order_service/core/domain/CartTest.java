@@ -59,7 +59,7 @@ class CartTest {
         @Test
         void returnsItemWhenProductPresent() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
             assertThat(cart.findItem(1L)).isPresent();
             assertThat(cart.findItem(1L).get().getProductName()).isEqualTo("Racao");
@@ -80,7 +80,7 @@ class CartTest {
         void addsNewItemWhenProductNotYetInCart() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
 
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
             assertThat(cart.getItems()).hasSize(1);
             var item = cart.getItems().get(0);
@@ -88,48 +88,19 @@ class CartTest {
             assertThat(item.getProductName()).isEqualTo("Racao");
             assertThat(item.getQuantity()).isEqualTo(2);
             assertThat(item.getUnitPrice()).isEqualTo(10.0);
-            assertThat(item.isReserved()).isTrue();
-        }
-
-        @Test
-        void addsNewUnreservedItemWhenReserveStockIsFalse() {
-            var cart = Cart.openFor(UUID.randomUUID(), 24);
-
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, false);
-
-            assertThat(cart.getItems().get(0).isReserved()).isFalse();
         }
 
         @Test
         void incrementsQuantityWhenProductAlreadyInCart() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 3, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 3);
 
             assertThat(cart.getItems()).hasSize(1);
             assertThat(cart.getItems().get(0).getQuantity()).isEqualTo(5);
         }
 
-        @Test
-        void marksItemAsReservedWhenIncrementedWithReservedTrue() {
-            var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, false);
-
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 1, true);
-
-            assertThat(cart.getItems().get(0).isReserved()).isTrue();
-        }
-
-        @Test
-        void keepsItemReservedWhenIncrementedAgainWithReservedFalse() {
-            var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 1, false);
-
-            assertThat(cart.getItems().get(0).isReserved()).isTrue();
-        }
     }
 
     @Nested
@@ -138,8 +109,8 @@ class CartTest {
         @Test
         void removesTheMatchingItem() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1);
 
             cart.removeItem(1L);
 
@@ -150,11 +121,23 @@ class CartTest {
         @Test
         void doesNothingWhenProductNotInCart() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
             cart.removeItem(99L);
 
             assertThat(cart.getItems()).hasSize(1);
+        }
+
+        @Test
+        void removeItemsDropsOnlyTheGivenProducts() {
+            var cart = Cart.openFor(UUID.randomUUID(), 24);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1);
+            cart.addOrIncrementItem(3L, "Coleira", 7.0, 1);
+
+            cart.removeItems(List.of(1L, 3L, 99L));
+
+            assertThat(cart.productIds()).containsExactly(2L);
         }
     }
 
@@ -171,7 +154,7 @@ class CartTest {
         @Test
         void isFalseAfterAddingAnItem() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
 
             assertThat(cart.isEmpty()).isFalse();
         }
@@ -183,8 +166,8 @@ class CartTest {
         @Test
         void sumsSubtotalsOfAllItems() {
             var cart = Cart.openFor(UUID.randomUUID(), 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 3, true);
+            cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 3);
 
             assertThat(cart.total()).isEqualTo(35.0);
         }
@@ -235,7 +218,7 @@ class CartTest {
     void allArgsConstructorSetsEveryField() {
         var id = UUID.randomUUID();
         var customerId = UUID.randomUUID();
-        var items = List.of(new CartItem(1L, "Racao", 1, 10.0, true));
+        var items = List.of(new CartItem(1L, "Racao", 1, 10.0));
         var createdAt = LocalDateTime.now().minusMinutes(5);
         var expiresAt = LocalDateTime.now().plusHours(1);
 

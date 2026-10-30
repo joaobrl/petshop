@@ -58,7 +58,7 @@ public class SecurityConfig {
                         // não vaza mais nada.
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/v1/products/list", "/api/v1/products/find/**").permitAll()
+                        .requestMatchers("/api/v1/products/list", "/api/v1/products/find", "/api/v1/products/find/**").permitAll()
                         .requestMatchers("/api/v1/products/*/reserve", "/api/v1/products/*/release", "/api/v1/products/*/confirm").authenticated()
                         .requestMatchers("/api/v1/products/register", "/api/v1/products/update/**", "/api/v1/products/delete/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

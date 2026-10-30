@@ -24,7 +24,7 @@ class CartRepositoryIntegrationTest {
     private CartRepository repository;
 
     private CartEntity openCart(UUID customerId, LocalDateTime expiresAt) {
-        var item = new CartItemEmbeddable(1L, "Racao", 2, 10.0, true);
+        var item = new CartItemEmbeddable(1L, "Racao", 2, 10.0);
         var cart = new CartEntity();
         cart.setId(UUID.randomUUID());
         cart.setCustomerId(customerId);

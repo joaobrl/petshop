@@ -5,6 +5,7 @@ import com.petshop.commons.exception.NotFoundException;
 import com.petshop.order_service.core.domain.Cart;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.domain.Order;
+import com.petshop.order_service.core.domain.OrderItem;
 import com.petshop.order_service.core.domain.ProductStockInfo;
 import com.petshop.order_service.core.domain.enums.CartStatus;
 import com.petshop.order_service.core.domain.enums.OrderStatus;
@@ -25,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -56,71 +58,122 @@ class OrderServiceTest {
         orderService = new OrderService(orderPortOut, cartPortOut, customerPortOut, notificationPortOut,
                 productStockPortOut, purchaseHistoryPortOut);
         ReflectionTestUtils.setField(orderService, "mockPaymentDelaySeconds", 30);
+        ReflectionTestUtils.setField(orderService, "reservationTtlMinutes", 30);
         ReflectionTestUtils.setField(orderService, "pickupMinDelayMinutes", 1);
         ReflectionTestUtils.setField(orderService, "pickupMaxDelayMinutes", 60);
     }
 
     private static final String TOKEN = "Bearer test-token";
 
-    private Cart cartWithItems(UUID customerId, boolean allReserved) {
+    private Cart cartWithItems(UUID customerId) {
         var cart = Cart.openFor(customerId, 24);
-        cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-        cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, allReserved);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+        cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1);
         return cart;
+    }
+
+    private Order orderFor(UUID customerId) {
+        var cart = cartWithItems(customerId);
+        return Order.fromCartItems(customerId, cart.getItems(), 30);
+    }
+
+    private static ProductStockInfo onSale(Long id, String name) {
+        return new ProductStockInfo(id, name, 10.0, true, "50+");
     }
 
     @Nested
     class Checkout {
 
+        private final UUID customerId = UUID.randomUUID();
+
+        private void customerExists() {
+            when(customerPortOut.findCustomerById(customerId, TOKEN))
+                    .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
+        }
+
+        private void allOnSale() {
+            when(productStockPortOut.getInfos(any(), eq(TOKEN))).thenReturn(Map.of(
+                    1L, onSale(1L, "Racao"), 2L, onSale(2L, "Brinquedo")));
+        }
+
+        @Test
+        void throwsBusinessRuleWhenNothingSelected() {
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(), TOKEN))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Selecione");
+            assertThatThrownBy(() -> orderService.checkout(customerId, null, TOKEN))
+                    .isInstanceOf(BusinessRuleException.class);
+
+            verifyNoInteractions(cartPortOut, productStockPortOut);
+        }
+
         @Test
         void throwsBusinessRuleWhenNoOpenCart() {
-            var customerId = UUID.randomUUID();
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), TOKEN))
                     .isInstanceOf(BusinessRuleException.class);
         }
 
         @Test
-        void throwsBusinessRuleWhenCartIsEmpty() {
-            var customerId = UUID.randomUUID();
-            var cart = Cart.openFor(customerId, 24);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+        void throwsBusinessRuleWhenSelectedItemIsNotInCart() {
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 99L), TOKEN))
                     .isInstanceOf(BusinessRuleException.class)
-                    .hasMessageContaining("vazio");
+                    .hasMessageContaining("99");
+
+            verifyNoInteractions(productStockPortOut);
         }
 
         @Test
-        void reservesOnlyItemsNotYetReservedBeforeCheckingOut() {
-            var customerId = UUID.randomUUID();
-            var cart = cartWithItems(customerId, false);
+        void checksOutOnlySelectedItemsAndKeepsTheRestInOpenCart() {
+            var cart = cartWithItems(customerId);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            customerExists();
+            when(productStockPortOut.getInfos(List.of(1L), TOKEN)).thenReturn(Map.of(1L, onSale(1L, "Racao")));
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(productStockPortOut.reserve(2L, 1, TOKEN)).thenReturn(new ProductStockInfo(2L, "Brinquedo", 5.0));
-            when(customerPortOut.findCustomerById(customerId, TOKEN))
-                    .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
-            orderService.checkout(customerId, TOKEN);
+            var order = orderService.checkout(customerId, List.of(1L), TOKEN);
 
-            verify(productStockPortOut).reserve(2L, 1, TOKEN);
-            verify(productStockPortOut, never()).reserve(eq(1L), anyInt(), any());
+            assertThat(order.getItems()).extracting(OrderItem::getProductId).containsExactly(1L);
+            assertThat(order.getTotalAmount()).isEqualTo(20.0);
+            assertThat(order.getExpiresAt()).isEqualTo(order.getCreatedAt().plusMinutes(30));
+            verify(productStockPortOut).reserve(1L, 2, TOKEN);
+            verify(productStockPortOut, never()).reserve(eq(2L), anyInt(), any());
+            assertThat(cart.productIds()).containsExactly(2L);
+            assertThat(cart.getStatus()).isEqualTo(CartStatus.OPEN);
+            verify(cartPortOut).save(cart);
+        }
+
+        @Test
+        void marksCartCheckedOutWhenEveryItemIsSelectedAndNotifiesCustomer() {
+            var cart = cartWithItems(customerId);
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            customerExists();
+            allOnSale();
+            when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            var order = orderService.checkout(customerId, List.of(1L, 2L, 1L), TOKEN);
+
+            assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
+            assertThat(order.getItems()).hasSize(2);
+            assertThat(cart.isEmpty()).isTrue();
+            assertThat(cart.getStatus()).isEqualTo(CartStatus.CHECKED_OUT);
+            verify(notificationPortOut).sendOrderAwaitingPayment(order, "maria@mail.com", "Maria");
         }
 
         @Test
         void reportsAllOutOfStockItemsInOneFailureInsteadOfJustTheFirst() {
-            var customerId = UUID.randomUUID();
-            var cart = Cart.openFor(customerId, 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, false);
-            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, false);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            customerExists();
+            allOnSale();
             when(productStockPortOut.reserve(1L, 2, TOKEN))
-                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Racao': disponível 0, solicitado 2"));
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Racao'"));
             when(productStockPortOut.reserve(2L, 1, TOKEN))
-                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo': disponível 0, solicitado 1"));
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo'"));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), TOKEN))
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("Racao")
                     .hasMessageContaining("Brinquedo");
@@ -131,51 +184,48 @@ class OrderServiceTest {
 
         @Test
         void releasesItemsReservedInTheSameAttemptWhenAnotherItemFails() {
-            var customerId = UUID.randomUUID();
-            var cart = Cart.openFor(customerId, 24);
-            cart.addOrIncrementItem(1L, "Racao", 10.0, 2, false);
-            cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, false);
+            var cart = cartWithItems(customerId);
             when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
-            when(productStockPortOut.reserve(1L, 2, TOKEN)).thenReturn(new ProductStockInfo(1L, "Racao", 10.0));
+            customerExists();
+            allOnSale();
+            when(productStockPortOut.reserve(1L, 2, TOKEN)).thenReturn(onSale(1L, "Racao"));
             when(productStockPortOut.reserve(2L, 1, TOKEN))
-                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo': disponível 0, solicitado 1"));
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo'"));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), TOKEN))
                     .isInstanceOf(BusinessRuleException.class)
-                    .hasMessageContaining("Brinquedo");
+                    .hasMessage("Estoque insuficiente para o produto 'Brinquedo'");
 
             verify(productStockPortOut).release(1L, 2, TOKEN);
             verify(orderPortOut, never()).save(any());
+            verify(cartPortOut, never()).save(any());
+            assertThat(cart.getItems()).hasSize(2);
         }
 
         @Test
-        void createsOrderMarksCartCheckedOutAndNotifiesCustomer() {
-            var customerId = UUID.randomUUID();
-            var cart = cartWithItems(customerId, true);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
-            when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-            when(customerPortOut.findCustomerById(customerId, TOKEN))
-                    .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
+        void rejectsDisabledOrMissingProductsWithoutReservingAnything() {
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            customerExists();
+            when(productStockPortOut.getInfos(any(), eq(TOKEN)))
+                    .thenReturn(Map.of(1L, new ProductStockInfo(1L, "Racao", 10.0, false, "50+")));
 
-            var order = orderService.checkout(customerId, TOKEN);
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), TOKEN))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Produto indisponível: 'Racao'")
+                    .hasMessageContaining("Produto indisponível: 'Brinquedo'");
 
-            assertThat(order.getCustomerId()).isEqualTo(customerId);
-            assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
-            assertThat(cart.getStatus()).isEqualTo(CartStatus.CHECKED_OUT);
-            verify(cartPortOut).save(cart);
-            verify(notificationPortOut).sendOrderAwaitingPayment(order, "maria@mail.com", "Maria");
+            verify(productStockPortOut, never()).reserve(any(), anyInt(), any());
         }
 
         @Test
-        void throwsNotFoundWhenCustomerDoesNotExist() {
-            var customerId = UUID.randomUUID();
-            var cart = cartWithItems(customerId, true);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
-            when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        void throwsNotFoundBeforeReservingWhenCustomerDoesNotExist() {
+            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
             when(customerPortOut.findCustomerById(customerId, TOKEN)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), TOKEN))
                     .isInstanceOf(NotFoundException.class);
+
+            verifyNoInteractions(productStockPortOut);
         }
     }
 
@@ -217,8 +267,9 @@ class OrderServiceTest {
         @Test
         void approvesPaymentConfirmsStockAndNotifiesWhenCustomerFound() {
             var customerId = UUID.randomUUID();
-            var order = Order.fromCart(cartWithItems(customerId, true));
+            var order = orderFor(customerId);
             when(orderPortOut.findAwaitingPaymentCreatedBefore(any())).thenReturn(List.of(order));
+            when(orderPortOut.markAsPaidIfAwaitingPayment(order)).thenReturn(true);
             when(customerPortOut.findCustomerById(customerId, null))
                     .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
 
@@ -226,7 +277,7 @@ class OrderServiceTest {
 
             assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
             assertThat(order.getPickupReadyAt()).isNotNull();
-            verify(orderPortOut).save(order);
+            verify(orderPortOut, never()).save(any());
             verify(productStockPortOut).confirm(1L, 2, null);
             verify(productStockPortOut).confirm(2L, 1, null);
             verify(notificationPortOut).sendPaymentConfirmed(order, "maria@mail.com", "Maria");
@@ -236,10 +287,22 @@ class OrderServiceTest {
         }
 
         @Test
+        void doesNothingWhenExpirationAlreadyWonTheOrder() {
+            var order = orderFor(UUID.randomUUID());
+            when(orderPortOut.findAwaitingPaymentCreatedBefore(any())).thenReturn(List.of(order));
+            when(orderPortOut.markAsPaidIfAwaitingPayment(order)).thenReturn(false);
+
+            orderService.processPendingPayments();
+
+            verifyNoInteractions(productStockPortOut, notificationPortOut, purchaseHistoryPortOut, customerPortOut);
+        }
+
+        @Test
         void skipsNotificationButStillPublishesHistoryWhenCustomerNotFound() {
             var customerId = UUID.randomUUID();
-            var order = Order.fromCart(cartWithItems(customerId, true));
+            var order = orderFor(customerId);
             when(orderPortOut.findAwaitingPaymentCreatedBefore(any())).thenReturn(List.of(order));
+            when(orderPortOut.markAsPaidIfAwaitingPayment(order)).thenReturn(true);
             when(customerPortOut.findCustomerById(customerId, null)).thenReturn(Optional.empty());
 
             orderService.processPendingPayments();
@@ -261,6 +324,44 @@ class OrderServiceTest {
     }
 
     @Nested
+    class ExpireUnpaidOrders {
+
+        @Test
+        void doesNothingWhenNoneExpired() {
+            when(orderPortOut.findAwaitingPaymentExpiredBefore(any())).thenReturn(List.of());
+
+            orderService.expireUnpaidOrders();
+
+            verifyNoInteractions(productStockPortOut);
+        }
+
+        @Test
+        void cancelsExpiredOrderAndReleasesEveryItem() {
+            var order = orderFor(UUID.randomUUID());
+            when(orderPortOut.findAwaitingPaymentExpiredBefore(any())).thenReturn(List.of(order));
+            when(orderPortOut.cancelIfAwaitingPayment(order.getId())).thenReturn(true);
+
+            orderService.expireUnpaidOrders();
+
+            verify(productStockPortOut).release(1L, 2, null);
+            verify(productStockPortOut).release(2L, 1, null);
+            verify(productStockPortOut, never()).confirm(any(), anyInt(), any());
+            verifyNoInteractions(cartPortOut);
+        }
+
+        @Test
+        void doesNothingWhenPaymentAlreadyWonTheOrder() {
+            var order = orderFor(UUID.randomUUID());
+            when(orderPortOut.findAwaitingPaymentExpiredBefore(any())).thenReturn(List.of(order));
+            when(orderPortOut.cancelIfAwaitingPayment(order.getId())).thenReturn(false);
+
+            orderService.expireUnpaidOrders();
+
+            verifyNoInteractions(productStockPortOut);
+        }
+    }
+
+    @Nested
     class ProcessPickupReadyOrders {
 
         @Test
@@ -275,7 +376,7 @@ class OrderServiceTest {
         @Test
         void marksReadyAndNotifiesWhenCustomerFound() {
             var customerId = UUID.randomUUID();
-            var order = Order.fromCart(cartWithItems(customerId, true));
+            var order = orderFor(customerId);
             order.markAsPaid();
             when(orderPortOut.findPaidAndPickupDue(any())).thenReturn(List.of(order));
             when(customerPortOut.findCustomerById(customerId, null))
@@ -291,7 +392,7 @@ class OrderServiceTest {
         @Test
         void skipsNotificationWhenCustomerNotFound() {
             var customerId = UUID.randomUUID();
-            var order = Order.fromCart(cartWithItems(customerId, true));
+            var order = orderFor(customerId);
             order.markAsPaid();
             when(orderPortOut.findPaidAndPickupDue(any())).thenReturn(List.of(order));
             when(customerPortOut.findCustomerById(customerId, null)).thenReturn(Optional.empty());

@@ -38,14 +38,26 @@ public class Order {
      */
     private LocalDateTime pickupReadyAt;
 
-    public static Order fromCart(Cart cart) {
+    /**
+     * Até quando o estoque fica reservado esperando pagamento; passou disso
+     * sem pagar, o pedido é cancelado e a reserva liberada.
+     */
+    private LocalDateTime expiresAt;
+
+    /**
+     * Pedido só com os itens selecionados no checkout, já com estoque
+     * reservado; a reserva vale até {@code expiresAt} (ver
+     * OrderExpirationScheduler).
+     */
+    public static Order fromCartItems(UUID customerId, List<CartItem> cartItems, int reservationTtlMinutes) {
         var order = new Order();
         order.id = UUID.randomUUID();
-        order.customerId = cart.getCustomerId();
-        order.items = cart.getItems().stream().map(OrderItem::new).toList();
-        order.totalAmount = cart.total();
+        order.customerId = customerId;
+        order.items = cartItems.stream().map(OrderItem::new).toList();
+        order.totalAmount = cartItems.stream().mapToDouble(CartItem::subtotal).sum();
         order.status = OrderStatus.AWAITING_PAYMENT;
         order.createdAt = LocalDateTime.now();
+        order.expiresAt = order.createdAt.plusMinutes(reservationTtlMinutes);
         return order;
     }
 

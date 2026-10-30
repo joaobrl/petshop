@@ -49,11 +49,17 @@ jwt:
 # Regras do fluxo de compra
 order:
   cart:
-    reservation-ttl-hours: 24
+    # Carrinho não reserva estoque: depois disso sem atividade é só
+    # "abandonado" (EXPIRED + lembrete por e-mail).
+    abandoned-after-hours: 24
     expiration-check-interval-ms: 600000  # 10 min
   payment:
     mock-delay-seconds: 30
     check-interval-ms: 10000  # 10 seg
+    # Estoque reservado no checkout fica preso só esse tempo esperando
+    # pagamento; depois o pedido é cancelado e a reserva liberada.
+    reservation-ttl-minutes: 30
+    expiration-check-interval-ms: 60000  # 1 min
   pickup:
     min-delay-minutes: 1
     max-delay-minutes: 60

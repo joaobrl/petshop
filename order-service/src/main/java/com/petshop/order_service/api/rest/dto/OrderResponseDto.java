@@ -18,6 +18,7 @@ public class OrderResponseDto {
     private LocalDateTime createdAt;
     private LocalDateTime paidAt;
     private LocalDateTime pickupReadyAt;
+    private LocalDateTime expiresAt;
 
     public OrderResponseDto(Order order) {
         this.id = order.getId();
@@ -28,5 +29,6 @@ public class OrderResponseDto {
         this.createdAt = order.getCreatedAt();
         this.paidAt = order.getPaidAt();
         this.pickupReadyAt = order.getPickupReadyAt();
+        this.expiresAt = order.getExpiresAt();
     }
 }

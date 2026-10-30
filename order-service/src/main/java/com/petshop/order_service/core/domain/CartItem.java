@@ -8,7 +8,8 @@ import lombok.Setter;
 /**
  * Item do carrinho. productName e unitPrice são um "retrato" do produto no
  * momento em que foi adicionado — se o preço mudar depois no catálogo, o
- * carrinho não muda de valor por baixo do cliente.
+ * carrinho não muda de valor por baixo do cliente. O carrinho não reserva
+ * estoque: a reserva só acontece no checkout (ver OrderService).
  */
 @Getter
 @Setter
@@ -20,13 +21,6 @@ public class CartItem {
     private String productName;
     private Integer quantity;
     private Double unitPrice;
-
-    /**
-     * Estoque reservado no product-registration; falso se adicionado sem
-     * login (reserva só ocorre no checkout). É um flag por item, não por
-     * quantidade: incrementos sem login não rebaixam um item já reservado.
-     */
-    private boolean reserved;
 
     public double subtotal() {
         return unitPrice * quantity;

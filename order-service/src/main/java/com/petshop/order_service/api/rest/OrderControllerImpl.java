@@ -3,6 +3,7 @@ package com.petshop.order_service.api.rest;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.api.rest.dto.OrderResponseDto;
 import com.petshop.order_service.core.port.in.OrderPortIn;
+import com.petshop.order_service.core.port.in.dto.CheckoutRequestDto;
 import com.petshop.order_service.infrastructure.security.CustomerIdentityResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,10 @@ public class OrderControllerImpl implements OrderController {
     private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<OrderResponseDto> checkout(UUID customerId, UriComponentsBuilder uriBuilder, String token) {
+    public ResponseEntity<OrderResponseDto> checkout(UUID customerId, CheckoutRequestDto request, UriComponentsBuilder uriBuilder, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
-        var order = orderPortIn.checkout(resolvedCustomerId, token);
+        var order = orderPortIn.checkout(resolvedCustomerId, request.getProductIds(), token);
         var uri = uriBuilder.path("/api/v1/orders/{id}").buildAndExpand(order.getId()).toUri();
         return ResponseEntity.created(uri).body(new OrderResponseDto(order));
     }

@@ -11,8 +11,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.List;
+
 /**
- * {@code GET /list} e {@code GET /find/{id}} aceitam token opcional: o
+ * {@code GET /list}, {@code GET /find/{id}} e {@code GET /find?ids=} aceitam token opcional: o
  * {@code JwtAuthenticationFilter} popula {@code AuthenticatedUser} mesmo em
  * endpoint {@code permitAll()} — sem token, {@code user} chega null e o
  * endpoint continua público. Estoque só entra na resposta quando
@@ -30,6 +32,9 @@ public interface ProductController {
 
     @GetMapping("/find/{id}")
     ResponseEntity<ProductResponseDto> getProductById(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String token);
+
+    @GetMapping("/find")
+    ResponseEntity<List<ProductResponseDto>> getProductsByIds(@RequestParam List<Long> ids, @RequestHeader(value = "Authorization", required = false) String token);
 
     @PatchMapping("/update/{id}")
     ResponseEntity<ProductResponseDto> updateProduct(@PathVariable Long id, @RequestBody ProductRequestDto productRequest);
