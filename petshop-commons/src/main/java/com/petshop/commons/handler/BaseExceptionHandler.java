@@ -7,6 +7,7 @@ import com.petshop.commons.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -233,6 +234,20 @@ public abstract class BaseExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
                 "Arquivo enviado excede o tamanho máximo permitido.");
         problem.setTitle("Payload too large");
+        return problem;
+    }
+
+    // Lock otimista (SDD-010): outra requisição gravou o mesmo registro entre
+    // a leitura e a escrita. Captura a superclasse (spring-tx, já no commons)
+    // em vez de ObjectOptimisticLockingFailureException (spring-orm), que não
+    // está no classpath dos serviços Mongo; a Object... é subclasse, então
+    // continua coberta. O cliente decide se tenta de novo.
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLock(OptimisticLockingFailureException ex) {
+        log.warn("Conflito de versão (lock otimista): {}", ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "O registro foi alterado por outra requisição. Recarregue e tente novamente.");
+        problem.setTitle("Resource conflict");
         return problem;
     }
 

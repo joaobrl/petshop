@@ -38,6 +38,16 @@ public class CustomerEntity implements Persistable<UUID> {
     @Column(name = "must_change_password")
     private Boolean mustChangePassword;
 
+    // Lock otimista (SDD-010): o save() do adapter monta uma entidade nova a
+    // partir do domínio, então a versão lida precisa viajar no Customer e
+    // voltar aqui; sem isso o Hibernate não detecta o lost update na coleção
+    // de pets. O default 0 faz o ddl-auto=update adicionar a coluna já
+    // preenchida nas linhas que existiam antes (nullable=false sem default
+    // falharia no ALTER TABLE).
+    @Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private Long version;
+
     // Como o id já vem preenchido (gerado no domínio) antes do primeiro
     // save(), o Spring Data não consegue usar "id == null" pra saber se é
     // um registro novo — sem isso ele chama merge() em vez de persist()

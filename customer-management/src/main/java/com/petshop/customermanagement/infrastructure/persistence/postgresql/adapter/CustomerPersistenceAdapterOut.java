@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +22,11 @@ public class CustomerPersistenceAdapterOut implements CustomerPortOut {
     private final CustomerRepository customerRepository;
     private final CustomerMapper mapper;
 
+    // readOnly aqui (e não no use case): o mapper toca a coleção lazy de pets,
+    // e fora de requisição HTTP (ex.: consumer Kafka) não há open-in-view
+    // segurando a sessão do Hibernate.
     @Override
+    @Transactional(readOnly = true)
     public Optional<Customer> findByCpf(String cpf) {
         return customerRepository.findByCpf(cpf)
                 .map(mapper::toDomain);
