@@ -36,6 +36,11 @@ public interface BookingRepository extends JpaRepository<BookingEntity, UUID> {
 
     List<BookingEntity> findByBookingDateTimeAndStatusNot(LocalDateTime bookingDateTime, StatusBooking status);
 
+    // pg_advisory_xact_lock devolve "void", que o Hibernate não sabe mapear como resultado — por isso a função vai
+    // no FROM e o SELECT devolve uma constante. Lock liberado sozinho no commit/rollback. Específico de Postgres.
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(:namespace, :slotKey)", nativeQuery = true)
+    Integer lockSlot(@Param("namespace") int namespace, @Param("slotKey") int slotKey);
+
     List<BookingEntity> findByPetIdAndBookingDateTimeBetweenAndStatusNot(
             UUID petId, LocalDateTime start, LocalDateTime end, StatusBooking status);
 }

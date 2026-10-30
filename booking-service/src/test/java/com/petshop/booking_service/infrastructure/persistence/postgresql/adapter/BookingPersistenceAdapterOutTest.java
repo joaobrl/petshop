@@ -17,11 +17,14 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -103,6 +106,29 @@ class BookingPersistenceAdapterOutTest {
         var result = adapter.findActiveBookingsAt(dateTime);
 
         assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void lockSlotUsesEpochMinutesAsKeyInsideBookingNamespace() {
+        var dateTime = LocalDateTime.of(2026, 8, 15, 10, 0);
+        var expectedKey = (int) (dateTime.toEpochSecond(ZoneOffset.UTC) / 60);
+
+        adapter.lockSlot(dateTime);
+
+        verify(repository).lockSlot(BookingPersistenceAdapterOut.SLOT_LOCK_NAMESPACE, expectedKey);
+    }
+
+    @Test
+    void lockSlotGivesDifferentKeysForDifferentSlots() {
+        var tenOClock = LocalDateTime.of(2026, 8, 15, 10, 0);
+
+        adapter.lockSlot(tenOClock);
+        adapter.lockSlot(tenOClock.plusHours(1));
+
+        var keys = ArgumentCaptor.forClass(Integer.class);
+        verify(repository, times(2))
+                .lockSlot(eq(BookingPersistenceAdapterOut.SLOT_LOCK_NAMESPACE), keys.capture());
+        assertThat(keys.getAllValues().get(1) - keys.getAllValues().get(0)).isEqualTo(60);
     }
 
     @Test

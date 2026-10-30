@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,10 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class BookingPersistenceAdapterOut implements BookingPortOut {
+
+    // Primeira metade da chave do advisory lock (pg_advisory_xact_lock(int, int)): separa os locks de horário de
+    // agendamento de qualquer outro advisory lock que venha a usar o mesmo banco.
+    static final int SLOT_LOCK_NAMESPACE = 5001;
 
     private final BookingRepository bookingRepository;
     private final BookingMapper mapper;
@@ -48,6 +53,14 @@ public class BookingPersistenceAdapterOut implements BookingPortOut {
     @Override
     public List<Booking> findActiveBookingsAt(LocalDateTime dateTime) {
         return mapper.toDomainList(bookingRepository.findByBookingDateTimeAndStatusNot(dateTime, StatusBooking.CANCELED));
+    }
+
+    @Override
+    public void lockSlot(LocalDateTime dateTime) {
+        // Chave = minutos desde a epoch (o horário é um LocalDateTime "de parede", então UTC aqui é só uma
+        // referência fixa pra conversão, não um fuso). Cabe em int até o ano ~6000.
+        var slotKey = Math.toIntExact(dateTime.toEpochSecond(ZoneOffset.UTC) / 60);
+        bookingRepository.lockSlot(SLOT_LOCK_NAMESPACE, slotKey);
     }
 
     @Override

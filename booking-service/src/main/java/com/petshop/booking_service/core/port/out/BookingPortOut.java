@@ -24,6 +24,14 @@ public interface BookingPortOut {
     List<Booking> findActiveBookingsAt(LocalDateTime dateTime);
 
     /**
+     * Trava o horário até o fim da transação corrente (commit/rollback), pra
+     * que duas requisições concorrentes pro mesmo horário não escolham o
+     * mesmo funcionário livre. Horários diferentes não se bloqueiam. Tem que
+     * ser chamado dentro de uma transação, antes de findActiveBookingsAt.
+     */
+    void lockSlot(LocalDateTime dateTime);
+
+    /**
      * Agendamentos (não cancelados) já existentes pro mesmo pet num dado
      * dia. Usado pra impedir que o mesmo pet seja agendado mais de uma vez
      * no mesmo dia.

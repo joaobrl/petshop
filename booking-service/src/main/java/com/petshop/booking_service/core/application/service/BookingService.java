@@ -237,6 +237,7 @@ public class BookingService implements BookingPortIn {
     private String ensureAvailabilityAndAssignEmployee(LocalDateTime bookingDateTime, ServiceType serviceType, String token) {
         var scheduledStaff = customerManagementPortOut.getScheduledStaff(bookingDateTime, serviceType.requiredStaffRole(), token);
 
+        bookingPortOut.lockSlot(bookingDateTime);
         var alreadyAssigned = bookingPortOut.findActiveBookingsAt(bookingDateTime).stream()
                 .map(Booking::getEmployeeName)
                 .filter(Objects::nonNull)
