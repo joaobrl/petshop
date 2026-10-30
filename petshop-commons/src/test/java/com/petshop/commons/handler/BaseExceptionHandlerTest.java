@@ -2,6 +2,7 @@ package com.petshop.commons.handler;
 
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
+import com.petshop.commons.exception.DependencyUnavailableException;
 import com.petshop.commons.exception.NotFoundException;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -345,6 +346,49 @@ class BaseExceptionHandlerTest {
         assertThat(problem.getDetail())
                 .isEqualTo("Já existe um registro com esses dados.")
                 .doesNotContain("sku_1");
+    }
+
+    @Test
+    void handlesDependencyUnavailableAs503WithoutLeakingCause() {
+        var ex = new DependencyUnavailableException("staff-service",
+                "Não foi possível consultar a agenda de funcionários no momento. Tente novamente.",
+                new RuntimeException("connect refused 10.0.0.5"));
+
+        var problem = handler.handleDependencyUnavailable(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(problem.getTitle()).isEqualTo("Service unavailable");
+        assertThat(problem.getDetail())
+                .isEqualTo("Não foi possível consultar a agenda de funcionários no momento. Tente novamente.")
+                .doesNotContain("10.0.0.5");
+        assertThat(ex.getDependency()).isEqualTo("staff-service");
+    }
+
+    @Test
+    void dependencyUnavailableWithoutUserMessageUsesGenericDetail() {
+        var problem = handler.handleDependencyUnavailable(
+                new DependencyUnavailableException("payment-service", new RuntimeException("timeout")));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(problem.getDetail()).isEqualTo(DependencyUnavailableException.DEFAULT_USER_MESSAGE);
+    }
+
+    @Test
+    void dependencyUnavailableLogsAtErrorWithDependencyAndCauseMessage() {
+        var logger = (Logger) LoggerFactory.getLogger(BaseExceptionHandler.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            handler.handleDependencyUnavailable(
+                    new DependencyUnavailableException("staff-service", new RuntimeException("status 500")));
+            handler.handleDependencyUnavailable(new DependencyUnavailableException("staff-service", null));
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list).hasSize(2).allMatch(e -> e.getLevel() == Level.ERROR);
+        assertThat(appender.list.get(0).getFormattedMessage()).contains("staff-service").contains("status 500");
     }
 
     @Test

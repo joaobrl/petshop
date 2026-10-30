@@ -17,6 +17,7 @@ import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.core.port.out.NotificationPortOut;
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
+import com.petshop.commons.exception.DependencyUnavailableException;
 import com.petshop.commons.security.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -424,6 +425,20 @@ class BookingServiceTest {
         var result = service.createBooking(dto, null, null);
 
         assertThat(result.getEmployeeName()).isEqualTo("Beltrano");
+    }
+
+    @Test
+    void createBookingPropagatesDependencyUnavailableInsteadOfNoEmployeeMessage() {
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var dto = requestDto(ServiceType.BANHO, dateTime);
+        when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER", null))
+                .thenThrow(new DependencyUnavailableException("staff-service", new RuntimeException("status 500")));
+
+        assertThatThrownBy(() -> service.createBooking(dto, null, null))
+                .isInstanceOf(DependencyUnavailableException.class);
+
+        verify(bookingPortOut, never()).save(any());
+        verify(availableSlotsPortIn, never()).findAvailableSlots(any(), any(), any());
     }
 
     @Test

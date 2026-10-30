@@ -1,6 +1,7 @@
 package com.petshop.booking_service.api.rest.handler;
 
 import com.petshop.booking_service.core.domain.exception.BookingUnavailableException;
+import com.petshop.commons.exception.DependencyUnavailableException;
 import com.petshop.commons.exception.NotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,18 @@ class BookingExceptionHandlerTest {
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(problem.getTitle()).isEqualTo("Resource not found");
+    }
+
+    @Test
+    void inheritsDependencyUnavailableAs503() {
+        var problem = handler.handleDependencyUnavailable(
+                new DependencyUnavailableException("staff-service",
+                        "Não foi possível consultar a agenda de funcionários no momento. Tente novamente.",
+                        new RuntimeException("status 500")));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(problem.getDetail())
+                .isEqualTo("Não foi possível consultar a agenda de funcionários no momento. Tente novamente.");
     }
 
     @Test

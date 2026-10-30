@@ -2,6 +2,7 @@ package com.petshop.commons.handler;
 
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
+import com.petshop.commons.exception.DependencyUnavailableException;
 import com.petshop.commons.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -232,6 +233,15 @@ public abstract class BaseExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
                 "Arquivo enviado excede o tamanho máximo permitido.");
         problem.setTitle("Payload too large");
+        return problem;
+    }
+
+    @ExceptionHandler(DependencyUnavailableException.class)
+    public ProblemDetail handleDependencyUnavailable(DependencyUnavailableException ex) {
+        log.error("Dependência indisponível: {}. Causa: {}", ex.getDependency(),
+                ex.getCause() != null ? ex.getCause().getMessage() : null);
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getUserMessage());
+        problem.setTitle("Service unavailable");
         return problem;
     }
 
