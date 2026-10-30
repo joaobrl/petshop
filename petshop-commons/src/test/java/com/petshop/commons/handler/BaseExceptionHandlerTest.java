@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -67,6 +68,18 @@ class BaseExceptionHandlerTest {
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(problem.getTitle()).isEqualTo("Resource conflict");
         assertThat(problem.getDetail()).isEqualTo("já existe");
+    }
+
+    @Test
+    void handlesOptimisticLockAsConflict() {
+        var ex = new OptimisticLockingFailureException("Row was updated or deleted by another transaction");
+
+        var problem = handler.handleOptimisticLock(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getTitle()).isEqualTo("Resource conflict");
+        assertThat(problem.getDetail())
+                .isEqualTo("O registro foi alterado por outra requisição. Recarregue e tente novamente.");
     }
 
     @Test

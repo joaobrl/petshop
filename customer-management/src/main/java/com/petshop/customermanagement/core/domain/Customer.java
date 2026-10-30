@@ -22,6 +22,9 @@ public class Customer {
     private List<Pet> pet;
     private String passwordHash;
     private Boolean mustChangePassword;
+    // Versão do lock otimista (SDD-010). Opaca para o domínio: só é lida da
+    // entidade e devolvida no save; null = cliente ainda não persistido.
+    private Long version;
 
     public Customer(String name, String cpf, String email, String phone) {
         this.id = UUID.randomUUID();

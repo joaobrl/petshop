@@ -94,6 +94,21 @@ class CustomerMapperTest {
         assertThat(domain.getPet()).isEmpty();
     }
 
+    // SDD-010: sem a versão no caminho entidade -> domínio -> entidade o lock
+    // otimista falha em silêncio.
+    @Test
+    void versionTravelsFromEntityToDomainAndBack() {
+        var entity = fullEntity();
+        entity.setVersion(7L);
+
+        var domain = mapper.toDomain(entity);
+        var back = mapper.toEntity(domain);
+
+        assertThat(domain.getVersion()).isEqualTo(7L);
+        assertThat(back.getVersion()).isEqualTo(7L);
+    }
+
+
     @Test
     void toEntityMapsAllScalarFieldsAndPets() {
         var pet = new Pet(UUID.randomUUID(), "Mimi", PetType.CAT, "SRD", SizeCategory.SMALL, 4.2, "Alergia");
