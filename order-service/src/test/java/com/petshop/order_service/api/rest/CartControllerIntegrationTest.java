@@ -22,7 +22,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Duration;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -182,6 +184,54 @@ class CartControllerIntegrationTest {
             mockMvc.perform(get("/api/v1/cart").param("customerId", customerId.toString()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.items.length()", is(1)));
+        }
+
+        @Test
+        void returns400WhenCustomerIdIsMissing() throws Exception {
+            mockMvc.perform(get("/api/v1/cart"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail", containsString("customerId")));
+        }
+
+        @Test
+        void returns400WithoutEchoingValueWhenCustomerIdIsMalformed() throws Exception {
+            mockMvc.perform(get("/api/v1/cart").param("customerId", "abc"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail", containsString("customerId")))
+                    .andExpect(jsonPath("$.detail", not(containsString("abc"))));
+        }
+    }
+
+    /**
+     * Erros de protocolo HTTP que o fallback genérico do BaseExceptionHandler
+     * transformava em 500.
+     */
+    @Nested
+    class ProtocolErrors {
+
+        @Test
+        void returns405WithAllowHeaderForUnsupportedMethod() throws Exception {
+            mockMvc.perform(put("/api/v1/cart"))
+                    .andExpect(status().isMethodNotAllowed())
+                    .andExpect(header().string("Allow", containsString("GET")))
+                    .andExpect(jsonPath("$.title", is("Method not allowed")));
+        }
+
+        @Test
+        void returns415ForUnsupportedContentType() throws Exception {
+            mockMvc.perform(post("/api/v1/cart/items")
+                            .contentType("text/plain")
+                            .content("qualquer coisa"))
+                    .andExpect(status().isUnsupportedMediaType())
+                    .andExpect(jsonPath("$.title", is("Unsupported media type")));
+        }
+
+        @Test
+        void returns404ForUnknownRoute() throws Exception {
+            mockMvc.perform(get("/api/v1/cart/rota-inexistente/abc"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.title", is("Resource not found")))
+                    .andExpect(jsonPath("$.detail", not(containsString("rota-inexistente"))));
         }
     }
 }

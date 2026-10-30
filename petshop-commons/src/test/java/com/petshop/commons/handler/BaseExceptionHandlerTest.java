@@ -12,16 +12,31 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingPathVariableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -110,6 +125,149 @@ class BaseExceptionHandlerTest {
         assertThat(problem.getDetail())
                 .isEqualTo("Corpo da requisição malformado ou com um campo em formato inválido.")
                 .doesNotContain("LocalDateTime");
+    }
+
+    @Test
+    void handlesMissingParameterAsBadRequest() {
+        var ex = new MissingServletRequestParameterException("customerId", "UUID");
+
+        var problem = handler.handleMissingParameter(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("Parâmetro obrigatório ausente: customerId");
+        assertThat(problem.getProperties()).containsEntry("parameter", "customerId");
+    }
+
+    @Test
+    void handlesMissingHeaderAsBadRequest() throws NoSuchMethodException {
+        var param = new MethodParameter(
+                BaseExceptionHandlerTest.class.getDeclaredMethod("dummyMethod", String.class), 0);
+        var ex = new MissingRequestHeaderException("Authorization", param);
+
+        var problem = handler.handleMissingHeader(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("Header obrigatório ausente: Authorization");
+    }
+
+    @Test
+    void handlesTypeMismatchWithoutEchoingValue() throws NoSuchMethodException {
+        var param = new MethodParameter(
+                BaseExceptionHandlerTest.class.getDeclaredMethod("dummyMethod", String.class), 0);
+        var ex = new MethodArgumentTypeMismatchException("abc", UUID.class, "customerId", param, null);
+
+        var problem = handler.handleTypeMismatch(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail())
+                .isEqualTo("Valor inválido para o parâmetro 'customerId'")
+                .doesNotContain("abc");
+    }
+
+    @Test
+    void handlesMissingPartAsBadRequest() {
+        var ex = new MissingServletRequestPartException("file");
+
+        var problem = handler.handleMissingPart(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("Parte obrigatória ausente: file");
+        assertThat(problem.getProperties()).containsEntry("parameter", "file");
+    }
+
+    @Test
+    void keepsMissingPathVariableAsInternalServerError() throws NoSuchMethodException {
+        var param = new MethodParameter(
+                BaseExceptionHandlerTest.class.getDeclaredMethod("dummyMethod", String.class), 0);
+        var ex = new MissingPathVariableException("id", param);
+
+        var problem = handler.handleMissingPathVariable(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
+    }
+
+    @Test
+    void handlesOtherRequestBindingErrorsAsBadRequest() {
+        var ex = new ServletRequestBindingException("Missing cookie 'session'");
+
+        var problem = handler.handleRequestBinding(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("Requisição inválida.");
+    }
+
+    @Test
+    void handlesMethodNotSupportedWithAllowHeader() {
+        var ex = new HttpRequestMethodNotSupportedException("PUT", List.of("GET", "POST"));
+
+        var response = handler.handleMethodNotSupported(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(response.getHeaders().getAllow()).containsExactlyInAnyOrder(HttpMethod.GET, HttpMethod.POST);
+        assertThat(response.getBody().getTitle()).isEqualTo("Method not allowed");
+        assertThat(response.getBody().getDetail()).isEqualTo("Método HTTP não suportado: PUT");
+    }
+
+    @Test
+    void handlesMethodNotSupportedWithoutKnownMethods() {
+        var ex = new HttpRequestMethodNotSupportedException("PUT");
+
+        var response = handler.handleMethodNotSupported(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(response.getHeaders().getAllow()).isEmpty();
+    }
+
+    @Test
+    void handlesUnsupportedMediaTypeWithoutEchoingContentType() {
+        var ex = new HttpMediaTypeNotSupportedException(
+                MediaType.parseMediaType("text/x-evil"), List.of(MediaType.APPLICATION_JSON));
+
+        var problem = handler.handleMediaTypeNotSupported(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value());
+        assertThat(problem.getTitle()).isEqualTo("Unsupported media type");
+        assertThat(problem.getDetail())
+                .contains("application/json")
+                .doesNotContain("text/x-evil");
+    }
+
+    @Test
+    void handlesNotAcceptable() {
+        var ex = new HttpMediaTypeNotAcceptableException(List.of(MediaType.APPLICATION_JSON));
+
+        var problem = handler.handleMediaTypeNotAcceptable(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_ACCEPTABLE.value());
+        assertThat(problem.getTitle()).isEqualTo("Not acceptable");
+        assertThat(problem.getDetail()).contains("application/json");
+    }
+
+    @Test
+    void handlesNoResourceFoundWithoutEchoingPath() {
+        var ex = new NoResourceFoundException(HttpMethod.GET, "api/v1/<script>");
+
+        var problem = handler.handleNoRoute(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(problem.getTitle()).isEqualTo("Resource not found");
+        assertThat(problem.getDetail())
+                .isEqualTo("Recurso não encontrado.")
+                .doesNotContain("<script>");
+    }
+
+    @Test
+    void handlesNoHandlerFound() {
+        var ex = new NoHandlerFoundException("GET", "/api/v1/nada", HttpHeaders.EMPTY);
+
+        var problem = handler.handleNoRoute(ex);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
     }
 
     @Test
