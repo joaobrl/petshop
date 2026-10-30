@@ -11,8 +11,12 @@ import java.util.UUID;
 @RequestMapping("/api/v1/orders")
 public interface OrderController {
 
+    /**
+     * 201 com o pedido novo; 200 com o pedido já existente quando a chamada
+     * repete uma {@code Idempotency-Key} já usada pelo mesmo cliente.
+     */
     @PostMapping("/checkout")
-    ResponseEntity<OrderResponseDto> checkout(@RequestParam UUID customerId, @RequestBody CheckoutRequestDto request, UriComponentsBuilder uriBuilder, @RequestHeader("Authorization") String token);
+    ResponseEntity<OrderResponseDto> checkout(@RequestParam UUID customerId, @RequestBody CheckoutRequestDto request, @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey, UriComponentsBuilder uriBuilder, @RequestHeader("Authorization") String token);
 
     @GetMapping("/{id}")
     ResponseEntity<OrderResponseDto> getOrderById(@PathVariable UUID id, @RequestHeader("Authorization") String token);

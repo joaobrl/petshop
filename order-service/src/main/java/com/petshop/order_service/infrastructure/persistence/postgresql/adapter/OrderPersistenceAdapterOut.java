@@ -40,6 +40,11 @@ public class OrderPersistenceAdapterOut implements OrderPortOut {
     }
 
     @Override
+    public Optional<Order> findByIdempotencyKey(String idempotencyKey) {
+        return repository.findByIdempotencyKey(idempotencyKey).map(mapper::toDomain);
+    }
+
+    @Override
     public List<Order> findAwaitingPaymentCreatedBefore(LocalDateTime threshold) {
         return mapper.toDomainList(repository.findByStatusAndCreatedAtBefore(OrderStatus.AWAITING_PAYMENT, threshold));
     }

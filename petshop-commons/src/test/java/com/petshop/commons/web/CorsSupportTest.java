@@ -29,7 +29,7 @@ class CorsSupportTest {
         assertThat(configuration).isNotNull();
         assertThat(configuration.getAllowedOrigins()).containsExactly("http://localhost:5173", "http://localhost:4000");
         assertThat(configuration.getAllowedMethods()).containsExactlyInAnyOrder("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
-        assertThat(configuration.getAllowedHeaders()).containsExactlyInAnyOrder("Authorization", "Content-Type");
+        assertThat(configuration.getAllowedHeaders()).containsExactlyInAnyOrder("Authorization", "Content-Type", "Idempotency-Key");
         assertThat(configuration.getExposedHeaders()).containsExactly("Location");
         assertThat(configuration.getAllowCredentials()).isFalse();
         assertThat(configuration.getMaxAge()).isEqualTo(3600L);

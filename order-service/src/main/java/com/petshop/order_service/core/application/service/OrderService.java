@@ -2,8 +2,10 @@ package com.petshop.order_service.core.application.service;
 
 import com.petshop.commons.exception.BusinessException;
 import com.petshop.commons.exception.BusinessRuleException;
+import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
 import com.petshop.order_service.core.domain.CartItem;
+import com.petshop.order_service.core.domain.CheckoutResult;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.domain.Order;
 import com.petshop.order_service.core.domain.enums.CartStatus;
@@ -32,6 +34,9 @@ import java.util.concurrent.ThreadLocalRandom;
 @Slf4j
 public class OrderService implements OrderPortIn {
 
+    // Tamanho da coluna orders.idempotency_key (VARCHAR(255) padrão do JPA).
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 255;
+
     private final OrderPortOut orderPortOut;
     private final CartPortOut cartPortOut;
     private final CustomerPortOut customerPortOut;
@@ -57,12 +62,31 @@ public class OrderService implements OrderPortIn {
 
     @Override
     @Transactional
-    public Order checkout(UUID customerId, List<Long> productIds, String token) {
+    public CheckoutResult checkout(UUID customerId, List<Long> productIds, String idempotencyKey, String token) {
         if (productIds == null || productIds.isEmpty()) {
             throw new BusinessRuleException("Selecione ao menos um item do carrinho para finalizar.");
         }
+        var key = normalizeIdempotencyKey(idempotencyKey);
 
-        var cart = cartPortOut.findOpenCartByCustomerId(customerId)
+        // Lock do carrinho até o commit: um segundo checkout simultâneo (duplo
+        // clique, retry de rede) espera aqui e, quando passa, já vê o carrinho
+        // sem os itens finalizados — não reserva nem cria pedido de novo.
+        var openCart = cartPortOut.findOpenCartByCustomerIdForUpdate(customerId);
+
+        // Depois do lock: se a chamada que segurava o lock usou a mesma chave,
+        // o pedido dela já está commitado e é devolvido como está.
+        if (key != null) {
+            var existing = orderPortOut.findByIdempotencyKey(key);
+            if (existing.isPresent()) {
+                if (!existing.get().getCustomerId().equals(customerId)) {
+                    throw new ConflictException("Idempotency-Key já usada em outro pedido.");
+                }
+                log.info("Checkout repetido com a mesma Idempotency-Key; devolvendo o pedido {}.", existing.get().getId());
+                return new CheckoutResult(existing.get(), false);
+            }
+        }
+
+        var cart = openCart
                 .orElseThrow(() -> new BusinessRuleException("Não há carrinho aberto para o cliente " + customerId));
 
         var selectedIds = new LinkedHashSet<>(productIds);
@@ -83,6 +107,7 @@ public class OrderService implements OrderPortIn {
         reserveAllOrNothing(selectedItems, token);
 
         var order = Order.fromCartItems(customerId, selectedItems, reservationTtlMinutes);
+        order.setIdempotencyKey(key);
         var savedOrder = orderPortOut.save(order);
 
         cart.removeItems(selectedIds);
@@ -95,7 +120,18 @@ public class OrderService implements OrderPortIn {
 
         log.info("Pedido {} criado para o cliente {} (total: {}), aguardando pagamento até {}.",
                 savedOrder.getId(), customerId, savedOrder.getTotalAmount(), savedOrder.getExpiresAt());
-        return savedOrder;
+        return new CheckoutResult(savedOrder, true);
+    }
+
+    private String normalizeIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+        var key = idempotencyKey.strip();
+        if (key.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new IllegalArgumentException("Idempotency-Key deve ter no máximo %d caracteres.".formatted(MAX_IDEMPOTENCY_KEY_LENGTH));
+        }
+        return key;
     }
 
     // Produto desativado (ou que deixou de existir) entre o GET /cart e o

@@ -17,6 +17,9 @@ export function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("PIX");
   const [placing, setPlacing] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  // One key per visit to this page: retrying "Confirmar pedido" after a lost
+  // response gets the order already created instead of a second one.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   // Selection made on the cart page; opening /checkout directly falls back to
   // every item that can be bought right now.
@@ -37,7 +40,11 @@ export function CheckoutPage() {
     setPlacing(true);
     setErrors([]);
     try {
-      const order = await orderService.checkout(user.id, items.map((item) => item.productId));
+      const order = await orderService.checkout(
+        user.id,
+        items.map((item) => item.productId),
+        idempotencyKey,
+      );
       orderService.trackOrderId(order.id);
       await refresh();
       navigate(`/pedido/${order.id}`);

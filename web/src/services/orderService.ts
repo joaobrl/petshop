@@ -22,11 +22,14 @@ export async function removeCartItem(customerId: string, productId: number): Pro
 }
 
 // Only the selected cart items become an order (their stock is reserved
-// here, not when added to the cart); the rest stay in the cart.
-export async function checkout(customerId: string, productIds: number[]): Promise<Order> {
+// here, not when added to the cart); the rest stay in the cart. Sending the
+// same idempotencyKey again (retry, double click) returns the order already
+// created instead of a second one.
+export async function checkout(customerId: string, productIds: number[], idempotencyKey: string): Promise<Order> {
   return apiFetch<Order>(API_BASE.orders, `/api/v1/orders/checkout?customerId=${customerId}`, {
     method: "POST",
     body: { productIds },
+    headers: { "Idempotency-Key": idempotencyKey },
   });
 }
 

@@ -1,6 +1,7 @@
 package com.petshop.order_service.core.application.service;
 
 import com.petshop.commons.exception.BusinessRuleException;
+import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
 import com.petshop.order_service.core.domain.Cart;
 import com.petshop.order_service.core.domain.CustomerInfo;
@@ -98,10 +99,10 @@ class OrderServiceTest {
 
         @Test
         void throwsBusinessRuleWhenNothingSelected() {
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(), null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("Selecione");
-            assertThatThrownBy(() -> orderService.checkout(customerId, null, TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, null, null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class);
 
             verifyNoInteractions(cartPortOut, productStockPortOut);
@@ -109,17 +110,17 @@ class OrderServiceTest {
 
         @Test
         void throwsBusinessRuleWhenNoOpenCart() {
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.empty());
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class);
         }
 
         @Test
         void throwsBusinessRuleWhenSelectedItemIsNotInCart() {
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 99L), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 99L), null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("99");
 
@@ -129,12 +130,12 @@ class OrderServiceTest {
         @Test
         void checksOutOnlySelectedItemsAndKeepsTheRestInOpenCart() {
             var cart = cartWithItems(customerId);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cart));
             customerExists();
             when(productStockPortOut.getInfos(List.of(1L), TOKEN)).thenReturn(Map.of(1L, onSale(1L, "Racao")));
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            var order = orderService.checkout(customerId, List.of(1L), TOKEN);
+            var order = orderService.checkout(customerId, List.of(1L), null, TOKEN).order();
 
             assertThat(order.getItems()).extracting(OrderItem::getProductId).containsExactly(1L);
             assertThat(order.getTotalAmount()).isEqualTo(20.0);
@@ -149,12 +150,12 @@ class OrderServiceTest {
         @Test
         void marksCartCheckedOutWhenEveryItemIsSelectedAndNotifiesCustomer() {
             var cart = cartWithItems(customerId);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cart));
             customerExists();
             allOnSale();
             when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            var order = orderService.checkout(customerId, List.of(1L, 2L, 1L), TOKEN);
+            var order = orderService.checkout(customerId, List.of(1L, 2L, 1L), null, TOKEN).order();
 
             assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
             assertThat(order.getItems()).hasSize(2);
@@ -165,7 +166,7 @@ class OrderServiceTest {
 
         @Test
         void reportsAllOutOfStockItemsInOneFailureInsteadOfJustTheFirst() {
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
             customerExists();
             allOnSale();
             when(productStockPortOut.reserve(1L, 2, TOKEN))
@@ -173,7 +174,7 @@ class OrderServiceTest {
             when(productStockPortOut.reserve(2L, 1, TOKEN))
                     .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo'"));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("Racao")
                     .hasMessageContaining("Brinquedo");
@@ -185,14 +186,14 @@ class OrderServiceTest {
         @Test
         void releasesItemsReservedInTheSameAttemptWhenAnotherItemFails() {
             var cart = cartWithItems(customerId);
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cart));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cart));
             customerExists();
             allOnSale();
             when(productStockPortOut.reserve(1L, 2, TOKEN)).thenReturn(onSale(1L, "Racao"));
             when(productStockPortOut.reserve(2L, 1, TOKEN))
                     .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Brinquedo'"));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessage("Estoque insuficiente para o produto 'Brinquedo'");
 
@@ -204,12 +205,12 @@ class OrderServiceTest {
 
         @Test
         void rejectsDisabledOrMissingProductsWithoutReservingAnything() {
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
             customerExists();
             when(productStockPortOut.getInfos(any(), eq(TOKEN)))
                     .thenReturn(Map.of(1L, new ProductStockInfo(1L, "Racao", 10.0, false, "50+")));
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L, 2L), null, TOKEN).order())
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("Produto indisponível: 'Racao'")
                     .hasMessageContaining("Produto indisponível: 'Brinquedo'");
@@ -219,13 +220,74 @@ class OrderServiceTest {
 
         @Test
         void throwsNotFoundBeforeReservingWhenCustomerDoesNotExist() {
-            when(cartPortOut.findOpenCartByCustomerId(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
             when(customerPortOut.findCustomerById(customerId, TOKEN)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), TOKEN))
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), null, TOKEN).order())
                     .isInstanceOf(NotFoundException.class);
 
             verifyNoInteractions(productStockPortOut);
+        }
+
+        @Test
+        void locksTheCartAndNeverUsesTheUnlockedLookup() {
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), null, TOKEN))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Não há carrinho aberto");
+
+            verify(cartPortOut, never()).findOpenCartByCustomerId(any());
+            verify(orderPortOut, never()).findByIdempotencyKey(any());
+        }
+
+        @Test
+        void storesTheIdempotencyKeyOnTheNewOrder() {
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            when(orderPortOut.findByIdempotencyKey("key-1")).thenReturn(Optional.empty());
+            customerExists();
+            allOnSale();
+            when(orderPortOut.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            var result = orderService.checkout(customerId, List.of(1L), "  key-1 ", TOKEN);
+
+            assertThat(result.created()).isTrue();
+            assertThat(result.order().getIdempotencyKey()).isEqualTo("key-1");
+        }
+
+        @Test
+        void returnsExistingOrderWithoutReservingWhenKeyWasAlreadyUsed() {
+            var existing = orderFor(customerId);
+            // Carrinho já sem os itens: o primeiro checkout (mesma chave) commitou antes.
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.empty());
+            when(orderPortOut.findByIdempotencyKey("key-1")).thenReturn(Optional.of(existing));
+
+            var result = orderService.checkout(customerId, List.of(1L, 2L), "key-1", TOKEN);
+
+            assertThat(result.created()).isFalse();
+            assertThat(result.order()).isSameAs(existing);
+            verifyNoInteractions(productStockPortOut, notificationPortOut);
+            verify(orderPortOut, never()).save(any());
+            verify(cartPortOut, never()).save(any());
+        }
+
+        @Test
+        void rejectsKeyAlreadyUsedByAnotherCustomer() {
+            when(cartPortOut.findOpenCartByCustomerIdForUpdate(customerId)).thenReturn(Optional.of(cartWithItems(customerId)));
+            when(orderPortOut.findByIdempotencyKey("key-1")).thenReturn(Optional.of(orderFor(UUID.randomUUID())));
+
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), "key-1", TOKEN))
+                    .isInstanceOf(ConflictException.class);
+
+            verifyNoInteractions(productStockPortOut);
+        }
+
+        @Test
+        void rejectsOversizedKey() {
+            assertThatThrownBy(() -> orderService.checkout(customerId, List.of(1L), "k".repeat(256), TOKEN))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(cartPortOut, productStockPortOut);
         }
     }
 

@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -238,6 +239,37 @@ class OrderControllerIntegrationTest {
                             .content(selection(1L)))
                     .andExpect(status().isUnprocessableEntity())
                     .andExpect(jsonPath("$.detail", is("Estoque insuficiente para o produto 'Produto 1'")));
+        }
+
+        @Test
+        void repeatingTheIdempotencyKeyReturnsTheSameOrderWith200() throws Exception {
+            var customerId = UUID.randomUUID();
+            productsOnSale();
+            addItem(customerId, 1L);
+            customerExists(customerId);
+            var key = UUID.randomUUID().toString();
+
+            var first = mockMvc.perform(post("/api/v1/orders/checkout")
+                            .param("customerId", customerId.toString())
+                            .with(customerAuth(customerId))
+                            .header("Idempotency-Key", key)
+                            .contentType("application/json")
+                            .content(selection(1L)))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            var orderId = objectMapper.readTree(first.getResponse().getContentAsString()).get("id").asText();
+
+            mockMvc.perform(post("/api/v1/orders/checkout")
+                            .param("customerId", customerId.toString())
+                            .with(customerAuth(customerId))
+                            .header("Idempotency-Key", key)
+                            .contentType("application/json")
+                            .content(selection(1L)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id", is(orderId)))
+                    .andExpect(header().doesNotExist("Location"));
+
+            verify(productStockPortOut, times(1)).reserve(eq(1L), eq(2), any());
         }
 
         @Test

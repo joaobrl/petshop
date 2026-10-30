@@ -45,6 +45,13 @@ public class Order {
     private LocalDateTime expiresAt;
 
     /**
+     * Chave enviada pelo cliente no header Idempotency-Key do checkout:
+     * repetir o checkout com a mesma chave devolve este pedido em vez de
+     * criar outro. Null para pedidos sem chave.
+     */
+    private String idempotencyKey;
+
+    /**
      * Pedido só com os itens selecionados no checkout, já com estoque
      * reservado; a reserva vale até {@code expiresAt} (ver
      * OrderExpirationScheduler).

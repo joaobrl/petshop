@@ -21,12 +21,16 @@ public class OrderControllerImpl implements OrderController {
     private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<OrderResponseDto> checkout(UUID customerId, CheckoutRequestDto request, UriComponentsBuilder uriBuilder, String token) {
+    public ResponseEntity<OrderResponseDto> checkout(UUID customerId, CheckoutRequestDto request, String idempotencyKey, UriComponentsBuilder uriBuilder, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
-        var order = orderPortIn.checkout(resolvedCustomerId, request.getProductIds(), token);
-        var uri = uriBuilder.path("/api/v1/orders/{id}").buildAndExpand(order.getId()).toUri();
-        return ResponseEntity.created(uri).body(new OrderResponseDto(order));
+        var result = orderPortIn.checkout(resolvedCustomerId, request.getProductIds(), idempotencyKey, token);
+        var body = new OrderResponseDto(result.order());
+        if (!result.created()) {
+            return ResponseEntity.ok(body);
+        }
+        var uri = uriBuilder.path("/api/v1/orders/{id}").buildAndExpand(result.order().getId()).toUri();
+        return ResponseEntity.created(uri).body(body);
     }
 
     @Override

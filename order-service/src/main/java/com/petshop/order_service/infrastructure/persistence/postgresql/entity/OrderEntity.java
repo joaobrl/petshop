@@ -46,6 +46,11 @@ public class OrderEntity implements Persistable<UUID> {
 
     private LocalDateTime expiresAt;
 
+    // Nullable: o índice único do Postgres aceita vários NULL, então pedidos
+    // sem chave (ou anteriores à coluna) não conflitam.
+    @Column(unique = true)
+    private String idempotencyKey;
+
     // Id já vem preenchido (gerado no domínio) antes do save(), então o
     // Spring Data não pode usar "id == null" pra saber se é registro novo
     // — chamaria merge() em vez de persist() e o Hibernate lançaria

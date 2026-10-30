@@ -122,7 +122,7 @@ class OrderTest {
         var paidAt = LocalDateTime.now().minusMinutes(5);
         var pickupReadyAt = LocalDateTime.now().plusMinutes(30);
 
-        var order = new Order(id, customerId, items, 10.0, OrderStatus.PAID, createdAt, paidAt, pickupReadyAt, createdAt.plusMinutes(30));
+        var order = new Order(id, customerId, items, 10.0, OrderStatus.PAID, createdAt, paidAt, pickupReadyAt, createdAt.plusMinutes(30), null);
 
         assertThat(order.getId()).isEqualTo(id);
         assertThat(order.getCustomerId()).isEqualTo(customerId);
