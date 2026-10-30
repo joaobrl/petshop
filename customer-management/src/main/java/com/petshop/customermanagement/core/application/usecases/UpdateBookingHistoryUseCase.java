@@ -7,7 +7,6 @@ import com.petshop.customermanagement.core.port.out.BookingHistoryPortOut;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 
@@ -24,7 +23,9 @@ public class UpdateBookingHistoryUseCase {
         this.customerPortOut = customerPortOut;
     }
 
-    @Transactional(readOnly = true)
+    // Sem @Transactional: a leitura do cliente é no Postgres, mas a escrita do
+    // histórico é no MongoDB standalone (sem replica set, fora do
+    // JpaTransactionManager), e a escrita é única e atômica (um documento).
     public void execute(BookingCompletedCommand command) {
         var customer = customerPortOut.findByCpf(command.ownerCpf())
                 .orElseThrow(() -> new NotFoundException("Cliente do agendamento " + command.bookingId() + " não encontrado(a)"));
