@@ -4,6 +4,8 @@ import com.petshop.product_registration.core.port.in.dto.DimensionsDto;
 import com.petshop.product_registration.core.port.in.dto.ProductRequestDto;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -337,5 +339,33 @@ class ProductTest {
         assertThat(product.getReservedStock()).isEqualTo(2);
         assertThat(product.getDimensions()).isEqualTo(dimensions);
         assertThat(product.getEnabled()).isTrue();
+    }
+
+    @Nested
+    class StockRange {
+
+        private Product withAvailable(int stock, int reserved) {
+            return new Product(1L, "Racao", null, 10.0, stock, reserved, null, true);
+        }
+
+        @ParameterizedTest
+        @CsvSource(nullValues = "null", value = {
+                "0, null",
+                "1, LOW",
+                "19, LOW",
+                "20, 20+",
+                "49, 20+",
+                "50, 50+",
+                "500, 50+"
+        })
+        void mapsAvailableStockToRange(int available, String expected) {
+            assertThat(withAvailable(available, 0).stockRange()).isEqualTo(expected);
+        }
+
+        @Test
+        void usesAvailableNotRawStock() {
+            assertThat(withAvailable(60, 45).stockRange()).isEqualTo("LOW");
+            assertThat(withAvailable(10, 10).stockRange()).isNull();
+        }
     }
 }

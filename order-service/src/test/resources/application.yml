@@ -39,11 +39,13 @@ jwt:
 
 order:
   cart:
-    reservation-ttl-hours: 24
+    abandoned-after-hours: 24
     expiration-check-interval-ms: 600000
   payment:
     mock-delay-seconds: 30
     check-interval-ms: 10000
+    reservation-ttl-minutes: 30
+    expiration-check-interval-ms: 60000
   pickup:
     min-delay-minutes: 1
     max-delay-minutes: 60

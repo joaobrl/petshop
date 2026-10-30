@@ -17,5 +17,4 @@ public class CartItemEmbeddable {
     private String productName;
     private Integer quantity;
     private Double unitPrice;
-    private boolean reserved;
 }

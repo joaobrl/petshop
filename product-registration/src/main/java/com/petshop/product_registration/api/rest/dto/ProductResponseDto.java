@@ -24,6 +24,16 @@ public class ProductResponseDto {
      * item como "sem estoque".
      */
     private Boolean inStock;
+    /**
+     * Faixa de estoque ("50+", "20+", "LOW" ou null quando sem estoque),
+     * visível a qualquer chamador — ver Product#stockRange.
+     */
+    private String stockRange;
+    /**
+     * Produto desativado (soft delete) continua acessível por id; o
+     * order-service usa isso pra tirar o produto do carrinho.
+     */
+    private Boolean enabled;
     private DimensionsResponseDto dimensions;
 
     public ProductResponseDto(Product product) {
@@ -33,7 +43,8 @@ public class ProductResponseDto {
     /**
      * includeStock=false omite a quantidade exata do JSON (campos ficam
      * null; @JsonInclude NON_NULL tira do corpo) — usado quando o usuário
-     * não é STAFF. {@code inStock} não depende disso: é sempre informado.
+     * não é STAFF. {@code inStock}, {@code stockRange} e {@code enabled} não
+     * dependem disso: são sempre informados.
      */
     public ProductResponseDto(Product product, boolean includeStock) {
         this.id = product.getId();
@@ -41,6 +52,8 @@ public class ProductResponseDto {
         this.description = product.getDescription();
         this.price = product.getPrice();
         this.inStock = product.availableStock() > 0;
+        this.stockRange = product.stockRange();
+        this.enabled = product.getEnabled();
         if (includeStock) {
             this.stock = product.getStock();
             this.reservedStock = product.getReservedStock();

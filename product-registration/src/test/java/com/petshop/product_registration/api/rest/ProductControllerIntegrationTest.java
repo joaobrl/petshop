@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.JwtService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -28,7 +31,10 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -72,6 +78,9 @@ class ProductControllerIntegrationTest {
     @MockitoBean
     private ProductSequenceGenerator sequenceGenerator;
 
+    @Autowired
+    private MongoOperations mongoOperations;
+
     private static RequestPostProcessor adminAuth() {
         return bearer(TEST_JWT_SERVICE.generateToken(UUID.randomUUID(), "admin@petshop.local", "Admin", "00000000000", "11000000000", Role.ADMIN, AccountType.STAFF));
     }
@@ -105,6 +114,20 @@ class ProductControllerIntegrationTest {
         entity.setReservedStock(0);
         entity.setEnabled(true);
         return entity;
+    }
+
+    // Reserva/liberação/baixa/update usam MongoOperations.findAndModify (não o
+    // repositório mockado): grava o documento de verdade no container e
+    // espelha no mock, que ainda atende o findById de quem precisa explicar
+    // por que o filtro atômico não casou.
+    private void persisted(ProductDocument product) {
+        mongoOperations.save(product);
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+    }
+
+    @BeforeEach
+    void cleanProducts() {
+        mongoOperations.remove(new Query(), ProductDocument.class);
     }
 
     private ProductRequestDto validRequest() {
@@ -208,6 +231,61 @@ class ProductControllerIntegrationTest {
         }
 
         @Test
+        void findProductByIdExposesStockRangeAndEnabledWhenAnonymous() throws Exception {
+            var product = sampleProduct(1L);
+            product.setStock(30);
+            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+            mockMvc.perform(get("/api/v1/products/find/1"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.stockRange", is("20+")))
+                    .andExpect(jsonPath("$.enabled", is(true)))
+                    .andExpect(jsonPath("$.availableStock").doesNotExist());
+        }
+
+        @Test
+        void findProductsByIdsIsPublicAndReturnsDisabledButNotMissing() throws Exception {
+            var disabled = sampleProduct(2L);
+            disabled.setName("Coleira");
+            disabled.setEnabled(false);
+            when(productRepository.findAllById(any())).thenReturn(List.of(sampleProduct(1L), disabled));
+
+            mockMvc.perform(get("/api/v1/products/find").param("ids", "1,2,999"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()", is(2)))
+                    .andExpect(jsonPath("$[0].id", is(1)))
+                    .andExpect(jsonPath("$[0].stockRange", is("50+")))
+                    .andExpect(jsonPath("$[0].stock").doesNotExist())
+                    .andExpect(jsonPath("$[1].id", is(2)))
+                    .andExpect(jsonPath("$[1].enabled", is(false)));
+        }
+
+        @Test
+        void findProductsByIdsIncludesStockWhenStaffToken() throws Exception {
+            when(productRepository.findAllById(any())).thenReturn(List.of(sampleProduct(1L)));
+
+            mockMvc.perform(get("/api/v1/products/find").param("ids", "1").with(adminAuth()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].stock", is(50)));
+        }
+
+        @Test
+        void findProductsByIdsReturnsBadRequestWhenIdsMissingOrEmpty() throws Exception {
+            mockMvc.perform(get("/api/v1/products/find"))
+                    .andExpect(status().isBadRequest());
+            mockMvc.perform(get("/api/v1/products/find").param("ids", ""))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void findProductsByIdsReturnsBadRequestAboveLimit() throws Exception {
+            var ids = LongStream.rangeClosed(1, 101).mapToObj(Long::toString).collect(Collectors.joining(","));
+
+            mockMvc.perform(get("/api/v1/products/find").param("ids", ids))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void findProductByIdReturnsNotFoundProblemDetailWhenMissing() throws Exception {
             when(productRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -288,8 +366,7 @@ class ProductControllerIntegrationTest {
         @Test
         void updateProductSucceedsForAdmin() throws Exception {
             var product = sampleProduct(1L);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             var update = new ProductRequestDto();
             update.setName("Nome Atualizado");
@@ -323,8 +400,7 @@ class ProductControllerIntegrationTest {
         @Test
         void deleteProductSucceedsForAdmin() throws Exception {
             var product = sampleProduct(1L);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(delete("/api/v1/products/delete/1")
                             .with(adminAuth()))
@@ -356,8 +432,7 @@ class ProductControllerIntegrationTest {
         @Test
         void reserveStockSucceedsForCustomerToken() throws Exception {
             var product = sampleProduct(1L);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .with(customerAuth())
@@ -370,8 +445,7 @@ class ProductControllerIntegrationTest {
         @Test
         void reserveStockSucceedsForAdminToken() throws Exception {
             var product = sampleProduct(1L);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .with(adminAuth())
@@ -384,8 +458,7 @@ class ProductControllerIntegrationTest {
         @Test
         void reserveStockSucceedsForServiceToken() throws Exception {
             var product = sampleProduct(1L);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .with(serviceAuth())
@@ -400,14 +473,57 @@ class ProductControllerIntegrationTest {
             var product = sampleProduct(1L);
             product.setStock(5);
             product.setReservedStock(5);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/reserve")
                             .with(serviceAuth())
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(quantity(1))))
                     .andExpect(status().isUnprocessableEntity())
-                    .andExpect(jsonPath("$.title", is("Business rule violation")));
+                    .andExpect(jsonPath("$.title", is("Business rule violation")))
+                    .andExpect(jsonPath("$.detail", is("Estoque insuficiente para o produto 'Racao'")));
+
+            assertThat(mongoOperations.findById(1L, ProductDocument.class).getReservedStock()).isEqualTo(5);
+        }
+
+        @Test
+        void reserveStockReturnsUnprocessableEntityWhenProductIsDisabled() throws Exception {
+            var product = sampleProduct(1L);
+            product.setEnabled(false);
+            persisted(product);
+
+            mockMvc.perform(post("/api/v1/products/1/reserve")
+                            .with(serviceAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(1))))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.detail", is("Produto indisponível: 'Racao'")));
+
+            assertThat(mongoOperations.findById(1L, ProductDocument.class).getReservedStock()).isZero();
+        }
+
+        @Test
+        void reserveStockReturnsNotFoundWhenProductMissing() throws Exception {
+            when(productRepository.findById(99L)).thenReturn(Optional.empty());
+
+            mockMvc.perform(post("/api/v1/products/99/reserve")
+                            .with(serviceAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(1))))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void releaseStockReturnsUnprocessableEntityAndKeepsReservedAtZero() throws Exception {
+            persisted(sampleProduct(1L));
+
+            mockMvc.perform(post("/api/v1/products/1/release")
+                            .with(serviceAuth())
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(quantity(1))))
+                    .andExpect(status().isUnprocessableEntity());
+
+            assertThat(mongoOperations.findById(1L, ProductDocument.class).getReservedStock()).isZero();
         }
 
         @Test
@@ -423,8 +539,7 @@ class ProductControllerIntegrationTest {
         void releaseStockSucceedsForReceptionistToken() throws Exception {
             var product = sampleProduct(1L);
             product.setReservedStock(5);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/release")
                             .with(receptionistAuth())
@@ -438,8 +553,7 @@ class ProductControllerIntegrationTest {
         void releaseStockSucceedsForServiceToken() throws Exception {
             var product = sampleProduct(1L);
             product.setReservedStock(5);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/release")
                             .with(serviceAuth())
@@ -453,8 +567,7 @@ class ProductControllerIntegrationTest {
         void confirmStockSucceedsForAdminToken() throws Exception {
             var product = sampleProduct(1L);
             product.setReservedStock(5);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/confirm")
                             .with(adminAuth())
@@ -468,8 +581,7 @@ class ProductControllerIntegrationTest {
         void confirmStockSucceedsForServiceToken() throws Exception {
             var product = sampleProduct(1L);
             product.setReservedStock(5);
-            when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-            when(productRepository.save(any(ProductDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+            persisted(product);
 
             mockMvc.perform(post("/api/v1/products/1/confirm")
                             .with(serviceAuth())

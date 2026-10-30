@@ -83,6 +83,17 @@ class ProductResponseDtoTest {
         assertThat(dto.getName()).isEqualTo("Racao");
         assertThat(dto.getPrice()).isEqualTo(79.90);
         assertThat(dto.getInStock()).isTrue();
+        assertThat(dto.getStockRange()).isEqualTo("20+");
+        assertThat(dto.getEnabled()).isTrue();
+    }
+
+    @Test
+    void exposesEnabledFalseForDisabledProduct() {
+        var product = new Product(1L, "Racao", "Descricao", 79.90, 50, 0, null, false);
+
+        var dto = new ProductResponseDto(product, false);
+
+        assertThat(dto.getEnabled()).isFalse();
     }
 
     @Test

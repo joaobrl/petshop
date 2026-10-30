@@ -28,7 +28,7 @@ class OrderItemTest {
 
     @Test
     void copyConstructorCopiesFieldsFromCartItem() {
-        var cartItem = new CartItem(1L, "Racao", 3, 10.0, true);
+        var cartItem = new CartItem(1L, "Racao", 3, 10.0);
 
         var orderItem = new OrderItem(cartItem);
 

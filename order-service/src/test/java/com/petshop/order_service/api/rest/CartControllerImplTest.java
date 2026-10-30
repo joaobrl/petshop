@@ -5,6 +5,7 @@ import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.core.domain.Cart;
+import com.petshop.order_service.core.domain.CartView;
 import com.petshop.order_service.core.port.in.CartPortIn;
 import com.petshop.order_service.core.port.in.dto.AddCartItemRequestDto;
 import com.petshop.order_service.infrastructure.security.CustomerIdentityResolver;
@@ -48,7 +49,7 @@ class CartControllerImplTest {
     }
 
     @Test
-    void addItemReservesStockWhenUserIsAuthenticated() {
+    void addItemUsesCustomerIdFromTokenWhenAuthenticated() {
         var customerId = UUID.randomUUID();
         var user = customerUser(customerId);
         var token = bearerTokenFor(user);
@@ -58,7 +59,7 @@ class CartControllerImplTest {
         request.setQuantity(2);
         var cart = Cart.openFor(customerId, 24);
         when(customerIdentityResolver.resolveCustomerId(request.getCustomerId(), user)).thenReturn(customerId);
-        when(cartPortIn.addItem(customerId, 1L, 2, true, token)).thenReturn(cart);
+        when(cartPortIn.addItem(customerId, 1L, 2, token)).thenReturn(CartView.withoutAvailability(cart));
 
         var response = controller.addItem(request, token);
 
@@ -67,7 +68,7 @@ class CartControllerImplTest {
     }
 
     @Test
-    void addItemDoesNotReserveStockWhenUserIsAnonymous() {
+    void addItemUsesRequestedCustomerIdWhenAnonymous() {
         var customerId = UUID.randomUUID();
         var request = new AddCartItemRequestDto();
         request.setCustomerId(customerId);
@@ -75,7 +76,7 @@ class CartControllerImplTest {
         request.setQuantity(2);
         var cart = Cart.openFor(customerId, 24);
         when(customerIdentityResolver.resolveCustomerId(customerId, null)).thenReturn(customerId);
-        when(cartPortIn.addItem(customerId, 1L, 2, false, null)).thenReturn(cart);
+        when(cartPortIn.addItem(customerId, 1L, 2, null)).thenReturn(CartView.withoutAvailability(cart));
 
         var response = controller.addItem(request, null);
 
@@ -89,7 +90,7 @@ class CartControllerImplTest {
         var token = bearerTokenFor(user);
         var cart = Cart.openFor(customerId, 24);
         when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
-        when(cartPortIn.removeItem(customerId, 1L, token)).thenReturn(cart);
+        when(cartPortIn.removeItem(customerId, 1L, token)).thenReturn(CartView.withoutAvailability(cart));
 
         var response = controller.removeItem(1L, customerId, token);
 
@@ -102,7 +103,7 @@ class CartControllerImplTest {
         var customerId = UUID.randomUUID();
         var cart = Cart.openFor(customerId, 24);
         when(customerIdentityResolver.resolveCustomerId(customerId, null)).thenReturn(customerId);
-        when(cartPortIn.getCart(customerId)).thenReturn(cart);
+        when(cartPortIn.getCart(customerId, null)).thenReturn(CartView.withoutAvailability(cart));
 
         var response = controller.getCart(customerId, null);
 

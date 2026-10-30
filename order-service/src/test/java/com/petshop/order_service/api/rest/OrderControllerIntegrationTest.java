@@ -2,12 +2,14 @@ package com.petshop.order_service.api.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.domain.ProductStockInfo;
 import com.petshop.order_service.core.port.in.dto.AddCartItemRequestDto;
+import com.petshop.order_service.core.port.in.dto.CheckoutRequestDto;
 import com.petshop.order_service.core.port.out.CustomerPortOut;
 import com.petshop.order_service.core.port.out.NotificationPortOut;
 import com.petshop.order_service.core.port.out.ProductStockPortOut;
@@ -22,12 +24,18 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -73,27 +81,47 @@ class OrderControllerIntegrationTest {
         };
     }
 
-    private void addItem(UUID customerId, RequestPostProcessor auth) throws Exception {
+    private static ProductStockInfo onSale(Long id) {
+        return new ProductStockInfo(id, "Produto " + id, 79.90, true, "50+");
+    }
+
+    private void productsOnSale() {
+        when(productStockPortOut.getInfo(any(), any())).thenAnswer(inv -> onSale(inv.getArgument(0)));
+        when(productStockPortOut.getInfos(any(), any())).thenReturn(Map.of(1L, onSale(1L), 2L, onSale(2L)));
+    }
+
+    private void addItem(UUID customerId, Long productId) throws Exception {
         var dto = new AddCartItemRequestDto();
         dto.setCustomerId(customerId);
-        dto.setProductId(1L);
+        dto.setProductId(productId);
         dto.setQuantity(2);
-        when(productStockPortOut.reserve(eq(1L), eq(2), any())).thenReturn(new ProductStockInfo(1L, "Racao", 79.90));
 
         mockMvc.perform(post("/api/v1/cart/items")
-                .with(auth)
-                .contentType("application/json")
-                .content(objectMapper.writeValueAsString(dto)));
+                        .with(customerAuth(customerId))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+    }
+
+    private void customerExists(UUID customerId) {
+        when(customerPortOut.findCustomerById(eq(customerId), any()))
+                .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
+    }
+
+    private String selection(Long... productIds) throws Exception {
+        return objectMapper.writeValueAsString(new CheckoutRequestDto(List.of(productIds)));
     }
 
     private UUID checkoutAndGetOrderId(UUID customerId) throws Exception {
-        addItem(customerId, customerAuth(customerId));
-        when(customerPortOut.findCustomerById(eq(customerId), any()))
-                .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
+        productsOnSale();
+        addItem(customerId, 1L);
+        customerExists(customerId);
 
         var response = mockMvc.perform(post("/api/v1/orders/checkout")
                         .param("customerId", customerId.toString())
-                        .with(customerAuth(customerId)))
+                        .with(customerAuth(customerId))
+                        .contentType("application/json")
+                        .content(selection(1L)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -106,8 +134,34 @@ class OrderControllerIntegrationTest {
 
         @Test
         void requiresAuthentication() throws Exception {
-            mockMvc.perform(post("/api/v1/orders/checkout").param("customerId", UUID.randomUUID().toString()))
+            mockMvc.perform(post("/api/v1/orders/checkout")
+                            .param("customerId", UUID.randomUUID().toString())
+                            .contentType("application/json")
+                            .content(selection(1L)))
                     .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void returnsBadRequestWhenBodyIsMissing() throws Exception {
+            var customerId = UUID.randomUUID();
+
+            mockMvc.perform(post("/api/v1/orders/checkout")
+                            .param("customerId", customerId.toString())
+                            .with(customerAuth(customerId)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void returnsBusinessRuleViolationWhenNothingSelected() throws Exception {
+            var customerId = UUID.randomUUID();
+
+            mockMvc.perform(post("/api/v1/orders/checkout")
+                            .param("customerId", customerId.toString())
+                            .with(customerAuth(customerId))
+                            .contentType("application/json")
+                            .content(selection()))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.detail", containsString("Selecione")));
         }
 
         @Test
@@ -116,51 +170,88 @@ class OrderControllerIntegrationTest {
 
             mockMvc.perform(post("/api/v1/orders/checkout")
                             .param("customerId", customerId.toString())
-                            .with(customerAuth(customerId)))
+                            .with(customerAuth(customerId))
+                            .contentType("application/json")
+                            .content(selection(1L)))
                     .andExpect(status().isUnprocessableEntity())
                     .andExpect(jsonPath("$.title", is("Business rule violation")));
         }
 
         @Test
-        void returnsBusinessRuleViolationWhenCartIsEmpty() throws Exception {
+        void returnsBusinessRuleViolationWhenSelectedItemIsNotInCart() throws Exception {
             var customerId = UUID.randomUUID();
-            addItem(customerId, customerAuth(customerId));
-            mockMvc.perform(delete("/api/v1/cart/items/1")
-                    .param("customerId", customerId.toString())
-                    .with(customerAuth(customerId)));
+            productsOnSale();
+            addItem(customerId, 1L);
 
             mockMvc.perform(post("/api/v1/orders/checkout")
                             .param("customerId", customerId.toString())
-                            .with(customerAuth(customerId)))
+                            .with(customerAuth(customerId))
+                            .contentType("application/json")
+                            .content(selection(2L)))
                     .andExpect(status().isUnprocessableEntity())
-                    .andExpect(jsonPath("$.detail", is("Não é possível finalizar um carrinho vazio.")));
+                    .andExpect(jsonPath("$.detail", containsString("não estão no carrinho")));
         }
 
         @Test
-        void succeedsAndReturnsCreatedOrder() throws Exception {
+        void checksOutOnlySelectedItemsAndKeepsTheRestInTheCart() throws Exception {
             var customerId = UUID.randomUUID();
-            addItem(customerId, customerAuth(customerId));
-            when(customerPortOut.findCustomerById(eq(customerId), any()))
-                    .thenReturn(Optional.of(new CustomerInfo(customerId, "Maria", "maria@mail.com")));
+            productsOnSale();
+            addItem(customerId, 1L);
+            addItem(customerId, 2L);
+            customerExists(customerId);
 
             mockMvc.perform(post("/api/v1/orders/checkout")
                             .param("customerId", customerId.toString())
-                            .with(customerAuth(customerId)))
+                            .with(customerAuth(customerId))
+                            .contentType("application/json")
+                            .content(selection(1L)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.customerId", is(customerId.toString())))
                     .andExpect(jsonPath("$.status", is("AWAITING_PAYMENT")))
+                    .andExpect(jsonPath("$.items.length()", is(1)))
+                    .andExpect(jsonPath("$.items[0].productId", is(1)))
+                    .andExpect(jsonPath("$.expiresAt").exists())
                     .andExpect(header().exists("Location"));
+
+            verify(productStockPortOut).reserve(eq(1L), eq(2), any());
+            verify(productStockPortOut, never()).reserve(eq(2L), anyInt(), any());
+
+            mockMvc.perform(get("/api/v1/cart").param("customerId", customerId.toString()).with(customerAuth(customerId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status", is("OPEN")))
+                    .andExpect(jsonPath("$.items.length()", is(1)))
+                    .andExpect(jsonPath("$.items[0].productId", is(2)));
+        }
+
+        @Test
+        void returnsUnprocessableEntityListingItemsWithoutStock() throws Exception {
+            var customerId = UUID.randomUUID();
+            productsOnSale();
+            addItem(customerId, 1L);
+            customerExists(customerId);
+            when(productStockPortOut.reserve(eq(1L), eq(2), any()))
+                    .thenThrow(new BusinessRuleException("Estoque insuficiente para o produto 'Produto 1'"));
+
+            mockMvc.perform(post("/api/v1/orders/checkout")
+                            .param("customerId", customerId.toString())
+                            .with(customerAuth(customerId))
+                            .contentType("application/json")
+                            .content(selection(1L)))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.detail", is("Estoque insuficiente para o produto 'Produto 1'")));
         }
 
         @Test
         void returnsNotFoundWhenCustomerDoesNotExist() throws Exception {
             var customerId = UUID.randomUUID();
-            addItem(customerId, customerAuth(customerId));
+            productsOnSale();
+            addItem(customerId, 1L);
             when(customerPortOut.findCustomerById(eq(customerId), any())).thenReturn(Optional.empty());
 
             mockMvc.perform(post("/api/v1/orders/checkout")
                             .param("customerId", customerId.toString())
-                            .with(customerAuth(customerId)))
+                            .with(customerAuth(customerId))
+                            .contentType("application/json")
+                            .content(selection(1L)))
                     .andExpect(status().isNotFound());
         }
     }

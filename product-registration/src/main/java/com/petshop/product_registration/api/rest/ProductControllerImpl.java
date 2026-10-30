@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 public class ProductControllerImpl implements ProductController {
@@ -45,6 +47,16 @@ public class ProductControllerImpl implements ProductController {
         boolean includeStock = user != null && user.type() == AccountType.STAFF;
         var product = portIn.getProductById(id);
         return ResponseEntity.ok(new ProductResponseDto(product, includeStock));
+    }
+
+    @Override
+    public ResponseEntity<List<ProductResponseDto>> getProductsByIds(List<Long> ids, String token) {
+        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+        boolean includeStock = user != null && user.type() == AccountType.STAFF;
+        var products = portIn.getProductsByIds(ids).stream()
+                .map(product -> new ProductResponseDto(product, includeStock))
+                .toList();
+        return ResponseEntity.ok(products);
     }
 
     @Override

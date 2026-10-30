@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,39 +31,42 @@ public class Cart {
 
     private LocalDateTime expiresAt;
 
-    public static Cart openFor(UUID customerId, int reservationTtlHours) {
+    public static Cart openFor(UUID customerId, int abandonedAfterHours) {
         var cart = new Cart();
         cart.id = UUID.randomUUID();
         cart.customerId = customerId;
         cart.items = new ArrayList<>();
         cart.status = CartStatus.OPEN;
         cart.createdAt = LocalDateTime.now();
-        cart.renewExpiration(reservationTtlHours);
+        cart.renewExpiration(abandonedAfterHours);
         return cart;
     }
 
-    public void renewExpiration(int reservationTtlHours) {
-        this.expiresAt = LocalDateTime.now().plusHours(reservationTtlHours);
+    public void renewExpiration(int abandonedAfterHours) {
+        this.expiresAt = LocalDateTime.now().plusHours(abandonedAfterHours);
     }
 
     public Optional<CartItem> findItem(Long productId) {
         return items.stream().filter(item -> item.getProductId().equals(productId)).findFirst();
     }
 
-    public void addOrIncrementItem(Long productId, String productName, Double unitPrice, int quantity, boolean reserved) {
+    public void addOrIncrementItem(Long productId, String productName, Double unitPrice, int quantity) {
         findItem(productId).ifPresentOrElse(
-                item -> {
-                    item.setQuantity(item.getQuantity() + quantity);
-                    if (reserved) {
-                        item.setReserved(true);
-                    }
-                },
-                () -> items.add(new CartItem(productId, productName, quantity, unitPrice, reserved))
+                item -> item.setQuantity(item.getQuantity() + quantity),
+                () -> items.add(new CartItem(productId, productName, quantity, unitPrice))
         );
     }
 
     public void removeItem(Long productId) {
         items.removeIf(item -> item.getProductId().equals(productId));
+    }
+
+    public void removeItems(Collection<Long> productIds) {
+        items.removeIf(item -> productIds.contains(item.getProductId()));
+    }
+
+    public List<Long> productIds() {
+        return items.stream().map(CartItem::getProductId).toList();
     }
 
     public boolean isEmpty() {

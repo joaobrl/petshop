@@ -6,6 +6,7 @@ import { ApiError } from "../../services/http";
 import { Button } from "../../components/ui/Button";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
+import { StockBadge } from "../../components/store/StockBadge";
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -69,6 +70,9 @@ export function ProductDetailPage() {
         <p className="display" style={{ fontSize: 28, lineHeight: "36px" }}>
           {product.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
         </p>
+        <div>
+          <StockBadge stockRange={product.stockRange} />
+        </div>
 
         <div className="field" style={{ maxWidth: 120 }}>
           <label htmlFor="qty">Quantidade</label>
@@ -88,7 +92,7 @@ export function ProductDetailPage() {
         )}
 
         <div style={{ display: "flex", gap: "var(--space-3)" }}>
-          <Button variant="primary" disabled={adding} onClick={handleAdd}>
+          <Button variant="primary" disabled={adding || !product.inStock} onClick={handleAdd}>
             {adding ? "Adicionando…" : "Adicionar ao carrinho"}
           </Button>
           <Button variant="outline" onClick={() => navigate(-1)}>

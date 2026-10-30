@@ -5,6 +5,8 @@ import type { Order } from "../../types/order";
 import { CheckCircleIcon } from "../../components/ui/Icon";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
 
+const time = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
 export function OrderConfirmationPage() {
   const { id } = useParams();
   const [order, setOrder] = useState<Order | null | undefined>(undefined);
@@ -28,6 +30,11 @@ export function OrderConfirmationPage() {
         Avisamos por e-mail quando o pedido #{order.id.slice(0, 8)} estiver pronto para retirada.
       </p>
       <OrderStatusBadge status={order.status} />
+      {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
+        <p className="caption" style={{ color: "var(--ink-muted)", margin: 0 }}>
+          Reservado até {time(order.expiresAt)}
+        </p>
+      )}
       <Link to="/minha-conta/pedidos" className="btn btn-primary" style={{ textDecoration: "none", marginTop: "var(--space-4)" }}>
         Ver meus pedidos
       </Link>

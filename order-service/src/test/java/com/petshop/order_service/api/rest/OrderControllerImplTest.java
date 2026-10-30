@@ -7,6 +7,7 @@ import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.core.domain.Cart;
 import com.petshop.order_service.core.domain.Order;
 import com.petshop.order_service.core.port.in.OrderPortIn;
+import com.petshop.order_service.core.port.in.dto.CheckoutRequestDto;
 import com.petshop.order_service.infrastructure.security.CustomerIdentityResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,8 +53,8 @@ class OrderControllerImplTest {
 
     private Order sampleOrder(UUID customerId) {
         var cart = Cart.openFor(customerId, 24);
-        cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-        var order = Order.fromCart(cart);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+        var order = Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
         order.setId(UUID.randomUUID());
         return order;
     }
@@ -64,9 +66,9 @@ class OrderControllerImplTest {
         var token = bearerTokenFor(user);
         var order = sampleOrder(customerId);
         when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
-        when(orderPortIn.checkout(customerId, token)).thenReturn(order);
+        when(orderPortIn.checkout(customerId, List.of(1L), token)).thenReturn(order);
 
-        var response = controller.checkout(customerId, UriComponentsBuilder.fromUriString("http://localhost:8086"), token);
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), token);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getHeaders().getLocation()).hasToString("http://localhost:8086/api/v1/orders/" + order.getId());

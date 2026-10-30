@@ -1,6 +1,6 @@
 package com.petshop.order_service.api.rest.dto;
 
-import com.petshop.order_service.core.domain.Cart;
+import com.petshop.order_service.core.domain.CartView;
 import com.petshop.order_service.core.domain.enums.CartStatus;
 import lombok.Data;
 
@@ -14,15 +14,22 @@ public class CartResponseDto {
     private UUID customerId;
     private List<CartItemResponseDto> items;
     private CartStatus status;
+    /** Soma só dos itens que não estão indisponíveis. */
     private Double total;
     private LocalDateTime expiresAt;
+    /** Nome dos produtos que saíram do carrinho nesta leitura por não estarem mais à venda. */
+    private List<String> removedItems;
 
-    public CartResponseDto(Cart cart) {
+    public CartResponseDto(CartView view) {
+        var cart = view.cart();
         this.id = cart.getId();
         this.customerId = cart.getCustomerId();
-        this.items = cart.getItems().stream().map(CartItemResponseDto::new).toList();
+        this.items = cart.getItems().stream()
+                .map(item -> new CartItemResponseDto(item, view.availabilityOf(item.getProductId())))
+                .toList();
         this.status = cart.getStatus();
-        this.total = cart.total();
+        this.total = view.total();
         this.expiresAt = cart.getExpiresAt();
+        this.removedItems = view.removedItems();
     }
 }

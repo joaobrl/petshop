@@ -20,12 +20,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,17 +73,52 @@ class ProductStockAdapterOutTest {
     }
 
     @Nested
+    class GetInfos {
+
+        @Test
+        void mapsBatchResponseByIdInASingleCall() {
+            var disabled = sampleResponse();
+            disabled.setId(2L);
+            disabled.setEnabled(false);
+            var enabled = sampleResponse();
+            enabled.setEnabled(true);
+            enabled.setStockRange("LOW");
+            when(productFeign.findByIds(eq(List.of(1L, 2L, 3L)), anyString())).thenReturn(List.of(enabled, disabled));
+
+            var infos = adapter.getInfos(List.of(1L, 2L, 3L), "Bearer user-token");
+
+            assertThat(infos).containsOnlyKeys(1L, 2L);
+            assertThat(infos.get(1L).stockRange()).isEqualTo("LOW");
+            assertThat(infos.get(2L).isEnabled()).isFalse();
+            verify(productFeign, times(1)).findByIds(List.of(1L, 2L, 3L), "Bearer user-token");
+        }
+
+        @Test
+        void throwsBusinessRuleWhenProductServiceFails() {
+            when(productFeign.findByIds(any(), anyString())).thenThrow(feignException(503, null));
+
+            assertThatThrownBy(() -> adapter.getInfos(List.of(1L), "Bearer user-token"))
+                    .isInstanceOf(BusinessRuleException.class);
+        }
+    }
+
+    @Nested
     class GetInfo {
 
         @Test
         void returnsMappedInfoOnSuccess() {
-            when(productFeign.findById(eq(1L), anyString())).thenReturn(sampleResponse());
+            var response = sampleResponse();
+            response.setEnabled(true);
+            response.setStockRange("50+");
+            when(productFeign.findById(eq(1L), anyString())).thenReturn(response);
 
             var info = adapter.getInfo(1L, "Bearer user-token");
 
             assertThat(info.id()).isEqualTo(1L);
             assertThat(info.name()).isEqualTo("Racao");
             assertThat(info.price()).isEqualTo(79.90);
+            assertThat(info.isEnabled()).isTrue();
+            assertThat(info.stockRange()).isEqualTo("50+");
         }
 
         @Test

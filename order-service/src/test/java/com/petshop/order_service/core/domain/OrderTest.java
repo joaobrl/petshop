@@ -15,8 +15,8 @@ class OrderTest {
 
     private Cart cartWithItems() {
         var cart = Cart.openFor(UUID.randomUUID(), 24);
-        cart.addOrIncrementItem(1L, "Racao", 10.0, 2, true);
-        cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1, true);
+        cart.addOrIncrementItem(1L, "Racao", 10.0, 2);
+        cart.addOrIncrementItem(2L, "Brinquedo", 5.0, 1);
         return cart;
     }
 
@@ -27,7 +27,7 @@ class OrderTest {
         void copiesCustomerIdItemsAndTotalFromCart() {
             var cart = cartWithItems();
 
-            var order = Order.fromCart(cart);
+            var order = Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
 
             assertThat(order.getId()).isNotNull();
             assertThat(order.getCustomerId()).isEqualTo(cart.getCustomerId());
@@ -43,11 +43,26 @@ class OrderTest {
         void generatesDifferentIdsForDifferentOrders() {
             var cart = cartWithItems();
 
-            var a = Order.fromCart(cart);
-            var b = Order.fromCart(cart);
+            var a = Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
+            var b = Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
 
             assertThat(a.getId()).isNotEqualTo(b.getId());
         }
+
+        @Test
+        void keepsOnlyTheGivenItemsAndSetsReservationExpiration() {
+            var cart = cartWithItems();
+
+            var order = Order.fromCartItems(cart.getCustomerId(), List.of(cart.getItems().get(1)), 30);
+
+            assertThat(order.getItems()).extracting(OrderItem::getProductId).containsExactly(2L);
+            assertThat(order.getTotalAmount()).isEqualTo(5.0);
+            assertThat(order.getExpiresAt()).isEqualTo(order.getCreatedAt().plusMinutes(30));
+        }
+    }
+
+    private Order fromCart(Cart cart) {
+        return Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
     }
 
     @Nested
@@ -55,7 +70,7 @@ class OrderTest {
 
         @Test
         void setsStatusToPaidAndStampsPaidAt() {
-            var order = Order.fromCart(cartWithItems());
+            var order = fromCart(cartWithItems());
 
             order.markAsPaid();
 
@@ -69,7 +84,7 @@ class OrderTest {
 
         @Test
         void setsPickupReadyAtInTheFuture() {
-            var order = Order.fromCart(cartWithItems());
+            var order = fromCart(cartWithItems());
 
             order.schedulePickup(30);
 
@@ -82,7 +97,7 @@ class OrderTest {
 
         @Test
         void setsStatusToReadyForPickup() {
-            var order = Order.fromCart(cartWithItems());
+            var order = fromCart(cartWithItems());
             order.markAsPaid();
 
             order.markReadyForPickup();
@@ -107,7 +122,7 @@ class OrderTest {
         var paidAt = LocalDateTime.now().minusMinutes(5);
         var pickupReadyAt = LocalDateTime.now().plusMinutes(30);
 
-        var order = new Order(id, customerId, items, 10.0, OrderStatus.PAID, createdAt, paidAt, pickupReadyAt);
+        var order = new Order(id, customerId, items, 10.0, OrderStatus.PAID, createdAt, paidAt, pickupReadyAt, createdAt.plusMinutes(30));
 
         assertThat(order.getId()).isEqualTo(id);
         assertThat(order.getCustomerId()).isEqualTo(customerId);
@@ -138,7 +153,7 @@ class OrderTest {
         var cart = cartWithItems();
         cart.setStatus(CartStatus.CHECKED_OUT);
 
-        var order = Order.fromCart(cart);
+        var order = Order.fromCartItems(cart.getCustomerId(), cart.getItems(), 30);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
     }

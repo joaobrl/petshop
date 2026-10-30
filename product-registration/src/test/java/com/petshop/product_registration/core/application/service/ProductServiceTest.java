@@ -15,8 +15,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -117,19 +119,65 @@ class ProductServiceTest {
     }
 
     @Nested
+    class GetProductsByIds {
+
+        @Test
+        @SuppressWarnings("unchecked")
+        void deduplicatesIdsAndQueriesOnce() {
+            var products = List.of(productWithStock(1L, 10, 0), productWithStock(2L, 0, 0));
+            when(productPortOut.findAllByIds(any())).thenReturn(products);
+
+            var result = productService.getProductsByIds(List.of(1L, 2L, 1L));
+
+            assertThat(result).isEqualTo(products);
+            ArgumentCaptor<Collection<Long>> captor = ArgumentCaptor.forClass(Collection.class);
+            verify(productPortOut, times(1)).findAllByIds(captor.capture());
+            assertThat(captor.getValue()).containsExactly(1L, 2L);
+        }
+
+        @Test
+        void throwsIllegalArgumentWhenEmpty() {
+            assertThatThrownBy(() -> productService.getProductsByIds(List.of()))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(productPortOut);
+        }
+
+        @Test
+        void throwsIllegalArgumentWhenAboveLimit() {
+            var ids = LongStream.rangeClosed(1, 101).boxed().toList();
+
+            assertThatThrownBy(() -> productService.getProductsByIds(ids))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("100");
+
+            verifyNoInteractions(productPortOut);
+        }
+
+        @Test
+        void acceptsExactlyTheLimit() {
+            var ids = LongStream.rangeClosed(1, 100).boxed().toList();
+            when(productPortOut.findAllByIds(any())).thenReturn(List.of());
+
+            assertThat(productService.getProductsByIds(ids)).isEmpty();
+        }
+    }
+
+    @Nested
     class UpdateProduct {
 
         @Test
-        void updatesAndSavesWhenProductExistsAndRequestIsValid() {
+        void updatesOnlyEditableFieldsWhenProductExistsAndRequestIsValid() {
             var product = productWithStock(1L, 10, 0);
             when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(productPortOut.updateDetails(any(Product.class))).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
             var update = requestDto("Novo Nome", 20);
             var result = productService.updateProduct(1L, update);
 
             assertThat(result.getName()).isEqualTo("Novo Nome");
             assertThat(result.getStock()).isEqualTo(20);
+            verify(productPortOut, never()).save(any());
         }
 
         @Test
@@ -147,7 +195,16 @@ class ProductServiceTest {
             assertThatThrownBy(() -> productService.updateProduct(99L, requestDto("Nome", 1)))
                     .isInstanceOf(NotFoundException.class);
 
-            verify(productPortOut, never()).save(any());
+            verify(productPortOut, never()).updateDetails(any());
+        }
+
+        @Test
+        void throwsNotFoundWhenProductVanishesBeforeUpdate() {
+            when(productPortOut.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10, 0)));
+            when(productPortOut.updateDetails(any(Product.class))).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> productService.updateProduct(1L, requestDto("Nome", 1)))
+                    .isInstanceOf(NotFoundException.class);
         }
     }
 
@@ -158,11 +215,12 @@ class ProductServiceTest {
         void disablesProductWhenFound() {
             var product = productWithStock(1L, 10, 0);
             when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(productPortOut.updateDetails(any(Product.class))).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
             var result = productService.deleteProduct(1L);
 
             assertThat(result.getEnabled()).isFalse();
+            verify(productPortOut, never()).save(any());
         }
 
         @Test
@@ -178,41 +236,41 @@ class ProductServiceTest {
     class ReserveStock {
 
         @Test
-        void reservesWhenEnoughAvailableStock() {
-            var product = productWithStock(1L, 10, 0);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        void returnsProductUpdatedByTheAtomicReserve() {
+            var reserved = productWithStock(1L, 10, 5);
+            when(productPortOut.tryReserve(1L, 5)).thenReturn(Optional.of(reserved));
 
             var result = productService.reserveStock(1L, 5);
 
             assertThat(result.getReservedStock()).isEqualTo(5);
+            verify(productPortOut, never()).save(any());
+            verify(productPortOut, never()).findById(any());
         }
 
         @Test
-        void reservesExactlyAllAvailableStock() {
-            var product = productWithStock(1L, 10, 0);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
-
-            var result = productService.reserveStock(1L, 10);
-
-            assertThat(result.getReservedStock()).isEqualTo(10);
-        }
-
-        @Test
-        void throwsBusinessRuleWhenNotEnoughStock() {
-            var product = productWithStock(1L, 10, 8);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
+        void throwsBusinessRuleWithoutQuantityWhenNotEnoughStock() {
+            when(productPortOut.tryReserve(1L, 5)).thenReturn(Optional.empty());
+            when(productPortOut.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10, 8)));
 
             assertThatThrownBy(() -> productService.reserveStock(1L, 5))
                     .isInstanceOf(BusinessRuleException.class)
-                    .hasMessageContaining("Estoque insuficiente");
+                    .hasMessage("Estoque insuficiente para o produto 'Produto'");
+        }
 
-            verify(productPortOut, never()).save(any());
+        @Test
+        void throwsBusinessRuleWhenProductIsDisabled() {
+            var disabled = new Product(1L, "Produto", "Desc", 10.0, 10, 0, null, false);
+            when(productPortOut.tryReserve(1L, 1)).thenReturn(Optional.empty());
+            when(productPortOut.findById(1L)).thenReturn(Optional.of(disabled));
+
+            assertThatThrownBy(() -> productService.reserveStock(1L, 1))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Produto indisponível");
         }
 
         @Test
         void throwsNotFoundWhenProductMissing() {
+            when(productPortOut.tryReserve(99L, 1)).thenReturn(Optional.empty());
             when(productPortOut.findById(99L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> productService.reserveStock(99L, 1))
@@ -224,29 +282,28 @@ class ProductServiceTest {
     class ReleaseStock {
 
         @Test
-        void releasesReservedQuantity() {
-            var product = productWithStock(1L, 10, 5);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        void returnsProductUpdatedByTheAtomicRelease() {
+            when(productPortOut.tryRelease(1L, 3)).thenReturn(Optional.of(productWithStock(1L, 10, 2)));
 
             var result = productService.releaseStock(1L, 3);
 
             assertThat(result.getReservedStock()).isEqualTo(2);
+            verify(productPortOut, never()).save(any());
         }
 
         @Test
-        void clampsAtZeroWhenReleasingMoreThanReserved() {
-            var product = productWithStock(1L, 10, 2);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        void throwsBusinessRuleWhenReleasingMoreThanReserved() {
+            when(productPortOut.tryRelease(1L, 10)).thenReturn(Optional.empty());
+            when(productPortOut.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10, 2)));
 
-            var result = productService.releaseStock(1L, 10);
-
-            assertThat(result.getReservedStock()).isZero();
+            assertThatThrownBy(() -> productService.releaseStock(1L, 10))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Reserva insuficiente");
         }
 
         @Test
         void throwsNotFoundWhenProductMissing() {
+            when(productPortOut.tryRelease(99L, 1)).thenReturn(Optional.empty());
             when(productPortOut.findById(99L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> productService.releaseStock(99L, 1))
@@ -258,36 +315,33 @@ class ProductServiceTest {
     class ConfirmStock {
 
         @Test
-        void confirmsSaleReducingStockAndReservedStock() {
-            var product = productWithStock(1L, 10, 5);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        void returnsProductUpdatedByTheAtomicConfirm() {
+            when(productPortOut.tryConfirm(1L, 4)).thenReturn(Optional.of(productWithStock(1L, 6, 1)));
 
             var result = productService.confirmStock(1L, 4);
 
             assertThat(result.getStock()).isEqualTo(6);
             assertThat(result.getReservedStock()).isEqualTo(1);
+            verify(productPortOut, never()).save(any());
+        }
+
+        @Test
+        void throwsBusinessRuleWhenConfirmingMoreThanReserved() {
+            when(productPortOut.tryConfirm(1L, 4)).thenReturn(Optional.empty());
+            when(productPortOut.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10, 1)));
+
+            assertThatThrownBy(() -> productService.confirmStock(1L, 4))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Reserva insuficiente");
         }
 
         @Test
         void throwsNotFoundWhenProductMissing() {
+            when(productPortOut.tryConfirm(99L, 1)).thenReturn(Optional.empty());
             when(productPortOut.findById(99L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> productService.confirmStock(99L, 1))
                     .isInstanceOf(NotFoundException.class);
-        }
-
-        @Test
-        void savesTheExactProductInstanceThatWasMutated() {
-            var product = productWithStock(1L, 10, 5);
-            when(productPortOut.findById(1L)).thenReturn(Optional.of(product));
-            when(productPortOut.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
-
-            productService.confirmStock(1L, 1);
-
-            ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
-            verify(productPortOut).save(captor.capture());
-            assertThat(captor.getValue()).isSameAs(product);
         }
     }
 }

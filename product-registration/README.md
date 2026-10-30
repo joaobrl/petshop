@@ -33,11 +33,12 @@ Organização hexagonal simples: `api/rest` (controller + interface) → `core`/
 | `POST` | `/register` | `ROLE_ADMIN` | Cadastra um novo produto |
 | `GET` | `/list` | Público, token opcional | Lista todos os produtos — estoque só aparece pra quem manda um token de `STAFF` (ver Segurança) |
 | `GET` | `/find/{id}` | Público, token opcional | Busca produto por id — mesma regra de estoque do `/list` (só `STAFF`) |
+| `GET` | `/find?ids=1,2,3` | Público, token opcional | Busca em lote numa consulta só (até `product.batch.max-ids`, padrão 100; vazio ou acima disso → `400`). Devolve também produtos desativados; id inexistente simplesmente não vem |
 | `PATCH` | `/update/{id}` | `ROLE_ADMIN` | Atualiza produto |
 | `DELETE` | `/delete/{id}` | `ROLE_ADMIN` | Remove produto |
-| `POST` | `/{id}/reserve` | Autenticado | Reserva quantidade de estoque (incrementa `reservedStock`, não toca em `stock`) — usado pelo `order-service` ao adicionar item ao carrinho |
-| `POST` | `/{id}/release` | Autenticado | Libera estoque reservado — usado quando um item é removido do carrinho ou o carrinho expira |
-| `POST` | `/{id}/confirm` | Autenticado | Confirma a venda: decrementa `stock` e `reservedStock` — usado na conclusão do pagamento |
+| `POST` | `/{id}/reserve` | Autenticado | Reserva atômica (`findAndModify` condicionado a `enabled` e `stock - reservedStock >= quantity`) — usada pelo `order-service` no checkout. `422` se desativado ou sem estoque suficiente (a mensagem não revela a quantidade), `404` se não existe |
+| `POST` | `/{id}/release` | Autenticado | Libera estoque reservado (nunca abaixo de 0; `422` se a reserva for menor) — usado quando o checkout falha no meio ou o pedido expira sem pagamento |
+| `POST` | `/{id}/confirm` | Autenticado | Confirma a venda: decrementa `stock` e `reservedStock` na mesma operação atômica — usado na conclusão do pagamento |
 
 O `ProductResponseDto` expõe `stock`, `reservedStock`, `reservedPercentage`
 (`reservedStock / stock * 100`, `0` se `stock` for `0`) e o campo calculado
@@ -47,6 +48,15 @@ só entram no JSON se quem pediu tiver um token válido de `STAFF`
 sem token ou com token de `CUSTOMER`, o campo simplesmente não aparece no
 corpo da resposta (não vem `null`, vem omitido — `@JsonInclude(NON_NULL)`).
 
+Para qualquer chamador, o DTO traz `inStock`, `enabled` e `stockRange` — uma
+faixa sobre `availableStock`, nunca a quantidade exata: `"50+"` (≥ 50),
+`"20+"` (20–49), `"LOW"` (1–19) ou `null` (sem estoque). As faixas ficam em
+`Product` (`STOCK_RANGE_*`).
+
+O update administrativo (`PATCH /update`, `DELETE /delete`) grava só os
+campos editáveis — nunca `reservedStock` — para não sobrescrever uma reserva
+feita entre a leitura e a escrita.
+
 ## Segurança
 
 JWT próprio compartilhado via [`petshop-commons`](../petshop-commons) (`JwtService`/`JwtAuthenticationFilter`) — este serviço apenas **valida** tokens assinados com o mesmo `JWT_SECRET` usado pelos demais serviços; não emite tokens. Sessão stateless, CSRF desabilitado, 401 em caso de token ausente/inválido em endpoint que exige autenticação.
@@ -55,7 +65,7 @@ O `JwtAuthenticationFilter` roda em toda requisição, mesmo em endpoint `permit
 
 ## Integração com outros serviços
 
-Não chama nenhum outro serviço. É **consumido** pelo [`order-service`](../order-service) via Feign (`ProductFeign`, `ProductStockAdapterOut`) para consulta de produto e para o ciclo reserve → release/confirm do carrinho.
+Não chama nenhum outro serviço. É **consumido** pelo [`order-service`](../order-service) via Feign (`ProductFeign`, `ProductStockAdapterOut`) para consulta de produto (inclusive em lote) e para o ciclo reserve → release/confirm do pedido.
 
 ## Configuração (`application.yaml`)
 

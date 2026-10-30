@@ -12,13 +12,18 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode(of = "id")
 public class Product {
 
+    /** Faixas de estoque mostradas a quem não é STAFF (nunca a quantidade exata). */
+    public static final int STOCK_RANGE_HIGH = 50;
+    public static final int STOCK_RANGE_MEDIUM = 20;
+    public static final String STOCK_RANGE_LOW = "LOW";
+
     private Long id;
     private String name;
     private String description;
     private Double price;
     private Integer stock;
     /**
-     * Quantidade reservada por carrinhos ainda não pagos (order-service).
+     * Quantidade reservada por pedidos aguardando pagamento (order-service).
      * Estoque "disponível pra venda" = stock - reservedStock.
      */
     private Integer reservedStock = 0;
@@ -44,6 +49,18 @@ public class Product {
 
     public int availableStock() {
         return this.stock - this.reservedStock;
+    }
+
+    /**
+     * "50+", "20+", "LOW" (1 a 19) ou null (sem estoque) — calculado sobre
+     * o disponível, não sobre o estoque bruto.
+     */
+    public String stockRange() {
+        int available = availableStock();
+        if (available >= STOCK_RANGE_HIGH) return STOCK_RANGE_HIGH + "+";
+        if (available >= STOCK_RANGE_MEDIUM) return STOCK_RANGE_MEDIUM + "+";
+        if (available > 0) return STOCK_RANGE_LOW;
+        return null;
     }
 
     public double reservedPercentage() {

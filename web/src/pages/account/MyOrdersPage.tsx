@@ -5,6 +5,7 @@ import { OrderStatusBadge } from "../../components/ui/StatusBadges";
 
 const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dateTime = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+const time = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 export function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -32,6 +33,11 @@ export function MyOrdersPage() {
             {dateTime(order.createdAt)} · {order.items.length} {order.items.length === 1 ? "item" : "itens"}
           </span>
           <span className="body-strong">{currency(order.totalAmount)}</span>
+          {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
+            <span className="caption" style={{ color: "var(--ink-muted)" }}>
+              Reservado até {time(order.expiresAt)}
+            </span>
+          )}
         </div>
       ))}
     </div>

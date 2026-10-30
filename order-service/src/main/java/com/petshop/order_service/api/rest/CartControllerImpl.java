@@ -23,8 +23,7 @@ public class CartControllerImpl implements CartController {
     public ResponseEntity<CartResponseDto> addItem(AddCartItemRequestDto request, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var customerId = customerIdentityResolver.resolveCustomerId(request.getCustomerId(), user);
-        boolean reserveStock = user != null;
-        var cart = cartPortIn.addItem(customerId, request.getProductId(), request.getQuantity(), reserveStock, token);
+        var cart = cartPortIn.addItem(customerId, request.getProductId(), request.getQuantity(), token);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 
@@ -40,7 +39,7 @@ public class CartControllerImpl implements CartController {
     public ResponseEntity<CartResponseDto> getCart(UUID customerId, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
-        var cart = cartPortIn.getCart(resolvedCustomerId);
+        var cart = cartPortIn.getCart(resolvedCustomerId, token);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 }

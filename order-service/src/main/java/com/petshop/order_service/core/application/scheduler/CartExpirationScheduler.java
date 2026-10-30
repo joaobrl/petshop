@@ -6,9 +6,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Libera o estoque reservado por carrinhos abertos que passaram do prazo de
- * reserva (order.cart.reservation-ttl-hours, 24h por padrão) sem finalizar
- * a compra.
+ * Marca como abandonados (EXPIRED) os carrinhos abertos que passaram do
+ * prazo (order.cart.abandoned-after-hours, 24h por padrão) sem finalizar a
+ * compra e dispara o lembrete. O carrinho não reserva estoque, então não há
+ * nada a liberar aqui.
  */
 @Component
 @RequiredArgsConstructor

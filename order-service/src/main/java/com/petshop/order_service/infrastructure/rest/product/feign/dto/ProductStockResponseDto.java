@@ -17,4 +17,6 @@ public class ProductStockResponseDto {
     private Integer stock;
     private Integer reservedStock;
     private Integer availableStock;
+    private Boolean enabled;
+    private String stockRange;
 }
