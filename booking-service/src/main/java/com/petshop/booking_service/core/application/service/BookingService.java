@@ -172,9 +172,6 @@ public class BookingService implements BookingPortIn {
                 .filter(b -> excludeBookingId == null || !b.getId().equals(excludeBookingId))
                 .toList();
 
-        // ADMIN/RECEPTIONIST podem agendar um segundo atendimento pro mesmo pet no mesmo dia desde que nenhum dos
-        // agendamentos existentes esteja pendente/em andamento (status enum não distingue os dois, então SCHEDULED
-        // cobre ambos) — um atendimento já COMPLETED não impede o novo agendamento.
         var conflict = isBookingRestrictionExempt(requesterRole)
                 ? otherBookingsSameDay.stream().anyMatch(b -> b.getStatus() == StatusBooking.SCHEDULED)
                 : !otherBookingsSameDay.isEmpty();
@@ -192,9 +189,6 @@ public class BookingService implements BookingPortIn {
         var dayOfWeek = bookingDateTime.getDayOfWeek();
         var isVet = serviceType == ServiceType.CONSULTA_VETERINARIA;
 
-        // Horário de funcionamento/dia da semana vale pra todo mundo, inclusive ADMIN/RECEPTIONIST — o
-        // staff-service não sabe desse papel e continua recusando escala fora dessa janela de qualquer jeito
-        // (AvailabilityService#isValidSlot), então dispensar essa regra aqui não teria efeito prático.
         if (dayOfWeek == DayOfWeek.SUNDAY) {
             throw new IllegalArgumentException("A loja não funciona aos domingos");
         }
@@ -215,9 +209,6 @@ public class BookingService implements BookingPortIn {
             }
         }
 
-        // Só a antecedência mínima é dispensada pra ADMIN/RECEPTIONIST — permite encaixar um cliente que
-        // chegou na loja agora, por exemplo. Disponibilidade de funcionário continua sendo checada depois,
-        // em ensureAvailabilityAndAssignEmployee.
         if (isBookingRestrictionExempt(requesterRole)) {
             return;
         }

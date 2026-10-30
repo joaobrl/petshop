@@ -72,8 +72,6 @@ class BookingTest {
 
     @Test
     void completeBookingPreservesExistingObservationsWhenNotProvided() {
-        // Regressão: um BookingUpdateDto sem observations (comum ao só confirmar a conclusão) não pode apagar
-        // a observação já registrada durante o atendimento.
         var booking = new Booking(requestDto(ServiceType.BANHO, LocalDateTime.of(2026, 8, 15, 9, 0), "Pet agitado no banho"));
 
         booking.completeBooking(new BookingUpdateDto());
