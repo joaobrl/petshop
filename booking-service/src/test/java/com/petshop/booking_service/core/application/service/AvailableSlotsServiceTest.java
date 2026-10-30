@@ -7,6 +7,7 @@ import com.petshop.booking_service.core.domain.enums.ServiceType;
 import com.petshop.booking_service.core.port.out.BookingPortOut;
 import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.infrastructure.config.CacheConfig;
+import com.petshop.commons.exception.DependencyUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -199,6 +200,21 @@ class AvailableSlotsServiceTest {
     }
 
     // ---------- cache por (cargo, dia) e compartilhamento entre serviços/intervalos ----------
+
+    @Test
+    void propagatesDependencyUnavailableUnwrappedAndDoesNotCacheTheFailure() {
+        when(customerManagementPortOut.getScheduledStaff(any(), eq("GROOMER"), any()))
+                .thenThrow(new DependencyUnavailableException("staff-service", new RuntimeException("status 500")))
+                .thenReturn(List.of(staff("Ciclana")));
+        when(bookingPortOut.findActiveBookingsAt(any())).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY))
+                .isInstanceOf(DependencyUnavailableException.class);
+
+        // falha não pode ficar cacheada como "dia sem horários": a próxima consulta refaz a chamada
+        assertThat(service.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY)).isNotEmpty();
+        verify(customerManagementPortOut, times(2)).getScheduledStaff(any(), eq("GROOMER"), any());
+    }
 
     @Test
     void cachesDailySlotsAndAvoidsRepeatedQueriesOnSubsequentCallForSameDayAndRole() {

@@ -10,6 +10,7 @@ import com.petshop.booking_service.core.port.out.BookingPortOut;
 import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.infrastructure.config.CacheConfig;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
@@ -90,7 +91,16 @@ public class AvailableSlotsService implements AvailableSlotsPortIn {
         }
 
         var cache = Objects.requireNonNull(cacheManager.getCache(CacheConfig.AVAILABLE_SLOTS_CACHE));
-        return cache.get(cacheKey(role, day), () -> computeDailySlots(role, day, dayOfWeek));
+        try {
+            return cache.get(cacheKey(role, day), () -> computeDailySlots(role, day, dayOfWeek));
+        } catch (Cache.ValueRetrievalException e) {
+            // O cache embrulha qualquer falha do loader; desembrulha para o handler tratar a causa real
+            // (ex.: DependencyUnavailableException -> 503). Exceção não é cacheada.
+            if (e.getCause() instanceof RuntimeException cause) {
+                throw cause;
+            }
+            throw e;
+        }
     }
 
     private List<AvailableSlot> computeDailySlots(String role, LocalDate day, DayOfWeek dayOfWeek) {
