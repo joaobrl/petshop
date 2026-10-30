@@ -1,5 +1,13 @@
 version: '3.8'
 
+# depends_on sozinho só espera o container iniciar, não aceitar conexão.
+# Os consumidores esperam db/mongo/kafka ficarem healthy.
+x-healthcheck-timing: &healthcheck-timing
+  interval: 5s
+  timeout: 5s
+  retries: 20
+  start_period: 10s
+
 services:
   db:
     image: postgres:14
@@ -12,6 +20,9 @@ services:
     volumes:
       - shared_db_data:/var/lib/postgresql/data
       - ./postgres-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      <<: *healthcheck-timing
 
   api-products:
     build:
@@ -25,7 +36,8 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
 
   api-customers:
     build:
@@ -53,9 +65,12 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      - db
-      - mongo
-      - kafka
+      db:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   api-staff:
     build:
@@ -74,8 +89,10 @@ services:
     ports:
       - "8085:8085"
     depends_on:
-      - db
-      - api-customers
+      db:
+        condition: service_healthy
+      api-customers:
+        condition: service_started
 
   api-booking:
     build:
@@ -96,8 +113,10 @@ services:
     ports:
       - "8083:8083"
     depends_on:
-      - db
-      - kafka
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   api-order:
     build:
@@ -118,10 +137,14 @@ services:
     ports:
       - "8086:8086"
     depends_on:
-      - db
-      - kafka
-      - api-customers
-      - api-products
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      api-customers:
+        condition: service_started
+      api-products:
+        condition: service_started
 
   api-notification:
     build:
@@ -147,7 +170,8 @@ services:
     ports:
       - "8084:8084"
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   api-gateway:
     build:
@@ -177,6 +201,9 @@ services:
       - "27017:27017"
     volumes:
       - shared_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok === 1 ? 0 : 1)"]
+      <<: *healthcheck-timing
 
   kafka:
     image: bitnamilegacy/kafka:3.7.0
@@ -202,6 +229,18 @@ services:
 
       - KAFKA_INTER_BROKER_USER=${KAFKA_INTER_BROKER_USER:-petbooking_app}
       - KAFKA_INTER_BROKER_PASSWORD=${KAFKA_INTER_BROKER_PASSWORD}
+    # Os listeners de broker exigem SASL, então o check monta um client config
+    # com o usuário inter-broker. Timeout maior porque o script sobe uma JVM.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          printf 'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=PLAIN\nsasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="%s" password="%s";\n'
+          "$${KAFKA_INTER_BROKER_USER}" "$${KAFKA_INTER_BROKER_PASSWORD}" > /tmp/healthcheck.properties &&
+          /opt/bitnami/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092
+          --command-config /tmp/healthcheck.properties > /dev/null
+      <<: *healthcheck-timing
+      timeout: 15s
 volumes:
   shared_db_data:
     driver: local
