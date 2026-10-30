@@ -6,11 +6,6 @@ import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * O Authorization das chamadas Feign agora é explícito (parâmetro
- * {@code @RequestHeader} em cada método, ver TokenPropagation). Só o
- * correlation-id continua sendo propagado via interceptor.
- */
 @Configuration
 public class CorrelationIdFeignConfig {
 

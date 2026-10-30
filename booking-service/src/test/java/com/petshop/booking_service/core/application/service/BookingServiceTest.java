@@ -39,6 +39,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -237,6 +238,22 @@ class BookingServiceTest {
                 .isInstanceOf(BookingUnavailableException.class);
 
         verify(bookingPortOut, never()).save(any());
+    }
+
+    @Test
+    void locksSlotAfterFetchingStaffAndBeforeCheckingAssignedEmployees() {
+        var dateTime = FAR_FUTURE_MONDAY.atTime(10, 0);
+        when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER", null)).thenReturn(List.of(staff("Ciclana")));
+        when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
+        when(bookingPortOut.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createBooking(requestDto(ServiceType.BANHO, dateTime), null, null);
+
+        var inOrder = inOrder(customerManagementPortOut, bookingPortOut);
+        inOrder.verify(customerManagementPortOut).getScheduledStaff(dateTime, "GROOMER", null);
+        inOrder.verify(bookingPortOut).lockSlot(dateTime);
+        inOrder.verify(bookingPortOut).findActiveBookingsAt(dateTime);
+        inOrder.verify(bookingPortOut).save(any(Booking.class));
     }
 
     @Test

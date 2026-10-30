@@ -4,12 +4,6 @@ import com.petshop.commons.security.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/**
- * Resolve o header Authorization a repassar na chamada Feign pro staff-service.
- * {@code resolveAuthorizationHeader} repassa o token de quem chamou quando há
- * um (relay-com-fallback); sem requisição HTTP em curso (ex.: disparado por
- * um scheduler), assina um token de serviço novo.
- */
 @Component
 @RequiredArgsConstructor
 public class TokenPropagation {

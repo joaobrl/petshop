@@ -16,17 +16,9 @@ public interface BookingPortOut {
     Page<Booking> findByCriteria(BookingSearchCriteriaDto criteria, Pageable pageable);
     Optional<Booking> findById(UUID id);
 
-    /**
-     * Agendamentos (não cancelados) que já existem exatamente nesse horário.
-     * Usado junto com a escala do staff-service pra decidir quais funcionários
-     * já estão ocupados e escolher um livre pro novo agendamento.
-     */
     List<Booking> findActiveBookingsAt(LocalDateTime dateTime);
 
-    /**
-     * Agendamentos (não cancelados) já existentes pro mesmo pet num dado
-     * dia. Usado pra impedir que o mesmo pet seja agendado mais de uma vez
-     * no mesmo dia.
-     */
+    void lockSlot(LocalDateTime dateTime);
+
     List<Booking> findActiveBookingsForPetOnDate(UUID petId, LocalDate date);
 }

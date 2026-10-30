@@ -27,10 +27,6 @@ public class ServiceDetailsEmbeddable {
     private BigDecimal price;
     private Integer durationInMinutes;
 
-    // Sem nullable = false: ddl-auto é "update" (sem Flyway/Liquibase), então
-    // uma constraint NOT NULL sem default quebraria o ALTER TABLE em bancos
-    // com linhas existentes. A garantia de "nasce sempre PENDING" fica na
-    // camada de domínio (ServiceDetails(ServiceType)).
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status")
     private PaymentStatus paymentStatus;

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,8 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class BookingPersistenceAdapterOut implements BookingPortOut {
+
+    static final int SLOT_LOCK_NAMESPACE = 5001;
 
     private final BookingRepository bookingRepository;
     private final BookingMapper mapper;
@@ -32,8 +35,7 @@ public class BookingPersistenceAdapterOut implements BookingPortOut {
 
     @Override
     public Page<Booking> findByCriteria(BookingSearchCriteriaDto criteria, Pageable pageable) {
-        // Filtro de data vira intervalo [inícioDoDia, inícioDoDiaSeguinte) em vez de CAST(bookingDateTime AS date)
-        // — ver BookingRepository.findByCriteria pro motivo (CAST não é confiável aqui com Postgres + Hibernate).
+
         var date = criteria.getDate();
         var startOfDay = date != null ? date.atStartOfDay() : null;
         var endOfDay = date != null ? date.plusDays(1).atStartOfDay() : null;
@@ -48,6 +50,13 @@ public class BookingPersistenceAdapterOut implements BookingPortOut {
     @Override
     public List<Booking> findActiveBookingsAt(LocalDateTime dateTime) {
         return mapper.toDomainList(bookingRepository.findByBookingDateTimeAndStatusNot(dateTime, StatusBooking.CANCELED));
+    }
+
+    @Override
+    public void lockSlot(LocalDateTime dateTime) {
+
+        var slotKey = Math.toIntExact(dateTime.toEpochSecond(ZoneOffset.UTC) / 60);
+        bookingRepository.lockSlot(SLOT_LOCK_NAMESPACE, slotKey);
     }
 
     @Override
