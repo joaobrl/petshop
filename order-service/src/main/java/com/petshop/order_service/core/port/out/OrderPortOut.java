@@ -12,6 +12,8 @@ public interface OrderPortOut {
 
     Optional<Order> findById(UUID id);
 
+    Optional<Order> findByIdempotencyKey(String idempotencyKey);
+
     List<Order> findAwaitingPaymentCreatedBefore(LocalDateTime threshold);
 
     /** Pedidos aguardando pagamento cuja reserva (Order#expiresAt) já venceu. */

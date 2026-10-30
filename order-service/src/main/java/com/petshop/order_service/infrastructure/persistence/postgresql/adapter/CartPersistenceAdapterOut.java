@@ -44,6 +44,14 @@ public class CartPersistenceAdapterOut implements CartPortOut {
     }
 
     @Override
+    public Optional<Cart> findOpenCartByCustomerIdForUpdate(UUID customerId) {
+        return repository.findForUpdateByCustomerIdAndStatus(customerId, CartStatus.OPEN)
+                .stream()
+                .findFirst()
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public Optional<Cart> findById(UUID id) {
         return repository.findById(id)
                 .map(mapper::toDomain);

@@ -7,6 +7,7 @@ import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.core.domain.Cart;
 import com.petshop.order_service.core.domain.Order;
 import com.petshop.order_service.core.port.in.OrderPortIn;
+import com.petshop.order_service.core.domain.CheckoutResult;
 import com.petshop.order_service.core.port.in.dto.CheckoutRequestDto;
 import com.petshop.order_service.infrastructure.security.CustomerIdentityResolver;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,12 +67,30 @@ class OrderControllerImplTest {
         var token = bearerTokenFor(user);
         var order = sampleOrder(customerId);
         when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
-        when(orderPortIn.checkout(customerId, List.of(1L), token)).thenReturn(order);
+        when(orderPortIn.checkout(customerId, List.of(1L), "key-1", token)).thenReturn(new CheckoutResult(order, true));
 
-        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), token);
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), "key-1",
+                UriComponentsBuilder.fromUriString("http://localhost:8086"), token);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getHeaders().getLocation()).hasToString("http://localhost:8086/api/v1/orders/" + order.getId());
+        assertThat(response.getBody().getId()).isEqualTo(order.getId());
+    }
+
+    @Test
+    void checkoutReturnsOkWithExistingOrderWhenIdempotencyKeyIsRepeated() {
+        var customerId = UUID.randomUUID();
+        var user = customerUser(customerId);
+        var token = bearerTokenFor(user);
+        var order = sampleOrder(customerId);
+        when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
+        when(orderPortIn.checkout(customerId, List.of(1L), "key-1", token)).thenReturn(new CheckoutResult(order, false));
+
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), "key-1",
+                UriComponentsBuilder.fromUriString("http://localhost:8086"), token);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getLocation()).isNull();
         assertThat(response.getBody().getId()).isEqualTo(order.getId());
     }
 

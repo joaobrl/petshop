@@ -22,7 +22,7 @@ spring:
               '[/**]':
                 allowedOriginPatterns: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
                 allowedMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-                allowedHeaders: [Authorization, Content-Type]
+                allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
                 # Bearer token vai no header Authorization, não em cookie de
                 # sessão - allowCredentials fica false (ver docs/pendencias-frontend.md,
                 # item 2.2: trocar isso só faria sentido se o modelo de auth migrar
