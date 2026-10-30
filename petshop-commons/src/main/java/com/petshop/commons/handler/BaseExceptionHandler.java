@@ -6,14 +6,28 @@ import com.petshop.commons.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingPathVariableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 import java.util.Map;
@@ -94,6 +108,97 @@ public abstract class BaseExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Corpo da requisição malformado ou com um campo em formato inválido.");
         problem.setTitle("Invalid request");
+        return problem;
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParameter(MissingServletRequestParameterException ex) {
+        log.warn("Parâmetro obrigatório ausente: {}", ex.getParameterName());
+        return badRequest("Parâmetro obrigatório ausente: " + ex.getParameterName(), ex.getParameterName());
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ProblemDetail handleMissingHeader(MissingRequestHeaderException ex) {
+        log.warn("Header obrigatório ausente: {}", ex.getHeaderName());
+        return badRequest("Header obrigatório ausente: " + ex.getHeaderName(), ex.getHeaderName());
+    }
+
+    // Não ecoa o valor recebido na resposta (evita refletir input do usuário).
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("Valor inválido para o parâmetro '{}'", ex.getName());
+        return badRequest("Valor inválido para o parâmetro '" + ex.getName() + "'", ex.getName());
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ProblemDetail handleMissingPart(MissingServletRequestPartException ex) {
+        log.warn("Parte obrigatória ausente: {}", ex.getRequestPartName());
+        return badRequest("Parte obrigatória ausente: " + ex.getRequestPartName(), ex.getRequestPartName());
+    }
+
+    // Erro de mapeamento do servidor, não do cliente: continua 500. Sem este
+    // handler cairia no de ServletRequestBindingException (superclasse) e viraria 400.
+    @ExceptionHandler(MissingPathVariableException.class)
+    public ProblemDetail handleMissingPathVariable(MissingPathVariableException ex) {
+        return handleGeneric(ex);
+    }
+
+    // Demais erros de binding (cookie ausente, params conditions etc.)
+    @ExceptionHandler(ServletRequestBindingException.class)
+    public ProblemDetail handleRequestBinding(ServletRequestBindingException ex) {
+        log.warn("Requisição inválida: {}", ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Requisição inválida.");
+        problem.setTitle("Invalid request");
+        return problem;
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        log.warn("Método HTTP não suportado: {}", ex.getMethod());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.METHOD_NOT_ALLOWED,
+                "Método HTTP não suportado: " + ex.getMethod());
+        problem.setTitle("Method not allowed");
+        var response = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        // RFC 9110: 405 deve informar os métodos aceitos no header Allow
+        if (ex.getSupportedHttpMethods() != null) {
+            response.allow(ex.getSupportedHttpMethods().toArray(HttpMethod[]::new));
+        }
+        return response.body(problem);
+    }
+
+    // Não ecoa o Content-Type/Accept recebido (input do usuário).
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ProblemDetail handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        log.warn("Content-Type não suportado: {}", ex.getContentType());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Content-Type não suportado. Tipos aceitos: " + MediaType.toString(ex.getSupportedMediaTypes()));
+        problem.setTitle("Unsupported media type");
+        return problem;
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ProblemDetail handleMediaTypeNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        log.warn("Accept não atendível: {}", ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_ACCEPTABLE,
+                "Nenhuma representação disponível para o Accept informado. Tipos disponíveis: "
+                        + MediaType.toString(ex.getSupportedMediaTypes()));
+        problem.setTitle("Not acceptable");
+        return problem;
+    }
+
+    // Rota inexistente. Não ecoa o path recebido na resposta.
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ProblemDetail handleNoRoute(Exception ex) {
+        log.warn("Rota não encontrada: {}", ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Recurso não encontrado.");
+        problem.setTitle("Resource not found");
+        return problem;
+    }
+
+    private static ProblemDetail badRequest(String detail, String parameter) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setTitle("Invalid request");
+        problem.setProperty("parameter", parameter);
         return problem;
     }
 

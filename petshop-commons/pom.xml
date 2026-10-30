@@ -37,6 +37,15 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Spring Web MVC: NoResourceFoundException e NoHandlerFoundException
+             (404 de rota inexistente) usados pelo BaseExceptionHandler -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <version>6.1.14</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Spring TX: DataIntegrityViolationException e DuplicateKeyException
              (org.springframework.dao) usados pelo BaseExceptionHandler -->
         <dependency>
