@@ -25,8 +25,8 @@ spring:
           httpclient:
             connect-timeout: 5000
             response-timeout: 15s
-          # CORS é resolvido uma vez só, aqui - os 5 serviços downstream não
-          # precisam mais conhecer a origem do frontend, só o gateway.
+          # CORS é resolvido aqui, no gateway, que é a camada principal. Os 5
+          # serviços mantêm o CorsSupport próprio para acesso direto às portas.
           globalcors:
             cors-configurations:
               '[/**]':
@@ -39,6 +39,11 @@ spring:
                 # pra cookie httpOnly).
                 allowCredentials: false
                 maxAge: 3600
+          # Os serviços downstream também respondem CORS (CorsSupport), então a
+          # resposta real chegaria com dois Access-Control-Allow-Origin. O dedupe
+          # mantém só o primeiro (preflight não tem o problema).
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
           # Cada rota agrupa os paths de um mesmo microsserviço - nenhum dos 6
           # serviços colide em prefixo de path hoje, então não é preciso
           # StripPrefix/RewritePath: o path que chega no gateway é o mesmo que
