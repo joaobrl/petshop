@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { StockBadge } from "../../components/store/StockBadge";
+import { formatCurrency } from "../../utils/format";
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -68,7 +69,7 @@ export function ProductDetailPage() {
           {product.description}
         </p>
         <p className="display" style={{ fontSize: 28, lineHeight: "36px" }}>
-          {product.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+          {formatCurrency(product.price)}
         </p>
         <div>
           <StockBadge stockRange={product.stockRange} />
