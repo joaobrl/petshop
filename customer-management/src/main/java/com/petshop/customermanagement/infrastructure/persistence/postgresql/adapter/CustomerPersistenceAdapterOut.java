@@ -33,6 +33,7 @@ public class CustomerPersistenceAdapterOut implements CustomerPortOut {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Customer> findByEmail(String email) {
         return customerRepository.findByEmail(email)
                 .map(mapper::toDomain);
@@ -48,16 +49,19 @@ public class CustomerPersistenceAdapterOut implements CustomerPortOut {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Customer> findAll() {
         return mapper.toDomainList(customerRepository.findAll());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<Customer> findAllPage(Pageable pageable) {
         return customerRepository.findAll(pageable).map(mapper::toDomain);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Customer> findById(UUID id) {
         return customerRepository.findById(id)
                 .map(mapper::toDomain);
