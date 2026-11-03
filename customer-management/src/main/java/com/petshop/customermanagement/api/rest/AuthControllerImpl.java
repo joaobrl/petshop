@@ -1,6 +1,6 @@
 package com.petshop.customermanagement.api.rest;
 
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.customermanagement.api.rest.dto.LoginResponseDto;
 import com.petshop.customermanagement.core.port.in.AuthPortIn;
 import com.petshop.customermanagement.core.port.in.dto.ChangePasswordRequestDto;
@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthControllerImpl implements AuthController {
 
     private final AuthPortIn authPortIn;
-    private final JwtService jwtService;
 
     @Override
     public ResponseEntity<LoginResponseDto> login(LoginRequestDto request) {
@@ -31,8 +30,7 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    public ResponseEntity<Void> changePassword(ChangePasswordRequestDto request, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<Void> changePassword(ChangePasswordRequestDto request, AuthenticatedUser user) {
         if (user == null || !user.email().equalsIgnoreCase(request.getEmail())) {
             throw new AccessDeniedException("Você só pode trocar a própria senha.");
         }

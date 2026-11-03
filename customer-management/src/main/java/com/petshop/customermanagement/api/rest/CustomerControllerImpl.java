@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import com.petshop.commons.dto.PageResponse;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -28,7 +28,6 @@ public class CustomerControllerImpl implements CustomerController{
 
     private final CustomerPortIn portIn;
     private final CustomerIdentityResolver customerIdentityResolver;
-    private final JwtService jwtService;
 
     @Override
     public ResponseEntity<CustomerResponseDto> registerCustomer(@Valid @RequestBody CustomerRequestDto customerRequest, UriComponentsBuilder uriBuilder) {
@@ -46,32 +45,28 @@ public class CustomerControllerImpl implements CustomerController{
     }
 
     @Override
-    public ResponseEntity<CustomerResponseDto> getCustomerById(String id, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CustomerResponseDto> getCustomerById(String id, AuthenticatedUser user) {
         var customer = portIn.findCustomerByIdOrCpf(id);
         customerIdentityResolver.requireOwnershipIfCustomer(customer.getId(), user);
         return ResponseEntity.ok(new CustomerResponseDto(customer));
     }
 
     @Override
-    public ResponseEntity<CustomerResponseDto> updateCustomer(UUID id, @Valid CustomerUpdateDto dto, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CustomerResponseDto> updateCustomer(UUID id, @Valid CustomerUpdateDto dto, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(id, user);
         var customer = portIn.updateCustomer(id, dto);
         return ResponseEntity.ok(new CustomerResponseDto(customer));
     }
 
     @Override
-    public ResponseEntity<CustomerResponseDto> deleteCustomer(UUID id, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CustomerResponseDto> deleteCustomer(UUID id, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(id, user);
         portIn.deleteCustomer(id);
         return ResponseEntity.noContent().build();
     }
 
     @Override
-    public ResponseEntity<CustomerResponseDto> addPetToCustomer(UUID customerId, List<PetRequestDto> pets, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CustomerResponseDto> addPetToCustomer(UUID customerId, List<PetRequestDto> pets, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
 
         if (pets == null || pets.isEmpty()) {
@@ -101,8 +96,7 @@ public class CustomerControllerImpl implements CustomerController{
     }
 
     @Override
-    public ResponseEntity<List<PetResponseDto>> listPetsOfCustomer(UUID customerId, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<List<PetResponseDto>> listPetsOfCustomer(UUID customerId, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
 
         List<PetResponseDto> petsDto = portIn.customerList()
@@ -119,16 +113,14 @@ public class CustomerControllerImpl implements CustomerController{
     }
 
     @Override
-    public ResponseEntity<CustomerResponseDto> updatePet(UUID customerId, UUID petId, PetRequestDto pet, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CustomerResponseDto> updatePet(UUID customerId, UUID petId, PetRequestDto pet, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
         var customer = portIn.updatePet(customerId, petId, pet);
         return ResponseEntity.ok(new CustomerResponseDto(customer));
     }
 
     @Override
-    public ResponseEntity<CustomerResponseDto> removePetFromCustomer(UUID customerId, UUID petId, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CustomerResponseDto> removePetFromCustomer(UUID customerId, UUID petId, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
         var customer = portIn.removePetFromCustomer(customerId, petId);
         return ResponseEntity.ok(new CustomerResponseDto(customer));

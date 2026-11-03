@@ -1,6 +1,6 @@
 package com.petshop.order_service.api.rest;
 
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.order_service.api.rest.dto.OrderResponseDto;
 import com.petshop.order_service.core.port.in.OrderPortIn;
 import com.petshop.order_service.core.port.in.dto.CheckoutRequestDto;
@@ -18,11 +18,9 @@ public class OrderControllerImpl implements OrderController {
 
     private final OrderPortIn orderPortIn;
     private final CustomerIdentityResolver customerIdentityResolver;
-    private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<OrderResponseDto> checkout(UUID customerId, CheckoutRequestDto request, UriComponentsBuilder uriBuilder, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<OrderResponseDto> checkout(UUID customerId, CheckoutRequestDto request, UriComponentsBuilder uriBuilder, AuthenticatedUser user, String token) {
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
         var order = orderPortIn.checkout(resolvedCustomerId, request.getProductIds(), token);
         var uri = uriBuilder.path("/api/v1/orders/{id}").buildAndExpand(order.getId()).toUri();
@@ -30,8 +28,7 @@ public class OrderControllerImpl implements OrderController {
     }
 
     @Override
-    public ResponseEntity<OrderResponseDto> getOrderById(UUID id, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<OrderResponseDto> getOrderById(UUID id, AuthenticatedUser user) {
         var order = orderPortIn.findById(id);
         customerIdentityResolver.requireOwnershipIfCustomer(order.getCustomerId(), user);
         return ResponseEntity.ok(new OrderResponseDto(order));

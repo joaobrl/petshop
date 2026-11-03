@@ -7,7 +7,9 @@ import com.petshop.product_registration.core.port.in.dto.StockAdjustmentRequestD
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -28,13 +30,13 @@ public interface ProductController {
     ResponseEntity<ProductResponseDto> registerProduct(@Valid @RequestBody ProductRequestDto productRequest, UriComponentsBuilder uriBuilder);
 
     @GetMapping("/list")
-    ResponseEntity<PageResponse<ProductResponseDto>> listProducts(@PageableDefault(size = 20) Pageable pageable, @RequestHeader(value = "Authorization", required = false) String token);
+    ResponseEntity<PageResponse<ProductResponseDto>> listProducts(@PageableDefault(size = 20) Pageable pageable, @AuthenticationPrincipal AuthenticatedUser user);
 
     @GetMapping("/find/{id}")
-    ResponseEntity<ProductResponseDto> getProductById(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String token);
+    ResponseEntity<ProductResponseDto> getProductById(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user);
 
     @GetMapping("/find")
-    ResponseEntity<List<ProductResponseDto>> getProductsByIds(@RequestParam List<Long> ids, @RequestHeader(value = "Authorization", required = false) String token);
+    ResponseEntity<List<ProductResponseDto>> getProductsByIds(@RequestParam List<Long> ids, @AuthenticationPrincipal AuthenticatedUser user);
 
     @PatchMapping("/update/{id}")
     ResponseEntity<ProductResponseDto> updateProduct(@PathVariable Long id, @RequestBody ProductRequestDto productRequest);

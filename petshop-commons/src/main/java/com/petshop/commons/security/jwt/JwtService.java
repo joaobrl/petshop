@@ -2,7 +2,6 @@ package com.petshop.commons.security.jwt;
 
 import com.petshop.commons.security.Role;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -13,15 +12,14 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
-public class JwtService {
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_CPF;
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_EMAIL;
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_NAME;
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_PHONE;
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_ROLE;
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_TYPE;
 
-    private static final String BEARER_PREFIX = "Bearer ";
-    private static final String CLAIM_EMAIL = "email";
-    private static final String CLAIM_NAME = "name";
-    private static final String CLAIM_CPF = "cpf";
-    private static final String CLAIM_PHONE = "phone";
-    private static final String CLAIM_ROLE = "role";
-    private static final String CLAIM_TYPE = "type";
+public class JwtService {
 
     private final SecretKey key;
     private final Duration expiration;
@@ -65,29 +63,10 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
 
-        return new AuthenticatedUser(
-                UUID.fromString(claims.getSubject()),
-                claims.get(CLAIM_EMAIL, String.class),
-                claims.get(CLAIM_NAME, String.class),
-                claims.get(CLAIM_CPF, String.class),
-                claims.get(CLAIM_PHONE, String.class),
-                Role.valueOf(claims.get(CLAIM_ROLE, String.class)),
-                AccountType.valueOf(claims.get(CLAIM_TYPE, String.class))
-        );
+        return AuthenticatedUser.fromClaims(claims);
     }
 
     public long expirationSeconds() {
         return expiration.toSeconds();
-    }
-
-    public AuthenticatedUser parseAuthorizationHeaderOrNull(String header) {
-        if (header == null || !header.startsWith(BEARER_PREFIX)) {
-            return null;
-        }
-        try {
-            return parse(header.substring(BEARER_PREFIX.length()));
-        } catch (JwtException | IllegalArgumentException ex) {
-            return null;
-        }
     }
 }
