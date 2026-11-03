@@ -38,7 +38,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 AuthenticatedUser user = jwtService.parse(token);
                 List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.role().name()));
-                var authentication = new UsernamePasswordAuthenticationToken(user, null, authorities);
+                // credentials = token bruto já validado; TokenPropagation repassa esse
+                // (e só esse) nas chamadas Feign de saída (SDD-027).
+                var authentication = new UsernamePasswordAuthenticationToken(user, token, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException | IllegalArgumentException ex) {
                 log.debug("Token JWT inválido/expirado: {}", ex.getMessage());
