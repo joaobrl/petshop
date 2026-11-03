@@ -1,5 +1,10 @@
 package com.petshop.gateway_service.ratelimit;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,6 +14,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.ratelimit.RateLimiter;
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
@@ -192,6 +198,76 @@ class RateLimitGatewayFilterTest {
         filter.filter(exchange, chain).block();
 
         verify(chain).filter(exchange);
+    }
+
+    @Test
+    @DisplayName("Deve registrar um único WARN e nenhum INFO de recuperação quando o limitador falhar seguidamente")
+    void shouldLogFailOpenOnceWhenLimiterKeepsThrowing() {
+        var appender = attachLogAppender();
+        when(redisRateLimiter.getRemainingHeader()).thenReturn(REMAINING_HEADER);
+        when(redisRateLimiter.isAllowed(anyString(), anyString())).thenReturn(Mono.error(new IllegalStateException("redis down")));
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        for (int i = 0; i < 3; i++) {
+            filter.filter(exchange(HttpMethod.GET, "/api/v1/products/list"), chain).block();
+        }
+
+        assertThat(appender.list).extracting(ILoggingEvent::getLevel).containsExactly(Level.WARN);
+    }
+
+    @Test
+    @DisplayName("Deve registrar um único WARN quando o Redis seguir fora por várias requisições")
+    void shouldLogFailOpenOnceWhenRemainingStaysMinusOne() {
+        var appender = attachLogAppender();
+        givenLimiterResponds(true, "-1");
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        for (int i = 0; i < 3; i++) {
+            filter.filter(exchange(HttpMethod.GET, "/api/v1/products/list"), chain).block();
+        }
+
+        assertThat(appender.list).extracting(ILoggingEvent::getLevel).containsExactly(Level.WARN);
+    }
+
+    @Test
+    @DisplayName("Deve registrar INFO quando o Redis voltar depois do fail-open")
+    void shouldLogRecoveryWhenRedisRespondsAfterFailOpen() {
+        var appender = attachLogAppender();
+        when(redisRateLimiter.getRemainingHeader()).thenReturn(REMAINING_HEADER);
+        when(redisRateLimiter.isAllowed(anyString(), anyString()))
+                .thenReturn(Mono.just(new RateLimiter.Response(true, Map.of(REMAINING_HEADER, "-1"))))
+                .thenReturn(Mono.just(new RateLimiter.Response(true, Map.of(REMAINING_HEADER, "39"))));
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        filter.filter(exchange(HttpMethod.GET, "/api/v1/products/list"), chain).block();
+        filter.filter(exchange(HttpMethod.GET, "/api/v1/products/list"), chain).block();
+
+        assertThat(appender.list).extracting(ILoggingEvent::getLevel).containsExactly(Level.WARN, Level.INFO);
+    }
+
+    @Test
+    @DisplayName("Não deve expor os headers X-RateLimit-* quando estiver em fail-open")
+    void shouldNotExposeRateLimitHeadersWhenFailingOpen() {
+        var exchange = exchange(HttpMethod.GET, "/api/v1/products/list");
+        givenLimiterResponds(true, "-1");
+        when(chain.filter(exchange)).thenReturn(Mono.empty());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getHeaders().containsHeader(REMAINING_HEADER)).isFalse();
+    }
+
+    private ListAppender<ILoggingEvent> attachLogAppender() {
+        var logger = (Logger) LoggerFactory.getLogger(RateLimitGatewayFilter.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        return appender;
+    }
+
+    @AfterEach
+    void detachLogAppenders() {
+        ((Logger) LoggerFactory.getLogger(RateLimitGatewayFilter.class)).detachAndStopAllAppenders();
     }
 
     @ParameterizedTest

@@ -123,17 +123,22 @@ public class RateLimitGatewayFilter implements GlobalFilter, Ordered {
                 .onErrorResume(ex -> {
                     // Rede de segurança: o RedisRateLimiter já trata as falhas
                     // do Redis, mas nada aqui pode virar 500 para o cliente.
+                    // Resposta marcada como fail-open (Remaining = -1), igual à do
+                    // RedisRateLimiter: senão o flatMap abaixo trataria como
+                    // "Redis voltou" e o WARN/INFO se repetiria a cada requisição.
                     warnFailOpen(ex);
-                    return Mono.just(new RateLimiter.Response(true, Map.of()));
+                    return Mono.just(new RateLimiter.Response(true,
+                            Map.of(redisRateLimiter.getRemainingHeader(), FAIL_OPEN_REMAINING)));
                 })
                 .flatMap(response -> {
                     ServerHttpResponse httpResponse = exchange.getResponse();
-                    response.getHeaders().forEach(httpResponse.getHeaders()::add);
 
                     String remaining = response.getHeaders().get(redisRateLimiter.getRemainingHeader());
                     if (FAIL_OPEN_REMAINING.equals(remaining)) {
+                        // Sem limite aplicado: não expõe X-RateLimit-* (Remaining = -1) ao cliente.
                         warnFailOpen(null);
                     } else {
+                        response.getHeaders().forEach(httpResponse.getHeaders()::add);
                         recovered();
                     }
 
