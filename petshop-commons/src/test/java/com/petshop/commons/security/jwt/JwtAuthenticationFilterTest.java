@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -24,6 +25,7 @@ class JwtAuthenticationFilterTest {
 
     private static final String SECRET = "test-secret-key-for-jwt-signing-min-32-bytes-long";
     private static final JwtService JWT_SERVICE = new JwtService(SECRET, Duration.ofMinutes(60));
+    private static final UUID FIXED_ID = UUID.fromString("3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b");
 
     @Mock
     private HttpServletRequest request;
@@ -111,5 +113,29 @@ class JwtAuthenticationFilterTest {
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("Deve guardar o token bruto como credentials quando o token for válido")
+    void shouldStoreRawTokenAsCredentialsWhenTokenIsValid() throws Exception {
+        String token = JWT_SERVICE.generateToken(FIXED_ID, "joao@petshop.com", "João", "12345678900", "11999999999",
+                Role.CUSTOMER, AccountType.CUSTOMER);
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getCredentials()).isEqualTo(token);
+    }
+
+    @Test
+    @DisplayName("Não deve expor o token no toString da autenticação quando o token for válido")
+    void shouldNotExposeTokenInToStringWhenAuthenticated() throws Exception {
+        String token = JWT_SERVICE.generateToken(FIXED_ID, "joao@petshop.com", "João", "12345678900", "11999999999",
+                Role.CUSTOMER, AccountType.CUSTOMER);
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().toString()).doesNotContain(token);
     }
 }

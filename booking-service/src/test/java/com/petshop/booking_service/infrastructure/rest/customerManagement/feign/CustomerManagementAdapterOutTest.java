@@ -15,11 +15,15 @@ import ch.qos.logback.core.read.ListAppender;
 import com.petshop.commons.exception.DependencyUnavailableException;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -48,6 +52,11 @@ class CustomerManagementAdapterOutTest {
     @BeforeEach
     void setUp() {
         adapter = new CustomerManagementAdapterOut(feignClient, new CustomerMapper(), new TokenPropagation(JWT_SERVICE));
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -79,15 +88,17 @@ class CustomerManagementAdapterOutTest {
     }
 
     @Test
-    void relaysCallerTokenWhenProvided() {
+    void relaysTheAuthenticatedUserTokenFromSecurityContext() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
-        var callerToken = "Bearer " + JWT_SERVICE.generateServiceToken("quem-chamou");
+        var rawToken = JWT_SERVICE.generateServiceToken("quem-chamou");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "user", rawToken, AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
         when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of());
 
-        adapter.getScheduledStaff(dateTime, "GROOMER", callerToken);
+        adapter.getScheduledStaff(dateTime, "GROOMER", "Bearer ignorado");
 
-        org.mockito.Mockito.verify(feignClient).getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), eq(callerToken));
+        org.mockito.Mockito.verify(feignClient).getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), eq("Bearer " + rawToken));
     }
 
     @Test
