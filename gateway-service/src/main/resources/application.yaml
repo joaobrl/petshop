@@ -4,6 +4,16 @@ server:
 spring:
   application:
     name: gateway-service
+  # Redis do rate limiting (SDD-022). Timeouts curtos de propósito: com o
+  # Redis fora do ar o limite entra em fail-open (a requisição passa), e
+  # cada requisição não pode ficar presa nos 60s padrão do Lettuce antes
+  # disso acontecer.
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:500ms}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:500ms}
   cloud:
     gateway:
       # Spring Cloud Gateway 5.x (Spring Cloud 2025.x) renomeou o módulo
@@ -64,3 +74,62 @@ management:
     health:
       probes:
         enabled: true
+  # Redis fora não derruba o health geral: o rate limit é fail-open (SDD-022).
+  health:
+    redis:
+      enabled: false
+
+# Mesmo segredo HS256 dos serviços. O gateway só usa para validar a
+# assinatura do Bearer e escolher a chave do rate limit (user:<sub>); não
+# autentica nem rejeita nada - sem ele, tudo é limitado por IP.
+jwt:
+  secret: ${JWT_SECRET:}
+
+# Rate limiting por cliente (SDD-022), token bucket do RedisRateLimiter:
+# o balde guarda burst-capacity fichas, ganha replenish-rate fichas/s e cada
+# requisição gasta requested-tokens. Grupos avaliados nesta ordem:
+# public-read -> registration -> authenticated (todo o resto roteado).
+# Limites começam folgados (risco: o frontend dispara várias chamadas em
+# paralelo ao abrir uma tela) - medir antes de apertar.
+gateway:
+  rate-limit:
+    # Fora do limite (RF5). /actuator/** é servido pelo próprio gateway e
+    # nem passa pelas rotas; Swagger não tem rota hoje - fica explícito
+    # para não entrar no limite se um dia passar a ter.
+    excluded-paths:
+      - /actuator/**
+      - /v3/api-docs/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+    # Leitura pública, por IP: 20 req/s, burst 40.
+    public-read:
+      methods: [GET]
+      paths:
+        - /api/v1/products/**
+        - /api/v1/bookings/available-slots
+      replenish-rate: ${RATE_LIMIT_PUBLIC_READ_REPLENISH_RATE:20}
+      burst-capacity: ${RATE_LIMIT_PUBLIC_READ_BURST_CAPACITY:40}
+      requested-tokens: ${RATE_LIMIT_PUBLIC_READ_REQUESTED_TOKENS:1}
+    # Cadastro de cliente, por IP: 5 req/min. O token bucket só repõe
+    # fichas inteiras por segundo, então "5/min" = 1 ficha/s, 12 fichas por
+    # requisição, balde de 60 (5 requisições seguidas, depois 1 a cada 12s).
+    registration:
+      methods: [POST]
+      paths:
+        - /api/v1/customers/register/**
+      replenish-rate: ${RATE_LIMIT_REGISTRATION_REPLENISH_RATE:1}
+      burst-capacity: ${RATE_LIMIT_REGISTRATION_BURST_CAPACITY:60}
+      requested-tokens: ${RATE_LIMIT_REGISTRATION_REQUESTED_TOKENS:12}
+    # Demais requisições roteadas: por sub do JWT (assinatura válida), ou
+    # por IP se anônimo/token inválido/expirado. 10 req/s, burst 20.
+    authenticated:
+      replenish-rate: ${RATE_LIMIT_AUTHENTICATED_REPLENISH_RATE:10}
+      burst-capacity: ${RATE_LIMIT_AUTHENTICATED_BURST_CAPACITY:20}
+      requested-tokens: ${RATE_LIMIT_AUTHENTICATED_REQUESTED_TOKENS:1}
+
+logging:
+  level:
+    # Com o Redis fora, o RedisRateLimiter loga ERROR com stack trace a cada
+    # requisição antes de deixar passar. O RateLimitGatewayFilter já
+    # registra o fail-open em WARN (RF4) sem inundar o log.
+    org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter: OFF

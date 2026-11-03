@@ -1,5 +1,5 @@
 # Diferente dos outros serviços, gateway-service não depende de
-# petshop-commons (não tem lógica de domínio/JWT própria, só roteamento) -
+# petshop-commons (só roteamento + rate limit; valida o JWT direto com jjwt) -
 # por isso o build aqui é single-stage, sem a etapa de instalar a lib
 # compartilhada no .m2 local primeiro.
 
