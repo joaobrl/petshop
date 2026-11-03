@@ -2,7 +2,7 @@ package com.petshop.booking_service.infrastructure.rest.customerManagement.feign
 
 import com.petshop.booking_service.infrastructure.rest.customerManagement.feign.dto.StaffDto;
 import com.petshop.booking_service.infrastructure.rest.customerManagement.feign.mapper.CustomerMapper;
-import com.petshop.booking_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import com.petshop.commons.security.jwt.JwtService;
 import feign.FeignException;
 import feign.Request;
@@ -47,7 +47,7 @@ class CustomerManagementAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new CustomerManagementAdapterOut(feignClient, new CustomerMapper(), new TokenPropagation(JWT_SERVICE));
+        adapter = new CustomerManagementAdapterOut(feignClient, new CustomerMapper(), new TokenPropagation(JWT_SERVICE, "booking-service"));
     }
 
     @Test

@@ -7,6 +7,8 @@ external:
       url: ${EXTERNAL_API_STAFF_SERVICE_URL:http://localhost:8085}
 
 spring:
+  application:
+    name: booking-service
   cloud:
     openfeign:
       client:

@@ -3,7 +3,7 @@ package com.petshop.order_service.infrastructure.rest.customer.feign.adapter;
 import com.petshop.order_service.core.domain.CustomerInfo;
 import com.petshop.order_service.core.port.out.CustomerPortOut;
 import com.petshop.order_service.infrastructure.rest.customer.feign.CustomerFeign;
-import com.petshop.order_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

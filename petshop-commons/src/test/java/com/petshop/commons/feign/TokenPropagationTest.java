@@ -1,4 +1,4 @@
-package com.petshop.booking_service.infrastructure.security;
+package com.petshop.commons.feign;
 
 import com.petshop.commons.security.jwt.JwtService;
 import org.junit.jupiter.api.Test;
@@ -12,7 +12,7 @@ class TokenPropagationTest {
     private static final JwtService JWT_SERVICE =
             new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
 
-    private final TokenPropagation tokenPropagation = new TokenPropagation(JWT_SERVICE);
+    private final TokenPropagation tokenPropagation = new TokenPropagation(JWT_SERVICE, "test-service");
 
     @Test
     void resolveAuthorizationHeaderReturnsTheGivenTokenWhenPresent() {

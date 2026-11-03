@@ -6,7 +6,7 @@ import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.infrastructure.rest.product.feign.ProductFeign;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.ProductStockResponseDto;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.StockAdjustmentRequestDto;
-import com.petshop.order_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import feign.FeignException;
 import feign.Request;
 import feign.Response;
@@ -45,7 +45,7 @@ class ProductStockAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new ProductStockAdapterOut(productFeign, new TokenPropagation(JWT_SERVICE));
+        adapter = new ProductStockAdapterOut(productFeign, new TokenPropagation(JWT_SERVICE, "order-service"));
     }
 
     private FeignException feignException(int status, String body) {

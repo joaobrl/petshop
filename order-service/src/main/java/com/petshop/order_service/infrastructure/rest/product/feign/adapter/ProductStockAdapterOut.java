@@ -8,7 +8,7 @@ import com.petshop.order_service.core.port.out.ProductStockPortOut;
 import com.petshop.order_service.infrastructure.rest.product.feign.ProductFeign;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.ProductStockResponseDto;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.StockAdjustmentRequestDto;
-import com.petshop.order_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

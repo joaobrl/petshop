@@ -5,7 +5,7 @@ import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.dto.StaffRegistryResponseDto;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.feign.StaffRegistryFeign;
-import com.petshop.staff_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,7 +34,7 @@ class StaffFeignAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new StaffFeignAdapterOut(staffRegistryFeign, new TokenPropagation(JWT_SERVICE));
+        adapter = new StaffFeignAdapterOut(staffRegistryFeign, new TokenPropagation(JWT_SERVICE, "staff-service"));
     }
 
     @Test

@@ -3,7 +3,7 @@ package com.petshop.order_service.infrastructure.rest.customer.feign.adapter;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.order_service.infrastructure.rest.customer.feign.CustomerFeign;
 import com.petshop.order_service.infrastructure.rest.customer.feign.dto.CustomerInfoResponseDto;
-import com.petshop.order_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import feign.FeignException;
 import feign.Request;
 import feign.Response;
@@ -37,7 +37,7 @@ class CustomerAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new CustomerAdapterOut(customerFeign, new TokenPropagation(JWT_SERVICE));
+        adapter = new CustomerAdapterOut(customerFeign, new TokenPropagation(JWT_SERVICE, "order-service"));
     }
 
     private FeignException feignException(int status) {

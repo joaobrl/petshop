@@ -3,7 +3,7 @@ package com.petshop.staff_service.infrastructure.rest.customermanagement.adapter
 import com.petshop.staff_service.core.domain.Staff;
 import com.petshop.staff_service.core.port.out.StaffPortOut;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.feign.StaffRegistryFeign;
-import com.petshop.staff_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

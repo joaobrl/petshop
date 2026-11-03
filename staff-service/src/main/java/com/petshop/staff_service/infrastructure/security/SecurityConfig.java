@@ -1,5 +1,7 @@
 package com.petshop.staff_service.infrastructure.security;
 
+import com.petshop.commons.feign.CorrelationIdFeignConfig;
+import com.petshop.commons.feign.TokenPropagation;
 import com.petshop.commons.security.jwt.JwtAuthenticationFilter;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.commons.web.CorrelationIdFilter;
@@ -7,6 +9,7 @@ import com.petshop.commons.web.CorsSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -20,7 +23,14 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import java.time.Duration;
 
 @Configuration
+@Import(CorrelationIdFeignConfig.class)
 public class SecurityConfig {
+
+    @Bean
+    public TokenPropagation tokenPropagation(JwtService jwtService,
+                                             @Value("${spring.application.name}") String serviceName) {
+        return new TokenPropagation(jwtService, serviceName);
+    }
 
     @Bean
     public JwtService jwtService(@Value("${jwt.secret}") String secret,
