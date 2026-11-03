@@ -10,7 +10,6 @@ import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
 import com.petshop.customermanagement.infrastructure.security.CustomerIdentityResolver;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +31,6 @@ public class CustomerControllerImpl implements CustomerController{
     private final JwtService jwtService;
 
     @Override
-    @Transactional
     public ResponseEntity<CustomerResponseDto> registerCustomer(@Valid @RequestBody CustomerRequestDto customerRequest, UriComponentsBuilder uriBuilder) {
         var customer = portIn.registerCustomer(customerRequest);
         var uri = uriBuilder.path("/customer/{id}").buildAndExpand(customer.getId()).toUri();
