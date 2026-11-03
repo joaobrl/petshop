@@ -17,9 +17,13 @@ não tem rota aqui.
 - Modelo **reativo** (WebFlux/Netty) — diferente dos outros serviços do
   repositório, que são todos MVC/servlet. É assim que o Spring Cloud
   Gateway funciona; não há mistura de modelo dentro deste módulo.
-- Sem persistência própria, sem `petshop-commons` — é puro roteamento de
-  configuração, não tem lógica de domínio nem valida o JWT (quem continua
-  validando é cada serviço downstream, como hoje).
+- Sem persistência própria, sem `petshop-commons` — não tem lógica de
+  domínio nem autentica ninguém (quem continua validando o JWT e
+  rejeitando requisição é cada serviço downstream, como hoje).
+- Redis (`spring-boot-starter-data-redis-reactive`) só para os baldes do
+  rate limiting, e `jjwt` (mesma versão do `petshop-commons`, declarado
+  direto aqui porque o commons é servlet) só para ler o `sub` do Bearer —
+  ver [Rate limiting](#rate-limiting).
 
 ## Como funciona o roteamento
 
@@ -48,6 +52,44 @@ Métodos liberados: `GET/POST/PUT/PATCH/DELETE/OPTIONS`; header
 Bearer token no header, não cookie de sessão — ver
 `docs/pendencias-frontend.md`, item 2.2).
 
+## Rate limiting
+
+Limite por cliente em todas as rotas (SDD-022), com o `RedisRateLimiter`
+do Spring Cloud Gateway (token bucket — balde de fichas — guardado no
+Redis), aplicado por um `GlobalFilter` próprio
+(`ratelimit/RateLimitGatewayFilter`). Não é o filtro `RequestRateLimiter`
+por rota porque os grupos cruzam as rotas e dependem do método HTTP, e o
+filtro nativo devolve o 429 sem corpo nem `Retry-After`.
+
+| Grupo | Requisições | Chave | Limite padrão |
+|---|---|---|---|
+| `public-read` | `GET /api/v1/products/**`, `GET /api/v1/bookings/available-slots` | IP | 20 req/s, burst 40 |
+| `registration` | `POST /api/v1/customers/register/**` | IP | 5 req/min (1 ficha/s, 12 fichas por requisição, balde 60) |
+| `authenticated` | todo o resto que é roteado | `user:<sub>` se o Bearer tiver assinatura válida, senão `ip:<ip>` | 10 req/s, burst 20 |
+
+- **Chave por usuário**: o gateway valida a assinatura HS256 do
+  `Authorization: Bearer` com o mesmo `JWT_SECRET` dos serviços, só para
+  não aceitar um `sub` forjado. Token ausente, inválido ou expirado cai na
+  chave por IP — o gateway **não** rejeita a requisição por isso.
+- **IP**: é o do peer TCP. O gateway é a borda (sem LB/ingress na frente,
+  ver SDD-028), então `X-Forwarded-For` enviado pelo cliente é ignorado.
+- **Excedeu**: `429` com `ProblemDetail` (`application/problem+json`,
+  `title: "Too many requests"`, mesmo formato do limite de login do
+  `customer-management`) e `Retry-After` em segundos. Os headers
+  `X-RateLimit-Remaining`, `-Replenish-Rate`, `-Burst-Capacity` e
+  `-Requested-Tokens` do `RedisRateLimiter` vão em toda resposta limitada.
+- **Redis fora do ar → fail-open**: a requisição passa sem limite e o
+  gateway loga `WARN` (na primeira falha e depois no máximo 1x/min; volta
+  a `INFO` quando o Redis responde). Decisão da SDD-022 para o limite não
+  virar ponto único de falha. Timeouts do Redis são curtos (500 ms) para a
+  requisição não ficar presa esperando. O log `ERROR` por requisição do
+  próprio `RedisRateLimiter` está desligado no `application.yaml`.
+- **Fora do limite**: `/actuator/**` (servido pelo próprio gateway, não
+  passa pelas rotas) e Swagger (`/v3/api-docs/**`, `/swagger-ui/**`,
+  `/swagger-ui.html`), via `gateway.rate-limit.excluded-paths`.
+- O limite de login/forgot-password do `customer-management` continua
+  existindo como segunda camada.
+
 ## Configuração (`application.yaml`)
 
 | Variável | Padrão | Descrição |
@@ -59,6 +101,12 @@ Bearer token no header, não cookie de sessão — ver
 | `GATEWAY_BOOKING_URL` | `http://localhost:8083` | URL do `booking-service` |
 | `GATEWAY_ORDER_URL` | `http://localhost:8086` | URL do `order-service` |
 | `GATEWAY_CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Origens liberadas no CORS, separadas por vírgula |
+| `SPRING_DATA_REDIS_HOST` / `SPRING_DATA_REDIS_PORT` | `localhost` / `6379` | Redis do rate limiting |
+| `SPRING_DATA_REDIS_TIMEOUT` / `SPRING_DATA_REDIS_CONNECT_TIMEOUT` | `500ms` / `500ms` | Quanto esperar o Redis antes de entrar em fail-open |
+| `JWT_SECRET` | *(vazio)* | Mesmo segredo dos serviços; sem ele (ou com menos de 32 bytes) tudo é limitado por IP e o gateway loga `WARN` na subida |
+| `RATE_LIMIT_PUBLIC_READ_REPLENISH_RATE` / `_BURST_CAPACITY` / `_REQUESTED_TOKENS` | `20` / `40` / `1` | Grupo `public-read` |
+| `RATE_LIMIT_REGISTRATION_REPLENISH_RATE` / `_BURST_CAPACITY` / `_REQUESTED_TOKENS` | `1` / `60` / `12` | Grupo `registration` |
+| `RATE_LIMIT_AUTHENTICATED_REPLENISH_RATE` / `_BURST_CAPACITY` / `_REQUESTED_TOKENS` | `10` / `20` / `1` | Grupo `authenticated` |
 
 Os padrões (`localhost:808x`) batem com as portas que cada serviço já expõe
 fora do Docker, então `./mvnw spring-boot:run` funciona sem configurar nada
@@ -71,7 +119,9 @@ se os outros serviços também estiverem rodando localmente nessas portas.
 ```
 
 Requer os serviços downstream no ar nas portas padrão (`8081`–`8083`,
-`8085`, `8086`) — ver README de cada um.
+`8085`, `8086`) — ver README de cada um. Para o rate limiting valer, um
+Redis em `localhost:6379` (`docker compose up -d redis`); sem ele o
+gateway sobe e funciona em fail-open.
 
 ## Docker
 
@@ -81,7 +131,8 @@ docker build -f gateway-service/Dockerfile -t gateway-service .
 
 No `docker-compose.yml` raiz, serviço `api-gateway`, exposto em
 **`localhost:8080`**, com as 5 URLs já apontando para os nomes de container
-corretos (`depends_on` os 5 serviços REST):
+corretos (`depends_on` os 5 serviços REST e o `redis` saudável), mais
+`SPRING_DATA_REDIS_HOST=redis` e `JWT_SECRET`:
 
 ```bash
 docker compose up api-gateway
@@ -89,15 +140,11 @@ docker compose up api-gateway
 
 ## O que não está incluído (de propósito, fora do escopo deste módulo)
 
-- **Validação de JWT no gateway** — cada serviço continua validando o
-  próprio token via `petshop-commons`, como hoje. Centralizar isso no
-  gateway é um passo natural depois, mas está ligado à pendência maior de
-  autenticação (`docs/pendencias/seguranca-autenticacao.md` — Keycloak/JWKS),
-  não faz sentido resolver pela metade aqui.
-- **Rate limiting** — hoje só existe em login/forgot-password
-  (`customer-management`). O gateway seria o lugar natural de centralizar
-  isso no futuro (`RequestRateLimiter` do Spring Cloud Gateway + Redis),
-  mas não foi adicionado ainda.
+- **Autenticação no gateway** — a assinatura do Bearer é conferida só
+  para escolher a chave do rate limit; quem autentica e rejeita continua
+  sendo cada serviço, via `petshop-commons`. Centralizar a autenticação
+  no gateway está ligado à pendência maior
+  (`docs/pendencias/seguranca-autenticacao.md` — Keycloak/JWKS).
 - **Service discovery (Eureka/Consul)** — as URLs dos serviços downstream
   continuam estáticas por variável de ambiente, mesmo padrão já usado nas
   chamadas Feign entre os outros serviços.

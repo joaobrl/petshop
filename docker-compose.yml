@@ -185,14 +185,35 @@ services:
       GATEWAY_BOOKING_URL: http://api-booking:8083
       GATEWAY_ORDER_URL: http://api-order:8086
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      # Rate limiting (SDD-022): baldes no Redis; JWT_SECRET só para validar
+      # a assinatura do Bearer e limitar por usuário (sub) em vez de IP.
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8080:8080"
     depends_on:
-      - api-products
-      - api-customers
-      - api-staff
-      - api-booking
-      - api-order
+      api-products:
+        condition: service_started
+      api-customers:
+        condition: service_started
+      api-staff:
+        condition: service_started
+      api-booking:
+        condition: service_started
+      api-order:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: petshop-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      <<: *healthcheck-timing
 
   mongo:
     image: mongo:6.0
