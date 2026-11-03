@@ -18,6 +18,7 @@ import com.petshop.booking_service.core.port.out.BookingPortOut;
 import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.core.port.out.NotificationPortOut;
 import com.petshop.booking_service.core.port.out.dto.BookingResponseDto;
+import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.security.Role;
 import lombok.RequiredArgsConstructor;
@@ -34,8 +35,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import static com.petshop.booking_service.core.domain.enums.StatusBooking.CANCELED;
 
 @Service
 @RequiredArgsConstructor
@@ -126,9 +125,12 @@ public class BookingService implements BookingPortIn {
 
     @Override
     @Transactional
-    public Booking cancelBooking(UUID id) {
+    public Booking cancelBooking(UUID id, Role requesterRole) {
         var booking = findBookingById(id);
-        booking.setStatus(CANCELED);
+        if (requesterRole == Role.CUSTOMER && !booking.getBookingDateTime().isAfter(LocalDateTime.now(clock))) {
+            throw new BusinessRuleException("Não é possível cancelar um agendamento cujo horário já passou.");
+        }
+        booking.cancel();
         var saved = bookingPortOut.save(booking);
         availableSlotsPortIn.evictAvailableSlots(
                 saved.getServiceDetails().getServiceType(),

@@ -90,7 +90,7 @@ public class BookingControllerImpl implements BookingController {
     public ResponseEntity<BookingResponseDto> cancelBooking(UUID id, String token) {
         var user = jwtService.parseAuthorizationHeaderOrNull(token);
         requireOwnershipIfCustomer(bookingPortIn.findBookingById(id).getOwnerCpf(), user);
-        var booking = bookingPortIn.cancelBooking(id);
+        var booking = bookingPortIn.cancelBooking(id, user != null ? user.role() : null);
         return ResponseEntity.ok(new BookingResponseDto(booking));
     }
 

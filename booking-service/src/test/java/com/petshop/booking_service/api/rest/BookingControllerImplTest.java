@@ -10,6 +10,7 @@ import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.commons.security.jwt.JwtService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -27,6 +28,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -238,11 +240,37 @@ class BookingControllerImplTest {
         var user = customer("12345678900");
         var booking = bookingWithOwnerCpf("12345678900");
         when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
-        when(bookingPortIn.cancelBooking(booking.getId())).thenReturn(booking);
+        when(bookingPortIn.cancelBooking(booking.getId(), Role.CUSTOMER)).thenReturn(booking);
 
         var response = controller.cancelBooking(booking.getId(), tokenFor(user));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("Deve repassar o papel do token ao service quando a recepção cancelar")
+    void shouldPassRequesterRoleToServiceWhenReceptionistCancels() {
+        var booking = bookingWithOwnerCpf("12345678900");
+        when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
+        when(bookingPortIn.cancelBooking(booking.getId(), Role.RECEPTIONIST)).thenReturn(booking);
+
+        var response = controller.cancelBooking(booking.getId(), tokenFor(receptionist()));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingPortIn).cancelBooking(booking.getId(), Role.RECEPTIONIST);
+    }
+
+    @Test
+    @DisplayName("Deve repassar papel nulo ao service quando não houver token")
+    void shouldPassNullRoleWhenTokenIsAbsent() {
+        var booking = bookingWithOwnerCpf("12345678900");
+        when(bookingPortIn.findBookingById(booking.getId())).thenReturn(booking);
+        when(bookingPortIn.cancelBooking(booking.getId(), null)).thenReturn(booking);
+
+        var response = controller.cancelBooking(booking.getId(), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(bookingPortIn).cancelBooking(booking.getId(), null);
     }
 
     @Test
