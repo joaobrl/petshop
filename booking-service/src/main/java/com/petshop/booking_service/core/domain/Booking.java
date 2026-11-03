@@ -59,13 +59,20 @@ public class Booking {
 
     public void completeBooking(BookingUpdateDto bookingUpdate) {
         if (this.status != StatusBooking.SCHEDULED) {
-            throw new IllegalStateException("Somente agendamentos com status agendado podem ser finalizados.");
+            throw new BusinessRuleException("Somente agendamentos com status agendado podem ser finalizados.");
         }
         // Só sobrescreve se vier preenchido, senão apaga observações já registradas ao só confirmar a conclusão.
         if (bookingUpdate.getObservations() != null) {
             this.observations = bookingUpdate.getObservations();
         }
         this.status = StatusBooking.COMPLETED;
+    }
+
+    public void cancel() {
+        if (this.status != StatusBooking.SCHEDULED) {
+            throw new BusinessRuleException("Somente agendamentos com status agendado podem ser cancelados.");
+        }
+        this.status = StatusBooking.CANCELED;
     }
 
     public void confirmPayment(PaymentMethod method) {

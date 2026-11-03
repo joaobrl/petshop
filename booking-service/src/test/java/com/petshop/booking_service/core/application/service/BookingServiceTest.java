@@ -20,7 +20,11 @@ import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.DependencyUnavailableException;
 import com.petshop.commons.security.Role;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -799,12 +803,126 @@ class BookingServiceTest {
         when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
         when(bookingPortOut.save(booking)).thenReturn(booking);
 
-        var result = service.cancelBooking(id);
+        var result = service.cancelBooking(id, Role.CUSTOMER);
 
         assertThat(result.getStatus()).isEqualTo(StatusBooking.CANCELED);
         verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
         verify(notificationPortOut).sendBookingCanceled(booking);
         verify(bookingHistoryPortOut).publishBookingCanceled(any());
+    }
+
+    @Test
+    @DisplayName("Deve cancelar e disparar e-mail e evento quando o cliente cancelar agendamento futuro")
+    void shouldCancelWhenCustomerAndBookingIsInFuture() {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(8, 0);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(booking)).thenReturn(booking);
+
+        var result = fixedClockService.cancelBooking(id, Role.CUSTOMER);
+
+        assertThat(result.getStatus()).isEqualTo(StatusBooking.CANCELED);
+        verify(bookingPortOut).save(booking);
+        verify(availableSlotsPortIn).evictAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY);
+        verify(notificationPortOut).sendBookingCanceled(booking);
+        verify(bookingHistoryPortOut).publishBookingCanceled(any());
+    }
+
+    @Test
+    @DisplayName("Deve recusar sem efeitos colaterais quando o cliente cancelar agendamento cujo horário já passou")
+    void shouldThrowBusinessRuleWhenCustomerCancelsPastBooking() {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(10, 0);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> fixedClockService.cancelBooking(id, Role.CUSTOMER))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Não é possível cancelar um agendamento cujo horário já passou.");
+
+        assertThat(booking.getStatus()).isEqualTo(StatusBooking.SCHEDULED);
+        verifyNoCancellationSideEffects();
+    }
+
+    @Test
+    @DisplayName("Deve recusar quando o cliente cancelar agendamento exatamente no instante atual")
+    void shouldThrowBusinessRuleWhenCustomerCancelsBookingAtCurrentInstant() {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, fixedNow));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> fixedClockService.cancelBooking(id, Role.CUSTOMER))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Não é possível cancelar um agendamento cujo horário já passou.");
+
+        verifyNoCancellationSideEffects();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"ADMIN", "RECEPTIONIST"})
+    @DisplayName("Deve cancelar agendamento já passado quando quem cancela for ADMIN ou RECEPTIONIST")
+    void shouldCancelPastBookingWhenRequesterIsStaff(Role role) {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(10, 0);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+        when(bookingPortOut.save(booking)).thenReturn(booking);
+
+        var result = fixedClockService.cancelBooking(id, role);
+
+        assertThat(result.getStatus()).isEqualTo(StatusBooking.CANCELED);
+        verify(notificationPortOut).sendBookingCanceled(booking);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"COMPLETED, CUSTOMER", "COMPLETED, ADMIN", "CANCELED, CUSTOMER", "CANCELED, ADMIN"})
+    @DisplayName("Deve recusar sem efeitos colaterais quando o agendamento não estiver agendado")
+    void shouldThrowBusinessRuleWhenCancelingNonScheduledBooking(StatusBooking status, Role role) {
+        var fixedNow = FAR_FUTURE_MONDAY.atTime(8, 0);
+        var fixedClockService = serviceWithFixedClock(fixedNow);
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        booking.setStatus(status);
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> fixedClockService.cancelBooking(id, role))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Somente agendamentos com status agendado podem ser cancelados.");
+
+        assertThat(booking.getStatus()).isEqualTo(status);
+        verifyNoCancellationSideEffects();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = StatusBooking.class, names = {"COMPLETED", "CANCELED"})
+    @DisplayName("Deve recusar sem efeitos colaterais ao concluir agendamento que não está agendado")
+    void shouldThrowBusinessRuleWhenCompletingNonScheduledBooking(StatusBooking status) {
+        var id = UUID.randomUUID();
+        var booking = new Booking(requestDto(ServiceType.BANHO, FAR_FUTURE_MONDAY.atTime(9, 0)));
+        booking.setStatus(status);
+        when(bookingPortOut.findById(id)).thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> service.updateBooking(id, new BookingUpdateDto(), "COMPLETED", Role.ADMIN, null))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Somente agendamentos com status agendado podem ser finalizados.");
+
+        assertThat(booking.getStatus()).isEqualTo(status);
+        verify(bookingPortOut, never()).save(any());
+        verify(notificationPortOut, never()).sendBookingCompleted(any());
+        verify(bookingHistoryPortOut, never()).publishBookingCompleted(any());
+    }
+
+    private void verifyNoCancellationSideEffects() {
+        verify(bookingPortOut, never()).save(any());
+        verify(availableSlotsPortIn, never()).evictAvailableSlots(any(), any());
+        verify(notificationPortOut, never()).sendBookingCanceled(any());
+        verify(bookingHistoryPortOut, never()).publishBookingCanceled(any());
     }
 
     // ---------- confirmação de pagamento ----------

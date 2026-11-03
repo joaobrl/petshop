@@ -7,7 +7,10 @@ import com.petshop.booking_service.core.domain.enums.StatusBooking;
 import com.petshop.booking_service.core.port.in.dto.BookingRequestDto;
 import com.petshop.booking_service.core.port.in.dto.BookingUpdateDto;
 import com.petshop.commons.exception.BusinessRuleException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -86,8 +89,46 @@ class BookingTest {
         booking.setStatus(StatusBooking.CANCELED);
 
         assertThatThrownBy(() -> booking.completeBooking(new BookingUpdateDto()))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Somente agendamentos com status agendado podem ser finalizados.");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = StatusBooking.class, names = {"COMPLETED", "CANCELED"})
+    @DisplayName("Deve lançar regra de negócio e manter o status ao concluir agendamento que não está agendado")
+    void shouldThrowBusinessRuleWhenCompletingNonScheduledBooking(StatusBooking status) {
+        var booking = new Booking(requestDto(ServiceType.BANHO, LocalDateTime.of(2026, 8, 15, 9, 0), null));
+        booking.setStatus(status);
+
+        assertThatThrownBy(() -> booking.completeBooking(new BookingUpdateDto()))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Somente agendamentos com status agendado podem ser finalizados.");
+
+        assertThat(booking.getStatus()).isEqualTo(status);
+    }
+
+    @Test
+    @DisplayName("Deve cancelar o agendamento quando o status for agendado")
+    void shouldCancelWhenStatusIsScheduled() {
+        var booking = new Booking(requestDto(ServiceType.BANHO, LocalDateTime.of(2026, 8, 15, 9, 0), null));
+
+        booking.cancel();
+
+        assertThat(booking.getStatus()).isEqualTo(StatusBooking.CANCELED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = StatusBooking.class, names = {"COMPLETED", "CANCELED"})
+    @DisplayName("Deve lançar regra de negócio e manter o status quando o agendamento não estiver agendado")
+    void shouldThrowBusinessRuleWhenCancelingNonScheduledBooking(StatusBooking status) {
+        var booking = new Booking(requestDto(ServiceType.BANHO, LocalDateTime.of(2026, 8, 15, 9, 0), null));
+        booking.setStatus(status);
+
+        assertThatThrownBy(booking::cancel)
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Somente agendamentos com status agendado podem ser cancelados.");
+
+        assertThat(booking.getStatus()).isEqualTo(status);
     }
 
     @Test

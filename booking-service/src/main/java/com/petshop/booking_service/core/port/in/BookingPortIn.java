@@ -21,7 +21,7 @@ public interface BookingPortIn {
 
     Booking updateBooking(UUID id, BookingUpdateDto bookingUpdate, String status, Role requesterRole, String token);
 
-    Booking cancelBooking(UUID id);
+    Booking cancelBooking(UUID id, Role requesterRole);
 
     Booking confirmPayment(UUID id, PaymentConfirmationRequestDto request);
 }

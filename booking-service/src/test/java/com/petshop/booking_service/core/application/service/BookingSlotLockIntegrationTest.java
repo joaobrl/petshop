@@ -133,7 +133,7 @@ class BookingSlotLockIntegrationTest {
     void canceledBookingDoesNotBlockEmployeeAtSameSlot() {
         givenScheduledGroomers("Groomer A");
         var canceled = bookingPortIn.createBooking(request(), Role.ADMIN, null);
-        bookingPortIn.cancelBooking(canceled.getId());
+        bookingPortIn.cancelBooking(canceled.getId(), Role.ADMIN);
 
         var rebooked = bookingPortIn.createBooking(request(), Role.ADMIN, null);
 
