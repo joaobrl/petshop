@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { ApiError } from "../../services/http";
+import { safeNext } from "../../services/authService";
 import { Logo } from "../../components/ui/Logo";
 import { TextField } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
@@ -10,6 +11,9 @@ import { ChangePasswordForm } from "../../components/account/ChangePasswordForm"
 export function StaffLoginPage() {
   const { login, mustChangePassword, clearMustChangePassword, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const expired = searchParams.get("expired") === "1";
+  const destination = safeNext(searchParams.get("next")) ?? "/interno";
   const [email, setEmail] = useState("admin@petshop.local");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +30,7 @@ export function StaffLoginPage() {
         setError("Esta conta é de cliente, não de equipe.");
         return;
       }
-      if (!response.mustChangePassword) navigate("/interno");
+      if (!response.mustChangePassword) navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Não foi possível entrar.");
     } finally {
@@ -41,7 +45,7 @@ export function StaffLoginPage() {
         currentPassword={password}
         onDone={() => {
           clearMustChangePassword();
-          navigate("/interno");
+          navigate(destination, { replace: true });
         }}
       />
     );
@@ -58,6 +62,11 @@ export function StaffLoginPage() {
         </h1>
         <TextField label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <TextField label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        {expired && !error && (
+          <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
+            Sua sessão expirou, entre novamente.
+          </p>
+        )}
         {error && (
           <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
             {error}

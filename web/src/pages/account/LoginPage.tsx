@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { ApiError } from "../../services/http";
+import { safeNext } from "../../services/authService";
 import { TextField } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
 import { Logo } from "../../components/ui/Logo";
@@ -11,12 +12,19 @@ export function LoginPage() {
   const { login, mustChangePassword, clearMustChangePassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const expired = searchParams.get("expired") === "1";
+  const next = safeNext(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function goToDestination() {
+    if (next) {
+      navigate(next, { replace: true });
+      return;
+    }
     const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/minha-conta/pedidos";
     navigate(from, { replace: true });
   }
@@ -59,6 +67,11 @@ export function LoginPage() {
         </h1>
         <TextField label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <TextField label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        {expired && !error && (
+          <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
+            Sua sessão expirou, entre novamente.
+          </p>
+        )}
         {error && (
           <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
             {error}
