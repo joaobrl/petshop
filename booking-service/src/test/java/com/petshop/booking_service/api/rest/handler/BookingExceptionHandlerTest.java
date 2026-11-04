@@ -42,7 +42,7 @@ class BookingExceptionHandlerTest {
         var problem = handler.handleBookingUnavailable(ex);
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY.value());
-        assertThat(problem.getProperties()).containsEntry("suggestedSlot", "10/08/2026 09:30");
+        assertThat(problem.getProperties()).containsEntry("suggestedSlot", "2026-08-10T09:30:00");
     }
 
     @Test

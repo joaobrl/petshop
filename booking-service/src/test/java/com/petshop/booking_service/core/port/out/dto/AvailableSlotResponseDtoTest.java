@@ -15,7 +15,7 @@ class AvailableSlotResponseDtoTest {
 
         var dto = new AvailableSlotResponseDto(slot);
 
-        assertThat(dto.getDateTime()).isEqualTo("15/08/2026 09:30");
+        assertThat(dto.getDateTime()).isEqualTo("2026-08-15T09:30:00");
         assertThat(dto.getAvailableStaff()).isEqualTo(2);
     }
 

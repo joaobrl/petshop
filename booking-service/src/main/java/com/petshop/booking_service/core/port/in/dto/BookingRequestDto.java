@@ -1,7 +1,7 @@
 package com.petshop.booking_service.core.port.in.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.petshop.booking_service.core.domain.enums.ServiceType;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -31,7 +31,7 @@ public class BookingRequestDto {
 
     @NotNull
     @FutureOrPresent
-    @JsonFormat(pattern = "dd/MM/yyyy HH:mm")
+    @Schema(description = "Data e hora em ISO-8601 sem offset (horário de Brasília)", example = "2026-08-15T09:00:00")
     private LocalDateTime bookingDateTime;
 
     private String observations;

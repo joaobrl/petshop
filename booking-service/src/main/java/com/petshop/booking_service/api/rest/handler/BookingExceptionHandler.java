@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter;
 @RestControllerAdvice
 public class BookingExceptionHandler extends BaseExceptionHandler {
 
-    private static final DateTimeFormatter SLOT_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter SLOT_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     @ExceptionHandler(BookingUnavailableException.class)
     public ProblemDetail handleBookingUnavailable(BookingUnavailableException ex) {

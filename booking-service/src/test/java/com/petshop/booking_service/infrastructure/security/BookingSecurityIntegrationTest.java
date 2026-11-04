@@ -68,7 +68,7 @@ class BookingSecurityIntegrationTest {
 
         mockMvc.perform(get("/api/v1/bookings/available-slots")
                         .param("serviceType", "BANHO")
-                        .param("date", "10/08/2026")
+                        .param("date", "2026-08-10")
                         .param("range", "DAY"))
                 .andExpect(status().isOk());
     }

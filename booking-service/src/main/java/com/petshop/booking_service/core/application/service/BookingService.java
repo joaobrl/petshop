@@ -243,12 +243,15 @@ public class BookingService implements BookingPortIn {
                 .orElseThrow(() -> noEmployeeAvailable(bookingDateTime, serviceType));
     }
 
+    // Texto lido pelo usuário (detail do 422) segue em formato brasileiro (SDD-017 RF3.1);
+    // só campos JSON/contratos (ex.: suggestedSlot) são ISO-8601.
     private static final DateTimeFormatter SLOT_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DateTimeFormatter DATE_ONLY_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private BookingUnavailableException noEmployeeAvailable(LocalDateTime requestedDateTime, ServiceType serviceType) {
         var suggestion = findNextAvailableSlotSameDay(requestedDateTime, serviceType);
-        var prefix = "Não há funcionário disponível para o horário selecionado: " + requestedDateTime;
+        var prefix = "Não há funcionário disponível para o horário selecionado: "
+                + requestedDateTime.format(SLOT_FORMATTER);
 
         if (suggestion != null) {
             var message = prefix + ". Próximo horário disponível no mesmo dia: "

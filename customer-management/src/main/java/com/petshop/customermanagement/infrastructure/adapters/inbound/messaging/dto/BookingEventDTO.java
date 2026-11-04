@@ -1,6 +1,6 @@
 package com.petshop.customermanagement.infrastructure.adapters.inbound.messaging.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -12,7 +12,8 @@ public record BookingEventDTO(
         String ownerCpf,
         String ownerContact,
         ServiceDetailsEventDTO serviceType,
-        @JsonFormat(pattern = "dd/MM/yyyy HH:mm") LocalDateTime bookingDateTime,
+        // ISO-8601 (formato novo) ou o formato brasileiro legado (eventos antigos ainda na fila).
+        @JsonDeserialize(using = TolerantLocalDateTimeDeserializer.class) LocalDateTime bookingDateTime,
         String status,
         String observations
 ) {
