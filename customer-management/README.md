@@ -36,10 +36,18 @@ Microsserviço central de identidade do WebCommerce/PetShop: cadastro de cliente
 | `PATCH` | `/update/customer/{id}` | Autenticado | Atualiza cliente |
 | `DELETE` | `/delete/customer/{id}` | Autenticado | Remove/desativa cliente |
 | `PATCH` | `/register/{customerId}/pet` | Autenticado | Adiciona pet(s) ao cliente |
-| `GET` | `/list/pets` | `ADMIN`/`RECEPTIONIST` | Lista todos os pets (filtro opcional por header `typePets`) |
-| `GET` | `/{customerId}/pets` | Autenticado | Lista pets de um cliente |
+| `GET` | `/list/pets` | `ADMIN`/`RECEPTIONIST` | Lista pets paginados (filtro opcional por header `typePets`, aplicado antes da paginação) — ver [Paginação de pets](#paginação-de-pets) |
+| `GET` | `/{customerId}/pets` | Autenticado (dono ou staff) | Lista pets paginados de um cliente; `404` se o cliente não existir — ver [Paginação de pets](#paginação-de-pets) |
 | `PATCH` | `/{customerId}/pets/{petId}` | Autenticado | Atualiza pet |
 | `DELETE` | `/{customerId}/pets/{petId}` | Autenticado | Remove pet |
+
+#### Paginação de pets
+`GET /list/pets` e `GET /{customerId}/pets` aceitam os query params:
+- `page` — número da página (começa em `0`);
+- `size` — itens por página (padrão `20`, máximo `100` nessas rotas; valores maiores são limitados a `100`);
+- `sort` — ordenação, ex.: `sort=name,desc`. Campos aceitos: `name`/`petName`, `type`/`petType`, `petBreed`, `petSize`, `weightInKg`, `petHealthIssues`, `id`. Padrão: `name`. Campo fora dessa lista retorna `400`.
+
+A resposta é um `PageResponse`: `content`, `page`, `size`, `totalElements`, `totalPages`, `last`.
 
 ### `/api/v1/history`
 | Método | Path | Acesso | Descrição |

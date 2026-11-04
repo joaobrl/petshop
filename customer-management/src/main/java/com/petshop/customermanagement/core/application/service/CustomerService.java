@@ -4,6 +4,7 @@ import com.petshop.commons.exception.ConflictException;
 import com.petshop.commons.exception.NotFoundException;
 import com.petshop.customermanagement.core.domain.Customer;
 import com.petshop.customermanagement.core.domain.Pet;
+import com.petshop.customermanagement.core.domain.enums.PetType;
 import com.petshop.customermanagement.core.port.in.CustomerPortIn;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
@@ -101,6 +102,21 @@ public class CustomerService implements CustomerPortIn {
         customer.setEnabled(false);
         log.info("Customer with ID {} deleted.", id);
         return customerPortOut.save(customer);
+    }
+
+    @Override
+    public Page<Pet> listPets(PetType type, Pageable pageable) {
+        return customerPortOut.findPets(type, pageable);
+    }
+
+    @Override
+    public Page<Pet> listPetsOfCustomer(UUID customerId, Pageable pageable) {
+        var page = customerPortOut.findPetsByCustomerId(customerId, pageable);
+        // Pagina vazia pode ser cliente sem pets ou cliente inexistente (404).
+        if (page.getTotalElements() == 0 && !customerPortOut.existsById(customerId)) {
+            throw new NotFoundException("Cliente", customerId);
+        }
+        return page;
     }
 
     @Override

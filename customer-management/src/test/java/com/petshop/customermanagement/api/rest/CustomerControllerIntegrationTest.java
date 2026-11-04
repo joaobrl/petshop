@@ -19,7 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -30,7 +33,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -189,33 +197,69 @@ class CustomerControllerIntegrationTest {
 
         @Test
         void listPetsAllowedForAdminWithoutHeaderListsEverything() throws Exception {
-            var customer = customerWithId(UUID.randomUUID());
-            customer.getPet().add(new Pet(new PetRequestDto()));
-            when(customerPortOut.findAll()).thenReturn(java.util.List.of(customer));
+            var pageable = PageRequest.of(0, 20);
+            when(customerPortOut.findPets(isNull(), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(java.util.List.of(new Pet(new PetRequestDto())), pageable, 1));
 
             mockMvc.perform(get("/api/v1/customers/list/pets")
                             .with(adminAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)));
+                    .andExpect(jsonPath("$.content.length()", is(1)))
+                    .andExpect(jsonPath("$.totalElements", is(1)))
+                    .andExpect(jsonPath("$.last", is(true)));
         }
 
         @Test
         void listPetsAllowedForAdminFiltersByTypeHeader() throws Exception {
             var dogRequest = new PetRequestDto();
             dogRequest.setPetType(PetType.DOG);
-            var catRequest = new PetRequestDto();
-            catRequest.setPetType(PetType.CAT);
-            var customer = customerWithId(UUID.randomUUID());
-            customer.getPet().add(new Pet(dogRequest));
-            customer.getPet().add(new Pet(catRequest));
-            when(customerPortOut.findAll()).thenReturn(java.util.List.of(customer));
+            when(customerPortOut.findPets(eq(PetType.DOG), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(java.util.List.of(new Pet(dogRequest))));
 
             mockMvc.perform(get("/api/v1/customers/list/pets")
                             .header("typePets", "dog")
                             .with(adminAuth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)))
-                    .andExpect(jsonPath("$[0].petType", is("DOG")));
+                    .andExpect(jsonPath("$.content.length()", is(1)))
+                    .andExpect(jsonPath("$.content[0].petType", is("DOG")));
+        }
+
+        @Test
+        void listPetsUsesDefaultPageOfTwentyAndHonorsPageAndSizeParams() throws Exception {
+            when(customerPortOut.findPets(isNull(), any(Pageable.class))).thenReturn(new PageImpl<>(java.util.List.of()));
+
+            mockMvc.perform(get("/api/v1/customers/list/pets").with(adminAuth()))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/customers/list/pets").param("page", "2").param("size", "7").with(adminAuth()))
+                    .andExpect(status().isOk());
+
+            var captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(customerPortOut, times(2)).findPets(isNull(), captor.capture());
+            assertThat(captor.getAllValues().get(0).getPageSize()).isEqualTo(20);
+            assertThat(captor.getAllValues().get(0).getPageNumber()).isZero();
+            assertThat(captor.getAllValues().get(1).getPageSize()).isEqualTo(7);
+            assertThat(captor.getAllValues().get(1).getPageNumber()).isEqualTo(2);
+        }
+
+        @Test
+        void listPetsClampsSizeAboveOneHundred() throws Exception {
+            when(customerPortOut.findPets(isNull(), any(Pageable.class))).thenReturn(new PageImpl<>(java.util.List.of()));
+
+            mockMvc.perform(get("/api/v1/customers/list/pets").param("size", "500").with(adminAuth()))
+                    .andExpect(status().isOk());
+
+            var captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(customerPortOut).findPets(isNull(), captor.capture());
+            assertThat(captor.getValue().getPageSize()).isEqualTo(100);
+        }
+
+        @Test
+        void listPetsReturnsBadRequestWhenSortFieldIsRejectedByAdapter() throws Exception {
+            when(customerPortOut.findPets(isNull(), any(Pageable.class)))
+                    .thenThrow(new IllegalArgumentException("Campo de ordenacao invalido: cpf"));
+
+            mockMvc.perform(get("/api/v1/customers/list/pets").param("sort", "cpf").with(adminAuth()))
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
@@ -404,14 +448,48 @@ class CustomerControllerIntegrationTest {
         @Test
         void customerCanListOwnPets() throws Exception {
             var id = UUID.randomUUID();
-            var customer = customerWithId(id);
-            customer.getPet().add(new Pet(new PetRequestDto()));
-            when(customerPortOut.findAll()).thenReturn(java.util.List.of(customer));
+            when(customerPortOut.findPetsByCustomerId(eq(id), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(java.util.List.of(new Pet(new PetRequestDto()))));
 
             mockMvc.perform(get("/api/v1/customers/" + id + "/pets")
                             .with(customerAuth(id)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.length()", is(1)));
+                    .andExpect(jsonPath("$.content.length()", is(1)))
+                    .andExpect(jsonPath("$.totalElements", is(1)));
+        }
+
+        @Test
+        void customerCannotListSomeoneElsesPets() throws Exception {
+            var otherId = UUID.randomUUID();
+
+            mockMvc.perform(get("/api/v1/customers/" + otherId + "/pets")
+                            .with(customerAuth(UUID.randomUUID())))
+                    .andExpect(status().isForbidden());
+
+            verify(customerPortOut, never()).findPetsByCustomerId(any(), any());
+        }
+
+        @Test
+        void listOwnPetsReturnsNotFoundWhenPageIsEmptyAndCustomerDoesNotExist() throws Exception {
+            var id = UUID.randomUUID();
+            when(customerPortOut.findPetsByCustomerId(eq(id), any(Pageable.class))).thenReturn(new PageImpl<>(java.util.List.of()));
+            when(customerPortOut.existsById(id)).thenReturn(false);
+
+            mockMvc.perform(get("/api/v1/customers/" + id + "/pets")
+                            .with(adminAuth()))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void listOwnPetsReturnsEmptyPageWhenCustomerExistsWithoutPets() throws Exception {
+            var id = UUID.randomUUID();
+            when(customerPortOut.findPetsByCustomerId(eq(id), any(Pageable.class))).thenReturn(new PageImpl<>(java.util.List.of()));
+            when(customerPortOut.existsById(id)).thenReturn(true);
+
+            mockMvc.perform(get("/api/v1/customers/" + id + "/pets")
+                            .with(customerAuth(id)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()", is(0)));
         }
 
         @Test

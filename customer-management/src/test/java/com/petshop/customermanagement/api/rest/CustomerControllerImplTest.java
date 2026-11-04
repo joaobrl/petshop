@@ -11,15 +11,21 @@ import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
 import com.petshop.customermanagement.infrastructure.security.CustomerIdentityResolver;
-import jakarta.persistence.EntityNotFoundException;
+import com.petshop.commons.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -30,6 +36,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -214,28 +223,68 @@ class CustomerControllerImplTest {
         }
 
         @Test
-        void listPetsOfCustomerChecksOwnershipAndReturnsOnlyThatCustomersPets() {
-            var customer = sampleCustomer();
+        @DisplayName("Deve checar o dono e devolver a página de pets do cliente")
+        void shouldCheckOwnershipAndReturnPetPageWhenListingOwnPets() {
+            var customerId = UUID.randomUUID();
             var pet = new Pet(new PetRequestDto());
-            customer.getPet().add(pet);
-            var other = sampleCustomer();
             var user = user();
-            when(portIn.customerList()).thenReturn(List.of(customer, other));
+            var pageable = PageRequest.of(1, 20);
+            when(portIn.listPetsOfCustomer(customerId, pageable))
+                    .thenReturn(new PageImpl<>(List.of(pet), pageable, 21));
 
-            var response = controller.listPetsOfCustomer(customer.getId(), user);
+            var response = controller.listPetsOfCustomer(customerId, pageable, user);
 
-            verify(customerIdentityResolver).requireOwnershipIfCustomer(customer.getId(), user);
-            assertThat(response.getBody()).hasSize(1);
+            verify(customerIdentityResolver).requireOwnershipIfCustomer(customerId, user);
+            var body = response.getBody();
+            assertThat(body.content()).hasSize(1);
+            assertThat(body.content().get(0).getId()).isEqualTo(pet.getId());
+            assertThat(body.page()).isEqualTo(1);
+            assertThat(body.size()).isEqualTo(20);
+            assertThat(body.totalElements()).isEqualTo(21);
+            assertThat(body.totalPages()).isEqualTo(2);
+            assertThat(body.last()).isTrue();
         }
 
         @Test
-        void listPetsOfCustomerThrowsWhenCustomerNotFoundAmongList() {
+        @DisplayName("Não deve consultar os pets quando o dono não for o cliente")
+        void shouldNotListPetsWhenOwnershipIsDenied() {
+            var customerId = UUID.randomUUID();
             var user = user();
-            var id = UUID.randomUUID();
-            when(portIn.customerList()).thenReturn(List.of(sampleCustomer()));
+            doThrow(new AccessDeniedException("negado"))
+                    .when(customerIdentityResolver).requireOwnershipIfCustomer(customerId, user);
 
-            assertThatThrownBy(() -> controller.listPetsOfCustomer(id, user))
-                    .isInstanceOf(EntityNotFoundException.class);
+            assertThatThrownBy(() -> controller.listPetsOfCustomer(customerId, PageRequest.of(0, 20), user))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            verifyNoInteractions(portIn);
+        }
+
+        @Test
+        @DisplayName("Deve limitar o size a 100 preservando página e ordenação nos pets do cliente")
+        void shouldClampPageSizeTo100WhenListingOwnPets() {
+            var customerId = UUID.randomUUID();
+            var sort = Sort.by("name");
+            when(portIn.listPetsOfCustomer(eq(customerId), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+
+            controller.listPetsOfCustomer(customerId, PageRequest.of(3, 500, sort), user());
+
+            var captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(portIn).listPetsOfCustomer(eq(customerId), captor.capture());
+            assertThat(captor.getValue().getPageSize()).isEqualTo(100);
+            assertThat(captor.getValue().getPageNumber()).isEqualTo(3);
+            assertThat(captor.getValue().getSort()).isEqualTo(sort);
+        }
+
+        @Test
+        @DisplayName("Deve propagar NotFoundException quando o serviço não achar o cliente")
+        void shouldPropagateNotFoundWhenCustomerDoesNotExist() {
+            var customerId = UUID.randomUUID();
+            var pageable = PageRequest.of(0, 20);
+            var user = user();
+            when(portIn.listPetsOfCustomer(customerId, pageable)).thenThrow(new NotFoundException("Cliente", customerId));
+
+            assertThatThrownBy(() -> controller.listPetsOfCustomer(customerId, pageable, user))
+                    .isInstanceOf(NotFoundException.class);
         }
     }
 
@@ -243,77 +292,95 @@ class CustomerControllerImplTest {
     class StoreWideEndpoints {
 
         @Test
-        void listPetsAggregatesPetsFromAllCustomersWithoutOwnershipCheckWhenHeaderAbsent() {
-            var customer1 = sampleCustomer();
-            customer1.getPet().add(new Pet(new PetRequestDto()));
-            var customer2 = sampleCustomer();
-            customer2.getPet().add(new Pet(new PetRequestDto()));
-            when(portIn.customerList()).thenReturn(List.of(customer1, customer2));
+        @DisplayName("Deve listar todos os pets sem filtro e sem checar dono quando o header não vier")
+        void shouldListAllPetsWithoutOwnershipCheckWhenHeaderIsAbsent() {
+            var pageable = PageRequest.of(0, 20);
+            when(portIn.listPets(null, pageable))
+                    .thenReturn(new PageImpl<>(List.of(new Pet(new PetRequestDto()), new Pet(new PetRequestDto())), pageable, 45));
 
-            var response = controller.listPets(null);
+            var response = controller.listPets(null, pageable);
 
-            assertThat(response.getBody()).hasSize(2);
+            var body = response.getBody();
+            assertThat(body.content()).hasSize(2);
+            assertThat(body.totalElements()).isEqualTo(45);
+            assertThat(body.totalPages()).isEqualTo(3);
+            assertThat(body.last()).isFalse();
             verifyNoInteractions(customerIdentityResolver);
         }
 
-        @Test
-        void listPetsFiltersByTypeWhenHeaderPresent() {
-            var dogRequest = new PetRequestDto();
-            dogRequest.setPetType(PetType.DOG);
-            var catRequest = new PetRequestDto();
-            catRequest.setPetType(PetType.CAT);
+        @ParameterizedTest
+        @ValueSource(strings = {"dog", "DOG", "Dog"})
+        @DisplayName("Deve converter o header typePets para o enum ignorando maiúsculas")
+        void shouldConvertTypeHeaderToEnumIgnoringCase(String header) {
+            var pageable = PageRequest.of(0, 20);
+            when(portIn.listPets(PetType.DOG, pageable)).thenReturn(new PageImpl<>(List.of()));
 
-            var customer = sampleCustomer();
-            customer.getPet().add(new Pet(dogRequest));
-            customer.getPet().add(new Pet(catRequest));
-            when(portIn.customerList()).thenReturn(List.of(customer));
+            controller.listPets(header, pageable);
 
-            var response = controller.listPets("dog");
+            verify(portIn).listPets(PetType.DOG, pageable);
+        }
 
-            assertThat(response.getBody()).hasSize(1);
-            assertThat(response.getBody().get(0).getPetType()).isEqualTo(PetType.DOG);
+        @ParameterizedTest
+        @ValueSource(strings = {"", "  "})
+        @DisplayName("Deve tratar header em branco como ausência de filtro")
+        void shouldTreatBlankHeaderAsNoFilter(String header) {
+            var pageable = PageRequest.of(0, 20);
+            when(portIn.listPets(null, pageable)).thenReturn(new PageImpl<>(List.of()));
+
+            controller.listPets(header, pageable);
+
+            verify(portIn).listPets(null, pageable);
         }
 
         @Test
-        void listPetsHeaderFilterIsCaseInsensitive() {
-            var dogRequest = new PetRequestDto();
-            dogRequest.setPetType(PetType.DOG);
-            var customer = sampleCustomer();
-            customer.getPet().add(new Pet(dogRequest));
-            when(portIn.customerList()).thenReturn(List.of(customer));
+        @DisplayName("Deve lançar IllegalArgumentException quando o tipo do header for inválido")
+        void shouldThrowIllegalArgumentWhenTypeHeaderIsInvalid() {
+            var pageable = PageRequest.of(0, 20);
 
-            var response = controller.listPets("DOG");
-
-            assertThat(response.getBody()).hasSize(1);
-        }
-
-        @Test
-        void listPetsThrowsForInvalidTypeHeader() {
-            when(portIn.customerList()).thenReturn(List.of(sampleCustomer()));
-
-            assertThatThrownBy(() -> controller.listPets("bird"))
+            assertThatThrownBy(() -> controller.listPets("bird", pageable))
                     .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(portIn);
         }
 
         @Test
-        void listPetsReturnsEmptyWhenNoPetsOfThatType() {
-            var customer = sampleCustomer();
-            when(portIn.customerList()).thenReturn(List.of(customer));
+        @DisplayName("Deve devolver página vazia quando não houver pets do tipo")
+        void shouldReturnEmptyPageWhenNoPetsMatch() {
+            var pageable = PageRequest.of(0, 20);
+            when(portIn.listPets(PetType.CAT, pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-            var response = controller.listPets("cat");
+            var response = controller.listPets("cat", pageable);
 
-            assertThat(response.getBody()).isEmpty();
+            assertThat(response.getBody().content()).isEmpty();
+            assertThat(response.getBody().totalElements()).isZero();
         }
 
         @Test
-        void listPetsIgnoresBlankHeaderAndListsAll() {
-            var customer = sampleCustomer();
-            customer.getPet().add(new Pet(new PetRequestDto()));
-            when(portIn.customerList()).thenReturn(List.of(customer));
+        @DisplayName("Deve limitar o size a 100 preservando página e ordenação em listPets")
+        void shouldClampPageSizeTo100WhenListingAllPets() {
+            var sort = Sort.by(Sort.Order.desc("name"));
+            when(portIn.listPets(isNull(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
 
-            var response = controller.listPets("  ");
+            controller.listPets(null, PageRequest.of(2, 101, sort));
 
-            assertThat(response.getBody()).hasSize(1);
+            var captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(portIn).listPets(isNull(), captor.capture());
+            assertThat(captor.getValue().getPageSize()).isEqualTo(100);
+            assertThat(captor.getValue().getPageNumber()).isEqualTo(2);
+            assertThat(captor.getValue().getSort()).isEqualTo(sort);
+        }
+
+        @Test
+        @DisplayName("Deve manter o mesmo Pageable quando o size for exatamente 100")
+        void shouldKeepPageableWhenSizeIsExactlyTheLimit() {
+            var pageable = PageRequest.of(0, 100);
+            when(portIn.listPets(null, pageable)).thenReturn(new PageImpl<>(List.of()));
+
+            controller.listPets(null, pageable);
+
+            var captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(portIn).listPets(isNull(), captor.capture());
+            assertThat(captor.getValue()).isSameAs(pageable);
         }
     }
 }
