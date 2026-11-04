@@ -31,7 +31,7 @@ public class CustomerManagementAdapterOut implements CustomerManagementPortOut {
         String formattedDate = mapper.toQueryParam(dateTime);
 
         try {
-            var response = feignClient.getSchedule(formattedDate, role, tokenPropagation.resolveAuthorizationHeader(token));
+            var response = feignClient.getSchedule(formattedDate, role, tokenPropagation.resolveAuthorizationHeader());
 
             if (response == null) {
                 log.warn("MS staff-service devolveu resposta vazia pra data: {}", formattedDate);

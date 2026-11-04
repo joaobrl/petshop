@@ -5,6 +5,7 @@ import { BookingStatusBadge } from "../../components/ui/StatusBadges";
 import { Button } from "../../components/ui/Button";
 import { SERVICE_TYPE_LABEL } from "../../types/booking";
 import type { Booking } from "../../types/booking";
+import { formatDateTime } from "../../utils/date";
 
 export function InternalBookingsPage() {
   const [bookings, setBookings] = useState<Booking[] | null>(null);
@@ -56,7 +57,7 @@ export function InternalBookingsPage() {
                 {SERVICE_TYPE_LABEL[booking.serviceType.serviceType]} — {booking.ownerName}
               </p>
               <p className="caption" style={{ margin: "4px 0 0", color: "var(--ink-muted)" }}>
-                {booking.bookingDateTime} · CPF {booking.ownerCpf}
+                {formatDateTime(booking.bookingDateTime)} · CPF {booking.ownerCpf}
               </p>
             </div>
             <BookingStatusBadge status={booking.status} />

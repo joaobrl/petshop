@@ -6,8 +6,8 @@ import * as orderService from "../../services/orderService";
 import { ApiError } from "../../services/http";
 import { Button } from "../../components/ui/Button";
 import { SelectField } from "../../components/ui/Field";
+import { formatCurrency } from "../../utils/format";
 
-const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function CheckoutPage() {
   const { cart, refresh } = useCart();
@@ -71,12 +71,12 @@ export function CheckoutPage() {
             <span className="body">
               {item.quantity}× {item.productName}
             </span>
-            <span className="body">{currency(item.subtotal)}</span>
+            <span className="body">{formatCurrency(item.subtotal)}</span>
           </div>
         ))}
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-2)", display: "flex", justifyContent: "space-between" }}>
           <span className="heading">Total</span>
-          <span className="heading">{currency(total)}</span>
+          <span className="heading">{formatCurrency(total)}</span>
         </div>
       </div>
 

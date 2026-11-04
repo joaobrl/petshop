@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import * as orderService from "../../services/orderService";
 import type { Order } from "../../types/order";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
+import { formatDateTime } from "../../utils/date";
+import { formatCurrency } from "../../utils/format";
 
-const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const dateTime = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-const time = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 export function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -30,12 +29,12 @@ export function MyOrdersPage() {
             <OrderStatusBadge status={order.status} />
           </div>
           <span className="caption" style={{ color: "var(--ink-muted)" }}>
-            {dateTime(order.createdAt)} · {order.items.length} {order.items.length === 1 ? "item" : "itens"}
+            {formatDateTime(order.createdAt)} · {order.items.length} {order.items.length === 1 ? "item" : "itens"}
           </span>
-          <span className="body-strong">{currency(order.totalAmount)}</span>
+          <span className="body-strong">{formatCurrency(order.totalAmount)}</span>
           {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
             <span className="caption" style={{ color: "var(--ink-muted)" }}>
-              Reservado até {time(order.expiresAt)}
+              Reservado até {formatDateTime(order.expiresAt)}
             </span>
           )}
         </div>

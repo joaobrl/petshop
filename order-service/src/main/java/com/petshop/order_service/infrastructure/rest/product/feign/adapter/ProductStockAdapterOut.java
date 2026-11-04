@@ -33,7 +33,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public ProductStockInfo getInfo(Long productId, String token) {
         try {
-            return toInfo(productFeign.findById(productId, tokenPropagation.resolveAuthorizationHeader(token)));
+            return toInfo(productFeign.findById(productId, tokenPropagation.resolveAuthorizationHeader()));
         } catch (FeignException.NotFound e) {
             throw new NotFoundException("Produto", productId);
         } catch (FeignException e) {
@@ -44,7 +44,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public Map<Long, ProductStockInfo> getInfos(Collection<Long> productIds, String token) {
         try {
-            var response = productFeign.findByIds(List.copyOf(productIds), tokenPropagation.resolveAuthorizationHeader(token));
+            var response = productFeign.findByIds(List.copyOf(productIds), tokenPropagation.resolveAuthorizationHeader());
             return response.stream().map(this::toInfo)
                     .collect(Collectors.toMap(ProductStockInfo::id, Function.identity(), (first, second) -> first));
         } catch (FeignException e) {
@@ -58,7 +58,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public ProductStockInfo reserve(Long productId, int quantity, String token) {
         try {
-            return toInfo(productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader(token)));
+            return toInfo(productFeign.reserve(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader()));
         } catch (FeignException.NotFound e) {
             throw new NotFoundException("Produto", productId);
         } catch (FeignException e) {
@@ -69,7 +69,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public void release(Long productId, int quantity, String token) {
         try {
-            productFeign.release(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader(token));
+            productFeign.release(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader());
         } catch (FeignException.NotFound e) {
             log.warn("Produto {} não encontrado ao tentar liberar reserva de estoque.", productId);
         } catch (FeignException e) {
@@ -80,7 +80,7 @@ public class ProductStockAdapterOut implements ProductStockPortOut {
     @Override
     public void confirm(Long productId, int quantity, String token) {
         try {
-            productFeign.confirm(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader(token));
+            productFeign.confirm(productId, new StockAdjustmentRequestDto(quantity), tokenPropagation.resolveAuthorizationHeader());
         } catch (FeignException e) {
             log.error("Falha ao confirmar baixa definitiva de estoque do produto {}: {}", productId, e.getMessage());
         }

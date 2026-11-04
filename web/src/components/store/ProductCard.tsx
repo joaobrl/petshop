@@ -6,6 +6,7 @@ import { StockBadge } from "./StockBadge";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { ApiError } from "../../services/http";
+import { formatCurrency } from "../../utils/format";
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
@@ -64,7 +65,7 @@ export function ProductCard({ product }: { product: Product }) {
         </Link>
       </div>
       <p className="body-strong">
-        {product.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        {formatCurrency(product.price)}
       </p>
       <div>
         <StockBadge stockRange={product.stockRange} />
