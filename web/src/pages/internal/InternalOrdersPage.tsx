@@ -5,9 +5,9 @@ import { OrderStatusBadge } from "../../components/ui/StatusBadges";
 import { Button } from "../../components/ui/Button";
 import { TextField } from "../../components/ui/Field";
 import type { Order } from "../../types/order";
+import { formatDateTime } from "../../utils/date";
+import { formatCurrency } from "../../utils/format";
 
-const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const dateTime = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 
 export function InternalOrdersPage() {
   const [orderId, setOrderId] = useState("");
@@ -58,7 +58,7 @@ export function InternalOrdersPage() {
             <OrderStatusBadge status={order.status} />
           </div>
           <span className="caption" style={{ color: "var(--ink-muted)" }}>
-            {dateTime(order.createdAt)}
+            {formatDateTime(order.createdAt)}
           </span>
           {order.items.map((item) => (
             <div key={item.productId} style={{ display: "flex", justifyContent: "space-between" }}>
@@ -69,7 +69,7 @@ export function InternalOrdersPage() {
           ))}
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-2)", display: "flex", justifyContent: "space-between" }}>
             <span className="heading">Total</span>
-            <span className="heading">{currency(order.totalAmount)}</span>
+            <span className="heading">{formatCurrency(order.totalAmount)}</span>
           </div>
         </div>
       )}

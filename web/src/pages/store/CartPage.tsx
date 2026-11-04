@@ -3,8 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
 import { Button } from "../../components/ui/Button";
 import { PawBackground } from "../../components/ui/PawBackground";
+import { formatCurrency } from "../../utils/format";
 
-const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function CartPage() {
   const { cart, loading, addItem, removeItem } = useCart();
@@ -89,14 +89,14 @@ export function CartPage() {
                     {item.productName}
                   </p>
                   <p className="caption" style={{ margin: "4px 0 0", color: "var(--ink-muted)" }}>
-                    {currency(item.unitPrice)} cada · {item.quantity} {item.quantity === 1 ? "unidade" : "unidades"}
+                    {formatCurrency(item.unitPrice)} cada · {item.quantity} {item.quantity === 1 ? "unidade" : "unidades"}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" disabled={unavailable} onClick={() => addItem(item.productId, 1)}>
                   +1
                 </Button>
                 <p className="body-strong" style={{ width: 90, textAlign: "right", margin: 0 }}>
-                  {currency(item.subtotal)}
+                  {formatCurrency(item.subtotal)}
                 </p>
                 <button
                   className="btn btn-outline btn-sm"
@@ -128,7 +128,7 @@ export function CartPage() {
         <span className="heading">
           Total {selectedItems.length !== cart.items.length && <span className="caption">(itens selecionados)</span>}
         </span>
-        <span className="title">{currency(selectedTotal)}</span>
+        <span className="title">{formatCurrency(selectedTotal)}</span>
       </div>
 
       <div style={{ display: "flex", gap: "var(--space-3)" }}>

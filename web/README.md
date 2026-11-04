@@ -21,7 +21,11 @@ Abre em `http://localhost:5173`. `npm run build` gera o bundle de produção
 ## Backend
 
 O frontend chama os microsserviços reais via `fetch` (ver `src/services/`) —
-nenhum dado é mockado. Pré-requisitos:
+nenhum dado é mockado. Todas as chamadas vão para o **gateway-service**
+(`http://localhost:8080`, o mesmo que o gateway expõe no `docker compose`),
+que roteia por path para cada microsserviço — o frontend não usa mais as
+portas individuais. Para outra base, defina `VITE_API_BASE_URL` (ver
+`.env.example`). Pré-requisitos:
 
 1. **Suba o backend** a partir da raiz do repositório (crie o `.env` descrito
    no README principal, incluindo `BOOTSTRAP_ADMIN_PASSWORD` se quiser uma
@@ -101,7 +105,7 @@ src/
   styles/        tokens.css, base.css, components.css — direto do design system
   types/         tipos espelhando os DTOs reais dos módulos Java
   mocks/         só avatarOptions.ts — mapa dos avatares de pet enviados pro design system (não é dado mockado)
-  services/      fetch real contra cada microsserviço (ver src/services/config.ts pras portas)
+  services/      fetch real, todo via gateway (URL base em src/services/config.ts)
   context/       AuthContext (JWT real, decodificado no cliente), CartContext (carrinho real)
   components/
     ui/          Button, Badge, Card (classe .card), Field, Logo, PetAvatar, InitialsAvatar, PawBackground, Icon
