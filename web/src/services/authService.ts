@@ -15,6 +15,7 @@ export interface DecodedToken {
   phone: string;
   role: Role;
   type: AccountType;
+  exp?: number; // seconds since epoch (JWT "exp" claim)
 }
 
 export function decodeToken(token: string): DecodedToken {
@@ -28,7 +29,18 @@ export function decodeToken(token: string): DecodedToken {
     phone: json.phone,
     role: json.role,
     type: json.type,
+    exp: typeof json.exp === "number" ? json.exp : undefined,
   };
+}
+
+export function isExpired(decoded: DecodedToken): boolean {
+  return decoded.exp !== undefined && decoded.exp * 1000 <= Date.now();
+}
+
+// Only internal paths: "/x" is fine, "//host" and "/\host" are not.
+export function safeNext(next: string | null): string | null {
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return null;
+  return next;
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
