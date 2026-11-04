@@ -4,8 +4,8 @@ import * as orderService from "../../services/orderService";
 import type { Order } from "../../types/order";
 import { CheckCircleIcon } from "../../components/ui/Icon";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
+import { formatDateTime } from "../../utils/date";
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 export function OrderConfirmationPage() {
   const { id } = useParams();
@@ -32,7 +32,7 @@ export function OrderConfirmationPage() {
       <OrderStatusBadge status={order.status} />
       {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
         <p className="caption" style={{ color: "var(--ink-muted)", margin: 0 }}>
-          Reservado até {time(order.expiresAt)}
+          Reservado até {formatDateTime(order.expiresAt)}
         </p>
       )}
       <Link to="/minha-conta/pedidos" className="btn btn-primary" style={{ textDecoration: "none", marginTop: "var(--space-4)" }}>

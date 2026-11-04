@@ -7,11 +7,15 @@ import com.petshop.commons.feign.TokenPropagation;
 import feign.FeignException;
 import feign.Request;
 import feign.Response;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -38,6 +42,11 @@ class CustomerAdapterOutTest {
     @BeforeEach
     void setUp() {
         adapter = new CustomerAdapterOut(customerFeign, new TokenPropagation(JWT_SERVICE, "order-service"));
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     private FeignException feignException(int status) {
@@ -67,11 +76,13 @@ class CustomerAdapterOutTest {
     }
 
     @Test
-    void relaysTheGivenTokenToFeign() {
+    void relaysTheAuthenticatedUserTokenFromSecurityContext() {
         var id = UUID.randomUUID();
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "user", "user-token", AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
         when(customerFeign.getCustomerById(eq(id), anyString())).thenReturn(new CustomerInfoResponseDto(id, "Maria", "maria@mail.com"));
 
-        adapter.findCustomerById(id, "Bearer user-token");
+        adapter.findCustomerById(id, "Bearer ignorado");
 
         verify(customerFeign).getCustomerById(id, "Bearer user-token");
     }

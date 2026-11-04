@@ -10,12 +10,16 @@ import com.petshop.commons.feign.TokenPropagation;
 import feign.FeignException;
 import feign.Request;
 import feign.Response;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -46,6 +50,17 @@ class ProductStockAdapterOutTest {
     @BeforeEach
     void setUp() {
         adapter = new ProductStockAdapterOut(productFeign, new TokenPropagation(JWT_SERVICE, "order-service"));
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // Simula o que o JwtAuthenticationFilter faz com um token válido: guarda o token bruto como credentials.
+    private static void authenticateWith(String rawToken) {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "user", rawToken, AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
     }
 
     private FeignException feignException(int status, String body) {
@@ -84,6 +99,7 @@ class ProductStockAdapterOutTest {
             enabled.setEnabled(true);
             enabled.setStockRange("LOW");
             when(productFeign.findByIds(eq(List.of(1L, 2L, 3L)), anyString())).thenReturn(List.of(enabled, disabled));
+            authenticateWith("user-token");
 
             var infos = adapter.getInfos(List.of(1L, 2L, 3L), "Bearer user-token");
 
@@ -122,10 +138,11 @@ class ProductStockAdapterOutTest {
         }
 
         @Test
-        void relaysTheGivenTokenToFeign() {
+        void relaysTheAuthenticatedUserTokenFromSecurityContext() {
             when(productFeign.findById(eq(1L), anyString())).thenReturn(sampleResponse());
+            authenticateWith("user-token");
 
-            adapter.getInfo(1L, "Bearer user-token");
+            adapter.getInfo(1L, "Bearer ignorado");
 
             verify(productFeign).findById(1L, "Bearer user-token");
         }
@@ -208,10 +225,11 @@ class ProductStockAdapterOutTest {
         }
 
         @Test
-        void relaysTheCallerTokenWhenGiven() {
+        void relaysTheAuthenticatedUserTokenFromSecurityContext() {
             when(productFeign.reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), anyString())).thenReturn(sampleResponse());
+            authenticateWith("user-token");
 
-            adapter.reserve(1L, 5, "Bearer user-token");
+            adapter.reserve(1L, 5, "Bearer ignorado");
 
             verify(productFeign).reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), eq("Bearer user-token"));
         }
@@ -245,8 +263,10 @@ class ProductStockAdapterOutTest {
         }
 
         @Test
-        void relaysTheCallerTokenWhenGiven() {
-            adapter.release(1L, 3, "Bearer user-token");
+        void relaysTheAuthenticatedUserTokenFromSecurityContext() {
+            authenticateWith("user-token");
+
+            adapter.release(1L, 3, "Bearer ignorado");
 
             verify(productFeign).release(eq(1L), eq(new StockAdjustmentRequestDto(3)), eq("Bearer user-token"));
         }
@@ -281,8 +301,10 @@ class ProductStockAdapterOutTest {
         }
 
         @Test
-        void relaysTheCallerTokenWhenGiven() {
-            adapter.confirm(1L, 2, "Bearer user-token");
+        void relaysTheAuthenticatedUserTokenFromSecurityContext() {
+            authenticateWith("user-token");
+
+            adapter.confirm(1L, 2, "Bearer ignorado");
 
             verify(productFeign).confirm(eq(1L), eq(new StockAdjustmentRequestDto(2)), eq("Bearer user-token"));
         }

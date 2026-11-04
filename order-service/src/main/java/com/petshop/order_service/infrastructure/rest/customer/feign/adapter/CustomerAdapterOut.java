@@ -23,7 +23,7 @@ public class CustomerAdapterOut implements CustomerPortOut {
     @Override
     public Optional<CustomerInfo> findCustomerById(UUID customerId, String token) {
         try {
-            var response = customerFeign.getCustomerById(customerId, tokenPropagation.resolveAuthorizationHeader(token));
+            var response = customerFeign.getCustomerById(customerId, tokenPropagation.resolveAuthorizationHeader());
             if (response == null) {
                 return Optional.empty();
             }
