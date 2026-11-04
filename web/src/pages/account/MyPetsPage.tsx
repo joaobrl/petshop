@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { useAuth } from "../../context/AuthContext";
 import * as customerService from "../../services/customerService";
 import { ApiError } from "../../services/http";
@@ -10,7 +12,10 @@ import type { Customer, PetType, SizeCategory } from "../../types/customer";
 
 export function MyPetsPage() {
   const { user } = useAuth();
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const { data: loaded, error: loadError, retry } = useApi(() => customerService.getCustomer(user!.id), [user], !!user);
+  // addPet returns the updated customer; it overrides the loaded one until the next load.
+  const [updated, setUpdated] = useState<Customer | null>(null);
+  const customer = updated ?? loaded;
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [avatarId, setAvatarId] = useState(AVATAR_OPTIONS[0].id);
@@ -19,13 +24,6 @@ export function MyPetsPage() {
   const [healthIssues, setHealthIssues] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function reload() {
-    if (!user) return;
-    customerService.getCustomer(user.id).then(setCustomer);
-  }
-
-  useEffect(reload, [user]);
 
   const selectedAvatar = AVATAR_OPTIONS.find((a) => a.id === avatarId)!;
   // The backend has no avatar concept — the picker just drives petType/petBreed;
@@ -37,7 +35,7 @@ export function MyPetsPage() {
     setSaving(true);
     setError(null);
     try {
-      const updated = await customerService.addPet(user.id, {
+      const result = await customerService.addPet(user.id, {
         petName: name,
         petType: selectedAvatar.petType as PetType,
         petBreed: selectedAvatar.label,
@@ -45,7 +43,7 @@ export function MyPetsPage() {
         weightInKg: Number(weight) || 0,
         petHealthIssues: healthIssues,
       });
-      setCustomer(updated);
+      setUpdated(result);
       setName("");
       setWeight("");
       setHealthIssues("");
@@ -57,7 +55,9 @@ export function MyPetsPage() {
     }
   }
 
-  if (!customer) return <p className="body">Carregando…</p>;
+  if (!customer) {
+    return loadError ? <ErrorState message={loadError} onRetry={retry} /> : <p className="body">Carregando…</p>;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)", maxWidth: 560 }}>

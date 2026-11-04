@@ -2,10 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import * as orderService from "../services/orderService";
 import type { Cart } from "../types/order";
 import { useAuth } from "./AuthContext";
+import { messageOf } from "../hooks/useApi";
 
 interface CartContextValue {
   cart: Cart | null;
   loading: boolean;
+  error: string | null; // last failure of the automatic cart load (refresh)
   addItem: (productId: number, quantity?: number) => Promise<void>;
   removeItem: (productId: number) => Promise<void>;
   refresh: () => Promise<void>;
@@ -19,6 +21,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -26,8 +29,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       setCart(await orderService.getCart(user.id));
+    } catch (e) {
+      // Never let the cart load reject unhandled (it runs from an effect and
+      // from checkout): surface it as state for the cart page to show.
+      setError(messageOf(e));
     } finally {
       setLoading(false);
     }
@@ -62,6 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const value: CartContextValue = {
     cart,
     loading,
+    error,
     addItem,
     removeItem,
     refresh,

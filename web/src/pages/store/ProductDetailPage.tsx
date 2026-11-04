@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { Product } from "../../types/product";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { getProduct } from "../../services/productService";
 import { ApiError } from "../../services/http";
 import { Button } from "../../components/ui/Button";
@@ -14,18 +15,21 @@ export function ProductDetailPage() {
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { isAuthenticated } = useAuth();
-  const [product, setProduct] = useState<Product | null | undefined>(undefined);
+  // 404 means "not found"; any other failure is a load error with retry.
+  const { data: product, error: loadError, retry } = useApi(
+    () =>
+      getProduct(Number(id)).catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }),
+    [id],
+    !!id,
+  );
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    getProduct(Number(id))
-      .then(setProduct)
-      .catch(() => setProduct(null));
-  }, [id]);
-
+  if (loadError) return <ErrorState message={loadError} onRetry={retry} />;
   if (product === undefined) return <p className="body">Carregando…</p>;
   if (product === null) return <p className="body">Produto não encontrado.</p>;
 

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import * as orderService from "../../services/orderService";
-import type { Order } from "../../types/order";
+import { ApiError } from "../../services/http";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { CheckCircleIcon } from "../../components/ui/Icon";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
 import { formatDateTime } from "../../utils/date";
@@ -9,16 +10,18 @@ import { formatDateTime } from "../../utils/date";
 
 export function OrderConfirmationPage() {
   const { id } = useParams();
-  const [order, setOrder] = useState<Order | null | undefined>(undefined);
+  // 404 means "not found"; any other failure is a load error with retry.
+  const { data: order, error, retry } = useApi(
+    () =>
+      orderService.getOrder(id!).catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }),
+    [id],
+    !!id,
+  );
 
-  useEffect(() => {
-    if (!id) return;
-    orderService
-      .getOrder(id)
-      .then(setOrder)
-      .catch(() => setOrder(null));
-  }, [id]);
-
+  if (error) return <ErrorState message={error} onRetry={retry} />;
   if (order === undefined) return <p className="body">Carregando…</p>;
   if (order === null) return <p className="body">Pedido não encontrado.</p>;
 

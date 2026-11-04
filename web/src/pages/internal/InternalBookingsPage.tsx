@@ -1,21 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import * as bookingService from "../../services/bookingService";
 import { ApiError } from "../../services/http";
 import { BookingStatusBadge } from "../../components/ui/StatusBadges";
 import { Button } from "../../components/ui/Button";
 import { SERVICE_TYPE_LABEL } from "../../types/booking";
-import type { Booking } from "../../types/booking";
 import { formatDateTime } from "../../utils/date";
 
 export function InternalBookingsPage() {
-  const [bookings, setBookings] = useState<Booking[] | null>(null);
+  const { data: bookings, error: loadError, retry: reload } = useApi(() => bookingService.listBookings(), []);
   const [error, setError] = useState<string | null>(null);
-
-  function reload() {
-    bookingService.listBookings().then(setBookings);
-  }
-
-  useEffect(reload, []);
 
   async function handleComplete(id: string) {
     setError(null);
@@ -37,7 +32,7 @@ export function InternalBookingsPage() {
     }
   }
 
-  const sorted = bookings ? [...bookings].sort((a, b) => a.bookingDateTime.localeCompare(b.bookingDateTime)) : null;
+  const sorted = bookings ? [...bookings].sort((a, b) => a.bookingDateTime.localeCompare(b.bookingDateTime)) : undefined;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -47,7 +42,8 @@ export function InternalBookingsPage() {
           {error}
         </p>
       )}
-      {sorted === null && <p className="body">Carregando…</p>}
+      {loadError && <ErrorState message={loadError} onRetry={reload} />}
+      {!sorted && !loadError && <p className="body">Carregando…</p>}
       {sorted?.length === 0 && <p className="body">Nenhum agendamento.</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
         {sorted?.map((booking) => (

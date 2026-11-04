@@ -1,15 +1,11 @@
-import { useEffect, useState } from "react";
-import type { Product } from "../../types/product";
 import { listProducts } from "../../services/productService";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { ProductCard } from "../../components/store/ProductCard";
 import { PawBackground } from "../../components/ui/PawBackground";
 
 export function CatalogPage() {
-  const [products, setProducts] = useState<Product[] | null>(null);
-
-  useEffect(() => {
-    listProducts().then(setProducts);
-  }, []);
+  const { data: products, error, retry } = useApi(() => listProducts(), []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
@@ -27,7 +23,9 @@ export function CatalogPage() {
         <h2 className="title" style={{ marginBottom: "var(--space-4)" }}>
           Catálogo
         </h2>
-        {!products ? (
+        {error ? (
+          <ErrorState message={error} onRetry={retry} />
+        ) : !products ? (
           <p className="body">Carregando produtos…</p>
         ) : (
           <div
