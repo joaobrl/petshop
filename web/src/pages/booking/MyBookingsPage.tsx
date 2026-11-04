@@ -6,8 +6,9 @@ import * as bookingService from "../../services/bookingService";
 import * as customerService from "../../services/customerService";
 import { BookingStatusBadge } from "../../components/ui/StatusBadges";
 import { SERVICE_TYPE_LABEL } from "../../types/booking";
+import { formatCurrency } from "../../utils/format";
+import { formatDateTime } from "../../utils/date";
 
-const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function MyBookingsPage() {
   const { user } = useAuth();
@@ -54,9 +55,9 @@ export function MyBookingsPage() {
             <BookingStatusBadge status={booking.status} />
           </div>
           <span className="caption" style={{ color: "var(--ink-muted)" }}>
-            {booking.bookingDateTime}
+            {formatDateTime(booking.bookingDateTime)}
           </span>
-          <span className="body-strong">{currency(booking.serviceType.price)}</span>
+          <span className="body-strong">{formatCurrency(booking.serviceType.price)}</span>
         </div>
       ))}
     </div>
