@@ -1,26 +1,29 @@
-package com.petshop.order_service.infrastructure.security;
+package com.petshop.commons.feign;
 
 import com.petshop.commons.security.jwt.JwtService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 
 /**
  * Resolve o header Authorization a repassar nas chamadas Feign de saída.
  * {@code resolveAuthorizationHeader} repassa o token do usuário autenticado
  * na requisição atual (já validado pelo JwtAuthenticationFilter), senão um
  * token de serviço (relay-com-fallback); {@code mintServiceToken} sempre assina um
- * token de serviço novo, usado nas rotas internas do product-registration
- * (reserve/release/confirm) que não podem aceitar o token de um cliente.
+ * token de serviço novo (rotas internas que não podem aceitar o token de um
+ * cliente, ou serviços que só fazem consulta de sistema).
+ * <p>
+ * Cada serviço declara o bean, informando o próprio nome
+ * ({@code spring.application.name}), que vai como subject do token de serviço.
  */
-@Component
-@RequiredArgsConstructor
 public class TokenPropagation {
 
-    private static final String SERVICE_NAME = "order-service";
-
     private final JwtService jwtService;
+    private final String serviceName;
+
+    public TokenPropagation(JwtService jwtService, String serviceName) {
+        this.jwtService = jwtService;
+        this.serviceName = serviceName;
+    }
 
     /**
      * Repassa o token guardado como credentials pelo JwtAuthenticationFilter.
@@ -41,6 +44,6 @@ public class TokenPropagation {
     }
 
     public String mintServiceToken() {
-        return "Bearer " + jwtService.generateServiceToken(SERVICE_NAME);
+        return "Bearer " + jwtService.generateServiceToken(serviceName);
     }
 }

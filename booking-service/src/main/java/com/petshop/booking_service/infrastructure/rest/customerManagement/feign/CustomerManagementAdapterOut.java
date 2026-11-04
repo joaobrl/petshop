@@ -3,7 +3,7 @@ package com.petshop.booking_service.infrastructure.rest.customerManagement.feign
 import com.petshop.booking_service.core.domain.StaffAssignment;
 import com.petshop.booking_service.core.port.out.CustomerManagementPortOut;
 import com.petshop.booking_service.infrastructure.rest.customerManagement.feign.mapper.CustomerMapper;
-import com.petshop.booking_service.infrastructure.security.TokenPropagation;
+import com.petshop.commons.feign.TokenPropagation;
 import com.petshop.commons.exception.DependencyUnavailableException;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;

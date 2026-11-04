@@ -96,6 +96,17 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- OpenFeign: RequestInterceptor usado pelo CorrelationIdFeignConfig.
+             "provided": só quem usa Feign (e importa a config) precisa dele.
+             Versão deve acompanhar a resolvida pelo spring-cloud-dependencies
+             dos serviços (este módulo não tem parent/BOM). -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-core</artifactId>
+            <version>13.6.1</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- JWT próprio (substitui o Keycloak) — diferente das dependências
              acima, esta NÃO é "provided": nenhum serviço já traz jjwt no
              classpath, então aqui ela é uma dependência de verdade (compile

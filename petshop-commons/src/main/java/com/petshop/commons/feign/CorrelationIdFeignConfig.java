@@ -1,4 +1,4 @@
-package com.petshop.staff_service.infrastructure.security;
+package com.petshop.commons.feign;
 
 import com.petshop.commons.web.CorrelationIdFilter;
 import feign.RequestInterceptor;
@@ -7,9 +7,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * O Authorization das chamadas Feign agora é explícito (parâmetro
- * {@code @RequestHeader} em cada método, ver TokenPropagation). Só o
- * correlation-id continua sendo propagado via interceptor.
+ * Propaga o correlation-id (MDC) nas chamadas Feign de saída. O Authorization
+ * é explícito (parâmetro {@code @RequestHeader} em cada método, ver
+ * {@link TokenPropagation}). Os serviços fazem {@code @Import} desta classe.
  */
 @Configuration
 public class CorrelationIdFeignConfig {

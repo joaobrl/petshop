@@ -28,6 +28,12 @@ Biblioteca compartilhada (JAR) usada pelos microsserviços do WebCommerce/PetSho
 - **`NotFoundException`**, **`ConflictException`**, **`BusinessRuleException`**, **`BusinessException`** — exceções de negócio usadas pelas camadas de aplicação/domínio dos serviços.
 - **`ErrorResponseDto`** — DTO auxiliar de erro.
 
+### Feign (`com.petshop.commons.feign`)
+
+- `TokenPropagation`: resolve o header `Authorization` das chamadas Feign (`resolveAuthorizationHeader` repassa o token recebido ou assina token de serviço; `mintServiceToken` sempre assina). Cada serviço declara o `@Bean` com `${spring.application.name}`.
+- `CorrelationIdFeignConfig`: `RequestInterceptor` que propaga o correlation id; o serviço faz `@Import(CorrelationIdFeignConfig.class)`.
+- OpenFeign (`feign-core`) é dependência `provided`: só quem usa Feign precisa tê-lo no classpath.
+
 ## Stack técnica
 
 - Java 21

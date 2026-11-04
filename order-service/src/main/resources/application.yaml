@@ -9,6 +9,8 @@ external:
       url: ${EXTERNAL_API_CUSTOMER_SERVICE_URL:http://localhost:8082}
 
 spring:
+  application:
+    name: order-service
   cloud:
     openfeign:
       client:
