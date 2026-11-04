@@ -2,16 +2,21 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
 import { Button } from "../../components/ui/Button";
+import { ErrorState } from "../../components/ErrorState";
+import { messageOf } from "../../hooks/useApi";
 import { PawBackground } from "../../components/ui/PawBackground";
 
 const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function CartPage() {
-  const { cart, loading, addItem, removeItem } = useCart();
+  const { cart, loading, error: loadError, addItem, removeItem, refresh } = useCart();
   const navigate = useNavigate();
   // The cart doesn't reserve stock: the customer picks which items to buy
   // now. Available items start checked, so we only track the ones unchecked.
   const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (loadError && !cart) return <ErrorState message={loadError} onRetry={refresh} />;
 
   if (!loading && (!cart || cart.items.length === 0)) {
     return (
@@ -43,6 +48,15 @@ export function CartPage() {
   );
   const selectedTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
 
+  async function runAction(action: () => Promise<void>) {
+    setActionError(null);
+    try {
+      await action();
+    } catch (e) {
+      setActionError(messageOf(e));
+    }
+  }
+
   function toggle(productId: number) {
     setUnchecked((current) => {
       const next = new Set(current);
@@ -59,6 +73,12 @@ export function CartPage() {
       {cart.removedItems.length > 0 && (
         <p className="caption" style={{ margin: 0, color: "var(--ink-muted)" }}>
           {cart.removedItems.join(", ")} saiu do carrinho porque não está mais à venda.
+        </p>
+      )}
+
+      {actionError && (
+        <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
+          {actionError}
         </p>
       )}
 
@@ -92,7 +112,7 @@ export function CartPage() {
                     {currency(item.unitPrice)} cada · {item.quantity} {item.quantity === 1 ? "unidade" : "unidades"}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" disabled={unavailable} onClick={() => addItem(item.productId, 1)}>
+                <Button variant="outline" size="sm" disabled={unavailable} onClick={() => runAction(() => addItem(item.productId, 1))}>
                   +1
                 </Button>
                 <p className="body-strong" style={{ width: 90, textAlign: "right", margin: 0 }}>
@@ -100,7 +120,7 @@ export function CartPage() {
                 </p>
                 <button
                   className="btn btn-outline btn-sm"
-                  onClick={() => removeItem(item.productId)}
+                  onClick={() => runAction(() => removeItem(item.productId))}
                   aria-label="Remover item"
                 >
                   Remover

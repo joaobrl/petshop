@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import * as customerService from "../../services/customerService";
 import * as bookingService from "../../services/bookingService";
 import { ApiError } from "../../services/http";
-import type { Customer } from "../../types/customer";
 import type { ServiceType } from "../../types/booking";
 import { SERVICE_TYPE_LABEL, formatBookingDateTime } from "../../types/booking";
 import { Button } from "../../components/ui/Button";
@@ -17,22 +18,21 @@ export function NewBookingPage() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [petId, setPetId] = useState("");
+  const { data: customer, error: loadError, retry } = useApi(
+    () => customerService.getCustomer(user!.id),
+    [user],
+    !!user,
+  );
+  // Empty until the customer picks one; falls back to their first pet.
+  const [selectedPetId, setSelectedPetId] = useState("");
+  const petId = selectedPetId || customer?.pets[0]?.id || "";
+  const setPetId = setSelectedPetId;
   const [serviceType, setServiceType] = useState<ServiceType>("BANHO");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("10:00");
   const [observations, setObservations] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    customerService.getCustomer(user.id).then((c) => {
-      setCustomer(c);
-      setPetId(c.pets[0]?.id ?? "");
-    });
-  }, [user]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +83,7 @@ export function NewBookingPage() {
           Você precisa estar logado para agendar. <a href="/entrar">Entrar</a>
         </p>
       ) : !customer ? (
-        <p className="body">Carregando…</p>
+        loadError ? <ErrorState message={loadError} onRetry={retry} /> : <p className="body">Carregando…</p>
       ) : customer.pets.length === 0 ? (
         <p className="body">Cadastre um pet antes de agendar um serviço.</p>
       ) : (

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import * as orderService from "../../services/orderService";
-import type { Order } from "../../types/order";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
 
 const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -8,11 +8,7 @@ const dateTime = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateSt
 const time = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 export function MyOrdersPage() {
-  const [orders, setOrders] = useState<Order[] | null>(null);
-
-  useEffect(() => {
-    orderService.listMyOrders().then(setOrders);
-  }, []);
+  const { data: orders, error, retry } = useApi(() => orderService.listMyOrders(), []);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", maxWidth: 640 }}>
@@ -21,7 +17,8 @@ export function MyOrdersPage() {
         O backend ainda não tem um endpoint para listar todos os pedidos de um cliente — esta lista
         mostra os pedidos feitos neste navegador.
       </p>
-      {orders === null && <p className="body">Carregando…</p>}
+      {error && <ErrorState message={error} onRetry={retry} />}
+      {!orders && !error && <p className="body">Carregando…</p>}
       {orders?.length === 0 && <p className="body">Você ainda não fez nenhum pedido.</p>}
       {orders?.map((order) => (
         <div key={order.id} className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>

@@ -1,25 +1,32 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useApi } from "../../hooks/useApi";
+import { ErrorState } from "../../components/ErrorState";
 import { useAuth } from "../../context/AuthContext";
 import * as bookingService from "../../services/bookingService";
 import * as customerService from "../../services/customerService";
 import { BookingStatusBadge } from "../../components/ui/StatusBadges";
 import { SERVICE_TYPE_LABEL } from "../../types/booking";
-import type { Booking } from "../../types/booking";
-import type { Customer } from "../../types/customer";
 
 const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function MyBookingsPage() {
   const { user } = useAuth();
-  const [bookings, setBookings] = useState<Booking[] | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const { data: bookings, error: bookingsError, retry: retryBookings } = useApi(
+    () => bookingService.listBookings({ ownerCpf: user!.cpf }),
+    [user],
+    !!user,
+  );
+  const { data: customer, error: customerError, retry: retryCustomer } = useApi(
+    () => customerService.getCustomer(user!.id),
+    [user],
+    !!user,
+  );
+  const error = bookingsError ?? customerError;
 
-  useEffect(() => {
-    if (!user) return;
-    customerService.getCustomer(user.id).then(setCustomer);
-    bookingService.listBookings({ ownerCpf: user.cpf }).then(setBookings);
-  }, [user]);
+  function retry() {
+    retryBookings();
+    retryCustomer();
+  }
 
   function petName(petId: string) {
     return customer?.pets.find((p) => p.id === petId)?.petName ?? petId.slice(0, 8);
@@ -34,7 +41,8 @@ export function MyBookingsPage() {
         </Link>
       </div>
 
-      {bookings === null && <p className="body">Carregando…</p>}
+      {error && <ErrorState message={error} onRetry={retry} />}
+      {!bookings && !error && <p className="body">Carregando…</p>}
       {bookings?.length === 0 && <p className="body">Nenhum agendamento ainda.</p>}
 
       {bookings?.map((booking) => (
