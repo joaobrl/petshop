@@ -5,7 +5,7 @@ import type { PageResponse } from "../types/common";
 
 export async function getAvailableSlots(
   serviceType: ServiceType,
-  date: string, // "dd/MM/yyyy"
+  date: string, // ISO-8601 date, "yyyy-MM-dd"
   range: RangeType = "DAY",
 ): Promise<AvailableSlot[]> {
   const params = new URLSearchParams({ serviceType, date, range });

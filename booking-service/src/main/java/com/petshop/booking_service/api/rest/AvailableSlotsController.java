@@ -18,6 +18,6 @@ public interface AvailableSlotsController {
     @GetMapping("/available-slots")
     ResponseEntity<List<AvailableSlotResponseDto>> getAvailableSlots(
             @RequestParam("serviceType") ServiceType serviceType,
-            @RequestParam("date") @DateTimeFormat(pattern = "dd/MM/yyyy") LocalDate date,
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam("range") RangeType range);
 }

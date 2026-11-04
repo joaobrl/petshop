@@ -36,6 +36,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +63,7 @@ class BookingServiceTest {
     private static final LocalDate FAR_FUTURE_MONDAY =
             LocalDate.now().plusYears(1).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
     private static final LocalDate FAR_FUTURE_TUESDAY = FAR_FUTURE_MONDAY.plusDays(1);
+    private static final DateTimeFormatter BR_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final LocalDate FAR_FUTURE_SATURDAY =
             FAR_FUTURE_MONDAY.with(TemporalAdjusters.next(DayOfWeek.SATURDAY));
     private static final LocalDate FAR_FUTURE_SUNDAY =
@@ -507,6 +509,41 @@ class BookingServiceTest {
                 .hasMessageContaining("Não há mais horários disponíveis")
                 .extracting(ex -> ((BookingUnavailableException) ex).getSuggestedSlot())
                 .isNull();
+    }
+
+    @Test
+    @DisplayName("Deve formatar horário solicitado e sugerido em formato brasileiro na mensagem de indisponibilidade")
+    void shouldFormatRequestedAndSuggestedSlotsAsBrazilianWhenSuggestionExists() {
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var suggested = FAR_FUTURE_MONDAY.atTime(9, 30);
+        var dto = requestDto(ServiceType.BANHO, dateTime);
+        when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER", null)).thenReturn(List.of());
+        when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
+        when(availableSlotsPortIn.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY))
+                .thenReturn(List.of(new AvailableSlot(suggested, 1)));
+
+        assertThatThrownBy(() -> service.createBooking(dto, null, null))
+                .isInstanceOf(BookingUnavailableException.class)
+                .hasMessage("Não há funcionário disponível para o horário selecionado: "
+                        + FAR_FUTURE_MONDAY.format(BR_DATE) + " 09:00. Próximo horário disponível no mesmo dia: "
+                        + FAR_FUTURE_MONDAY.format(BR_DATE) + " 09:30.");
+    }
+
+    @Test
+    @DisplayName("Deve formatar horário e dia em formato brasileiro na mensagem quando não há sugestão")
+    void shouldFormatSlotAndDayAsBrazilianWhenNoSuggestionExists() {
+        var dateTime = FAR_FUTURE_MONDAY.atTime(9, 0);
+        var dto = requestDto(ServiceType.BANHO, dateTime);
+        when(customerManagementPortOut.getScheduledStaff(dateTime, "GROOMER", null)).thenReturn(List.of());
+        when(bookingPortOut.findActiveBookingsAt(dateTime)).thenReturn(List.of());
+        when(availableSlotsPortIn.findAvailableSlots(ServiceType.BANHO, FAR_FUTURE_MONDAY, RangeType.DAY))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.createBooking(dto, null, null))
+                .isInstanceOf(BookingUnavailableException.class)
+                .hasMessage("Não há funcionário disponível para o horário selecionado: "
+                        + FAR_FUTURE_MONDAY.format(BR_DATE) + " 09:00. Não há mais horários disponíveis para o dia "
+                        + FAR_FUTURE_MONDAY.format(BR_DATE) + ".");
     }
 
     @Test

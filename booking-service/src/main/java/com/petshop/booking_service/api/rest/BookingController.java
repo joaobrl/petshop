@@ -9,6 +9,7 @@ import com.petshop.commons.security.jwt.AuthenticatedUser;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +32,7 @@ public interface BookingController {
     @GetMapping("/list")
     ResponseEntity<PageResponse<BookingResponseDto>> listBookings(@RequestParam(required = false) String ownerCpf,
                                                           @RequestParam(required = false) UUID petId,
-                                                          @RequestParam(required = false) LocalDate date,
+                                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                                           @RequestParam(required = false) String employeeName,
                                                           @RequestParam(required = false) String serviceType,
                                                           @RequestParam(required = false) String status,

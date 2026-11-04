@@ -12,7 +12,13 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -109,6 +115,69 @@ class BookingHistoryKafkaListenerIntegrationTest {
             assertThat(saved.get().getServiceType()).isEqualTo("BANHO");
             assertThat(saved.get().getStatus()).isEqualTo("COMPLETED");
         });
+    }
+
+    private String rawJson(UUID bookingId, String ownerCpf, String bookingDateTimeJson) {
+        return "{\"id\":\"" + bookingId + "\",\"petId\":\"" + UUID.randomUUID()
+                + "\",\"ownerName\":\"Ciclana\",\"ownerCpf\":\"" + ownerCpf
+                + "\",\"ownerContact\":\"11999990000\",\"serviceType\":{\"serviceType\":\"BANHO\"},"
+                + "\"bookingDateTime\":" + bookingDateTimeJson + ",\"status\":\"COMPLETED\"}";
+    }
+
+    private void sendRawJson(String key, String json) throws Exception {
+        Map<String, Object> producerProps = new HashMap<>();
+        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+
+        try (var rawProducer = new KafkaProducer<String, String>(producerProps)) {
+            rawProducer.send(new ProducerRecord<>("booking-completed", key, json)).get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private boolean deadLetterReceived(UUID bookingId) {
+        Map<String, Object> consumerProps = new HashMap<>();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "dlt-check-" + UUID.randomUUID());
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+        try (var dltConsumer = new KafkaConsumer<String, String>(consumerProps)) {
+            dltConsumer.subscribe(List.of("booking-completed.DLT"));
+            var records = dltConsumer.poll(Duration.ofSeconds(3));
+            for (var record : records) {
+                if (bookingId.toString().equals(record.key())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "15/08/2026 09:00|15/08/2026|09:00",
+            "2026-08-15T09:00:00|15/08/2026|09:00",
+            "2026-08-15T09:00|15/08/2026|09:00"
+    })
+    @DisplayName("Deve consumir payload JSON cru com data ISO ou legada sem enviar para o DLT")
+    void shouldPersistHistoryWhenRawJsonHasIsoOrLegacyDateAndNotSendToDlt(String dateJson, String expectedDate,
+                                                                          String expectedTime) throws Exception {
+        var bookingId = UUID.randomUUID();
+        var ownerCpf = String.valueOf(10000000000L + Math.abs(bookingId.getMostSignificantBits() % 80000000000L));
+        var customer = customerWithPet(ownerCpf);
+
+        sendRawJson(bookingId.toString(), rawJson(bookingId, ownerCpf, "\"" + dateJson + "\""));
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
+            var saved = bookingHistoryRepository.findByBookingId(bookingId);
+            assertThat(saved).isPresent();
+            assertThat(saved.get().getCustomerId()).isEqualTo(customer.getId());
+            assertThat(saved.get().getBookingDate()).isEqualTo(expectedDate);
+            assertThat(saved.get().getBookingTime()).isEqualTo(expectedTime);
+        });
+        assertThat(deadLetterReceived(bookingId)).isFalse();
     }
 
     @Test

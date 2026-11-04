@@ -17,11 +17,17 @@ Microsserviço de agendamento de serviços (banho, tosa, consultas veterinárias
 | Método | Path | Acesso | Descrição |
 |---|---|---|---|
 | `POST` | `/create` | Autenticado | Cria agendamento. Se o solicitante for `CUSTOMER`, os dados do dono (nome/CPF/contato) vêm das claims do token, ignorando o corpo enviado |
-| `GET` | `/list` | Autenticado | Lista agendamentos com filtros (`ownerCpf`, `petId`, `date`, `employeeName`, `serviceType`, `status`). `CUSTOMER` só vê os próprios |
+| `GET` | `/list` | Autenticado | Lista agendamentos com filtros (`ownerCpf`, `petId`, `date` em `yyyy-MM-dd`, `employeeName`, `serviceType`, `status`). `CUSTOMER` só vê os próprios |
 | `GET` | `/find/{id}` | Autenticado | Busca agendamento por id (dono ou staff) |
 | `PATCH` | `/update/{id}` | Autenticado | Atualiza agendamento (dados + `status` opcional) |
 | `DELETE` | `/cancel/{id}` | Autenticado | Cancela agendamento |
-| `GET` | `/available-slots?serviceType=&date=&range=` | Público | Horários disponíveis para um tipo de serviço, a partir de uma data (`dd/MM/yyyy`), numa janela `DAY`/`WEEK`/`MONTH`, já descontando ocupados e antecedência mínima de 2h |
+| `GET` | `/available-slots?serviceType=&date=&range=` | Público | Horários disponíveis para um tipo de serviço, a partir de uma data (`yyyy-MM-dd`), numa janela `DAY`/`WEEK`/`MONTH`, já descontando ocupados e antecedência mínima de 2h |
+
+### Formato de datas (ISO-8601) — mudança quebradora
+
+Toda data/hora trafegada em JSON (corpo REST e eventos Kafka de histórico) é **ISO-8601 sem offset** — `LocalDateTime` no formato `2026-08-15T09:00:00` — e é sempre **horário de Brasília** (`America/Sao_Paulo`), implícito. Datas em query params (`date` de `/list` e `/available-slots`) são `yyyy-MM-dd`. Isso vale para `bookingDateTime` (request e response), `dateTime` dos horários disponíveis e `suggestedSlot` do erro 422. Já o texto das mensagens lidas pelo usuário (ex.: `detail` do 422 de horário indisponível) continua em formato brasileiro (`dd/MM/yyyy HH:mm` e `dd/MM/yyyy`) — só campos e contratos são ISO.
+
+> **Mudança quebradora de contrato (SDD-017):** até esta versão o booking-service usava o formato brasileiro `dd/MM/yyyy HH:mm` (e `dd/MM/yyyy` nos query params). Agora `"15/08/2026 09:00"` no corpo devolve **400**; clientes precisam enviar e ler ISO-8601. Os eventos `booking-scheduled`/`booking-canceled`/`booking-completed` também passam a levar `bookingDateTime` em ISO; o `customer-management` aceita os dois formatos durante a transição, para não perder mensagens antigas já enfileiradas.
 
 A checagem de "dono só acessa o próprio agendamento" é feita na camada de controller (`AccountType` do `AuthenticatedUser`), não no `SecurityConfig`.
 

@@ -1,7 +1,4 @@
-import { parseBookingDateTime } from "../types/booking";
-
 const TIME_ZONE = "America/Sao_Paulo";
-const BOOKING_DATE_TIME = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/;
 const NAIVE_ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 const INVALID = "—";
 
@@ -56,29 +53,7 @@ function resolve(value: Date | string | null | undefined): Resolved | null {
     return isValid(value) ? { date: value, wallClock: false } : null;
   }
 
-  // "dd/MM/yyyy HH:mm" from booking-service: no zone, reuse the existing parser.
-  const booking = BOOKING_DATE_TIME.exec(value);
-  if (booking) {
-    const [, dd, mm, yyyy, HH, MM] = booking;
-    const [day, month, year, hour, minute] = [dd, mm, yyyy, HH, MM].map(Number);
-    const parsed = parseBookingDateTime(value);
-    if (!isValid(parsed)) return null;
-    // The parser builds a local Date and silently rolls over impossible parts (e.g. month 13),
-    // so the components read back must match the ones written.
-    if (
-      parsed.getFullYear() !== year ||
-      parsed.getMonth() + 1 !== month ||
-      parsed.getDate() !== day ||
-      parsed.getHours() !== hour ||
-      parsed.getMinutes() !== minute
-    ) {
-      return null;
-    }
-    const date = wallClockToUtc(year, month, day, hour, minute);
-    return date ? { date, wallClock: true } : null;
-  }
-
-  // ISO-8601 without Z/offset: no zone, shown as written.
+  // ISO-8601 without Z/offset (e.g. booking-service's LocalDateTime): no zone, shown as written.
   const naive = NAIVE_ISO.exec(value);
   if (naive) {
     const [, year, month, day, hour, minute, second] = naive;

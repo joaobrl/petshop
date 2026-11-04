@@ -14,6 +14,13 @@ import java.time.format.DateTimeFormatter;
 @Service
 public class UpdateBookingHistoryUseCase {
 
+    // Formato de ARMAZENAMENTO no Mongo, mantido de propósito (SDD-017): o
+    // histórico já gravado não foi migrado, então gravação nova segue o mesmo
+    // formato para não misturar no banco. A API devolve ISO-8601 — a conversão
+    // é feita na saída (BookingHistoryResponseDto).
+    private static final DateTimeFormatter STORED_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter STORED_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+
     private final BookingHistoryPortOut bookingHistoryPortOut;
     private final CustomerPortOut customerPortOut;
 
@@ -38,8 +45,8 @@ public class UpdateBookingHistoryUseCase {
                     return newHistory;
                 });
 
-        String date = command.bookingDateTime().toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-        String time = command.bookingDateTime().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+        String date = command.bookingDateTime().toLocalDate().format(STORED_DATE_FORMAT);
+        String time = command.bookingDateTime().toLocalTime().format(STORED_TIME_FORMAT);
 
         history.setServiceType(command.serviceType());
         history.setBookingDate(date);

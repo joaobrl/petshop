@@ -3,6 +3,7 @@ package com.petshop.booking_service.core.port.out.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.petshop.booking_service.core.domain.Booking;
 import com.petshop.booking_service.core.domain.enums.StatusBooking;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -25,7 +26,12 @@ public class BookingResponseDto {
 
     private ServiceDetailsResponseDto serviceType;
 
-    @JsonFormat(pattern = "dd/MM/yyyy HH:mm")
+    // Shape STRING sem pattern = ISO-8601 (2026-08-15T09:00:00). Explícito porque este
+    // DTO também é o payload dos eventos Kafka de histórico, serializado pelo
+    // JsonSerializer do spring-kafka (Jackson 2, WRITE_DATES_AS_TIMESTAMPS ligado),
+    // que sem isso emitiria a data como array [2026,8,15,9,0].
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    @Schema(description = "Data e hora em ISO-8601 sem offset (horário de Brasília)", example = "2026-08-15T09:00:00")
     private LocalDateTime bookingDateTime;
 
     private StatusBooking status;

@@ -109,7 +109,7 @@ class ResponseDtoTest {
         assertThat(dto.bookingId()).isEqualTo(history.getBookingId());
         assertThat(dto.customerId()).isEqualTo(history.getCustomerId());
         assertThat(dto.serviceType()).isEqualTo("Banho");
-        assertThat(dto.bookingDate()).isEqualTo("10/08/2026");
+        assertThat(dto.bookingDate()).isEqualTo("2026-08-10");
         assertThat(dto.bookingTime()).isEqualTo("14:00");
         assertThat(dto.status()).isEqualTo("CONFIRMED");
     }
