@@ -1,5 +1,6 @@
 package com.petshop.product_registration.infrastructure.security;
 
+import com.petshop.commons.security.ProblemDetailAccessDeniedHandler;
 import com.petshop.commons.security.jwt.JwtAuthenticationFilter;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.commons.web.CorrelationIdFilter;
@@ -38,18 +39,25 @@ public class SecurityConfig {
     }
 
     @Bean
+    public ProblemDetailAccessDeniedHandler accessDeniedHandler() {
+        return new ProblemDetailAccessDeniedHandler();
+    }
+
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         return CorsSupport.defaultConfigurationSource("http://localhost:5173");
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
+                                           ProblemDetailAccessDeniedHandler accessDeniedHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                .accessDeniedHandler(accessDeniedHandler::handle)
                 )
                 .authorizeHttpRequests(auth -> auth
                         // Sem isso, o probe de liveness/readiness do k8s (sem token) cai

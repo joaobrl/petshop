@@ -2,6 +2,7 @@ package com.petshop.order_service.infrastructure.security;
 
 import com.petshop.commons.feign.CorrelationIdFeignConfig;
 import com.petshop.commons.feign.TokenPropagation;
+import com.petshop.commons.security.ProblemDetailAccessDeniedHandler;
 import com.petshop.commons.security.jwt.JwtAuthenticationFilter;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.commons.web.CorrelationIdFilter;
@@ -44,20 +45,28 @@ public class SecurityConfig {
     }
 
     @Bean
+    public ProblemDetailAccessDeniedHandler accessDeniedHandler() {
+        return new ProblemDetailAccessDeniedHandler();
+    }
+
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         return CorsSupport.defaultConfigurationSource("http://localhost:5173");
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
+                                           ProblemDetailAccessDeniedHandler accessDeniedHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Sem isso, Spring Security cai no default (Http403ForbiddenEntryPoint) e
                 // toda requisição sem token vira 403 em vez de 401. AccessDeniedException
-                // (autenticado mas sem permissão) continua indo pro handler padrão, 403.
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                // (autenticado mas sem permissão) vai pro ProblemDetailAccessDeniedHandler, 403 (SDD-034).
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .accessDeniedHandler(accessDeniedHandler::handle))
                 .authorizeHttpRequests(auth -> auth
                         // Sem isso, o probe de liveness/readiness do k8s (sem token) cai em
                         // anyRequest().authenticated() e toma 401 pra sempre — pod nunca fica

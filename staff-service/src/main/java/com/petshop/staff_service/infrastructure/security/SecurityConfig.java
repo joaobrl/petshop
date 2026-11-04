@@ -2,6 +2,7 @@ package com.petshop.staff_service.infrastructure.security;
 
 import com.petshop.commons.feign.CorrelationIdFeignConfig;
 import com.petshop.commons.feign.TokenPropagation;
+import com.petshop.commons.security.ProblemDetailAccessDeniedHandler;
 import com.petshop.commons.security.jwt.JwtAuthenticationFilter;
 import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.commons.web.CorrelationIdFilter;
@@ -39,17 +40,25 @@ public class SecurityConfig {
     }
 
     @Bean
+    public ProblemDetailAccessDeniedHandler accessDeniedHandler() {
+        return new ProblemDetailAccessDeniedHandler();
+    }
+
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         return CorsSupport.defaultConfigurationSource("http://localhost:5173");
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
+                                           ProblemDetailAccessDeniedHandler accessDeniedHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .accessDeniedHandler(accessDeniedHandler::handle))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
