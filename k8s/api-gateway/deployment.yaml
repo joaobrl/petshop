@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: api-gateway:latest
+          imagePullPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            # UID/GID numéricos do usuário "spring" da imagem (gateway-service/Dockerfile):
+            # sem eles o kubelet recusa o pod, porque não consegue provar que o
+            # usuário por nome não é root (CreateContainerConfigError).
+            runAsUser: 100
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+          envFrom:
+            - configMapRef:
+                name: api-gateway-config
+            # JWT_SECRET compartilhado com os demais serviços (k8s/jwt-secret.yaml).
+            - secretRef:
+                name: jwt-secret
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+            # Health Checks
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
