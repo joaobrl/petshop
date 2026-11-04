@@ -2,6 +2,7 @@ package com.petshop.customermanagement.core.port.in;
 
 import com.petshop.customermanagement.core.domain.Customer;
 import com.petshop.customermanagement.core.domain.Pet;
+import com.petshop.customermanagement.core.domain.enums.PetType;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
@@ -32,6 +33,10 @@ public interface CustomerPortIn {
     Customer findCustomerByIdOrCpf(String idOrCpf);
 
     Customer deleteCustomer(UUID id);
+
+    Page<Pet> listPets(PetType type, Pageable pageable);
+
+    Page<Pet> listPetsOfCustomer(UUID customerId, Pageable pageable);
 
     Customer addPetToCustomer(UUID customerId, List<PetRequestDto> pets);
 

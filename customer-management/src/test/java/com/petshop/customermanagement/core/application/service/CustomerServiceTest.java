@@ -12,6 +12,7 @@ import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -408,5 +409,90 @@ class CustomerServiceTest {
         ArgumentCaptor<Customer> captor = ArgumentCaptor.forClass(Customer.class);
         verify(customerPortOut).save(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo(id);
+    }
+
+    @Nested
+    class ListPets {
+
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
+        @Test
+        @DisplayName("Deve delegar ao port de saída o tipo e o pageable ao listar pets")
+        void shouldDelegateTypeAndPageableToPortOutWhenListingPets() {
+            var page = new PageImpl<>(List.of(new Pet(new PetRequestDto())), pageable, 1);
+            when(customerPortOut.findPets(PetType.DOG, pageable)).thenReturn(page);
+
+            var result = customerService.listPets(PetType.DOG, pageable);
+
+            assertThat(result).isSameAs(page);
+        }
+
+        @Test
+        @DisplayName("Deve delegar tipo nulo ao port de saída quando não houver filtro")
+        void shouldDelegateNullTypeWhenThereIsNoFilter() {
+            when(customerPortOut.findPets(null, pageable)).thenReturn(new PageImpl<>(List.of()));
+
+            var result = customerService.listPets(null, pageable);
+
+            assertThat(result.getContent()).isEmpty();
+            verify(customerPortOut).findPets(null, pageable);
+        }
+    }
+
+    @Nested
+    class ListPetsOfCustomer {
+
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
+        @Test
+        @DisplayName("Deve devolver a página sem consultar existência quando houver pets")
+        void shouldReturnPageWithoutCheckingExistenceWhenPetsExist() {
+            var customerId = UUID.randomUUID();
+            var page = new PageImpl<>(List.of(new Pet(new PetRequestDto())), pageable, 1);
+            when(customerPortOut.findPetsByCustomerId(customerId, pageable)).thenReturn(page);
+
+            var result = customerService.listPetsOfCustomer(customerId, pageable);
+
+            assertThat(result).isSameAs(page);
+            verify(customerPortOut, never()).existsById(any());
+        }
+
+        @Test
+        @DisplayName("Deve devolver página vazia quando o cliente existir sem pets")
+        void shouldReturnEmptyPageWhenCustomerExistsWithoutPets() {
+            var customerId = UUID.randomUUID();
+            var page = new PageImpl<Pet>(List.of(), pageable, 0);
+            when(customerPortOut.findPetsByCustomerId(customerId, pageable)).thenReturn(page);
+            when(customerPortOut.existsById(customerId)).thenReturn(true);
+
+            var result = customerService.listPetsOfCustomer(customerId, pageable);
+
+            assertThat(result).isSameAs(page);
+        }
+
+        @Test
+        @DisplayName("Deve lançar NotFoundException quando a página vier vazia e o cliente não existir")
+        void shouldThrowNotFoundWhenPageIsEmptyAndCustomerDoesNotExist() {
+            var customerId = UUID.randomUUID();
+            when(customerPortOut.findPetsByCustomerId(customerId, pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+            when(customerPortOut.existsById(customerId)).thenReturn(false);
+
+            assertThatThrownBy(() -> customerService.listPetsOfCustomer(customerId, pageable))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("Não deve lançar exceção quando a página pedida passar do fim mas o cliente tiver pets")
+        void shouldNotThrowWhenRequestedPageIsBeyondEndButCustomerHasPets() {
+            var customerId = UUID.randomUUID();
+            var beyond = PageRequest.of(5, 20);
+            var page = new PageImpl<Pet>(List.of(), beyond, 3);
+            when(customerPortOut.findPetsByCustomerId(customerId, beyond)).thenReturn(page);
+
+            var result = customerService.listPetsOfCustomer(customerId, beyond);
+
+            assertThat(result.getContent()).isEmpty();
+            verify(customerPortOut, never()).existsById(any());
+        }
     }
 }

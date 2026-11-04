@@ -1,7 +1,7 @@
 package com.petshop.customermanagement.api.rest;
 
 import com.petshop.customermanagement.api.rest.dto.PetResponseDto;
-import com.petshop.customermanagement.core.domain.Customer;
+import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.domain.enums.PetType;
 import com.petshop.customermanagement.core.port.in.CustomerPortIn;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
@@ -9,9 +9,10 @@ import com.petshop.customermanagement.api.rest.dto.CustomerResponseDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
 import com.petshop.customermanagement.infrastructure.security.CustomerIdentityResolver;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import com.petshop.commons.dto.PageResponse;
@@ -25,6 +26,8 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 public class CustomerControllerImpl implements CustomerController{
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final CustomerPortIn portIn;
     private final CustomerIdentityResolver customerIdentityResolver;
@@ -77,39 +80,28 @@ public class CustomerControllerImpl implements CustomerController{
     }
 
     @Override
-    public ResponseEntity<List<PetResponseDto>> listPets(String typePets) {
-        var petsStream = portIn.customerList()
-                .stream()
-                .map(Customer::getPet)
-                .flatMap(List::stream);
-
-        if (typePets != null && !typePets.isBlank()) {
-            var type = PetType.valueOf(typePets.toUpperCase());
-            petsStream = petsStream.filter(pet -> pet.getPetType() == type);
-        }
-
-        List<PetResponseDto> petsDto = petsStream
-                .map(PetResponseDto::new)
-                .toList();
-
-        return ResponseEntity.ok(petsDto);
+    public ResponseEntity<PageResponse<PetResponseDto>> listPets(String typePets, Pageable pageable) {
+        PetType type = (typePets == null || typePets.isBlank()) ? null : PetType.valueOf(typePets.toUpperCase());
+        return ResponseEntity.ok(toPetPage(portIn.listPets(type, limitPageSize(pageable))));
     }
 
     @Override
-    public ResponseEntity<List<PetResponseDto>> listPetsOfCustomer(UUID customerId, AuthenticatedUser user) {
+    public ResponseEntity<PageResponse<PetResponseDto>> listPetsOfCustomer(UUID customerId, Pageable pageable, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
+        return ResponseEntity.ok(toPetPage(portIn.listPetsOfCustomer(customerId, limitPageSize(pageable))));
+    }
 
-        List<PetResponseDto> petsDto = portIn.customerList()
-                .stream()
-                .filter(customer -> customer.getId().equals(customerId))
-                .findFirst()
-                .map(Customer::getPet)
-                .orElseThrow(() -> new EntityNotFoundException("Cliente não encontrado: " + customerId))
-                .stream()
-                .map(PetResponseDto::new)
-                .toList();
+    private static Pageable limitPageSize(Pageable pageable) {
+        return pageable.getPageSize() <= MAX_PAGE_SIZE
+                ? pageable
+                : PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort());
+    }
 
-        return ResponseEntity.ok(petsDto);
+    private static PageResponse<PetResponseDto> toPetPage(Page<Pet> pets) {
+        var page = pets.map(PetResponseDto::new);
+        return new PageResponse<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages(), page.isLast());
     }
 
     @Override

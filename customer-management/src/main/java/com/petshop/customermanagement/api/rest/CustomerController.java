@@ -40,10 +40,10 @@ public interface CustomerController {
     ResponseEntity<CustomerResponseDto> addPetToCustomer(@PathVariable UUID customerId, @RequestBody @Valid List<PetRequestDto> pets, @AuthenticationPrincipal AuthenticatedUser user);
 
     @GetMapping("/list/pets")
-    ResponseEntity<List<PetResponseDto>> listPets(@RequestHeader(value = "typePets", required = false) String typePets);
+    ResponseEntity<PageResponse<PetResponseDto>> listPets(@RequestHeader(value = "typePets", required = false) String typePets, @PageableDefault(size = 20) Pageable pageable);
 
     @GetMapping("/{customerId}/pets")
-    ResponseEntity<List<PetResponseDto>> listPetsOfCustomer(@PathVariable UUID customerId, @AuthenticationPrincipal AuthenticatedUser user);
+    ResponseEntity<PageResponse<PetResponseDto>> listPetsOfCustomer(@PathVariable UUID customerId, @PageableDefault(size = 20) Pageable pageable, @AuthenticationPrincipal AuthenticatedUser user);
 
     @PatchMapping("/{customerId}/pets/{petId}")
     ResponseEntity<CustomerResponseDto> updatePet(@PathVariable UUID customerId, @PathVariable UUID petId, @RequestBody @Valid PetRequestDto pet, @AuthenticationPrincipal AuthenticatedUser user);
