@@ -206,9 +206,11 @@ local, sem registry) e credenciais placeholder nos `Secret` — trocar antes
 de qualquer uso real. Ver a seção "Kubernetes" de cada README de serviço
 para a porta `NodePort` específica.
 
-> `gateway-service` ainda não tem manifests em `k8s/` — ficou fora do
-> escopo desta rodada, que focou em viabilizar a conexão local
-> backend/frontend via Docker Compose.
+O `gateway-service` tem manifests em [`k8s/api-gateway/`](k8s/api-gateway)
+(`NodePort` `30080`), com a mesma configuração do `docker-compose.yml`: rotas
+para os `*-svc`, CORS, Redis do rate limiting (`redis-svc`) e o `JWT_SECRET`
+vindo do `jwt-secret` compartilhado (sem secret próprio). Fora de escopo: um
+Ingress/LoadBalancer na frente dele (ver SDD-028).
 
 ## Documentação adicional
 
