@@ -3,7 +3,6 @@ package com.petshop.customermanagement.api.rest;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
-import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.customermanagement.api.rest.dto.LoginResponseDto;
 import com.petshop.customermanagement.core.port.in.AuthPortIn;
 import com.petshop.customermanagement.core.port.in.dto.ChangePasswordRequestDto;
@@ -18,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 
-import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,9 +28,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AuthControllerImplTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
-
     @Mock
     private AuthPortIn authPortIn;
 
@@ -40,16 +35,12 @@ class AuthControllerImplTest {
 
     @BeforeEach
     void setUp() {
-        authController = new AuthControllerImpl(authPortIn, JWT_SERVICE);
+        authController = new AuthControllerImpl(authPortIn);
     }
 
     private AuthenticatedUser userWithEmail(String email) {
         return new AuthenticatedUser(UUID.randomUUID(), email, "João", "12345678900", "11999999999",
                 Role.CUSTOMER, AccountType.CUSTOMER);
-    }
-
-    private String tokenFor(AuthenticatedUser user) {
-        return "Bearer " + JWT_SERVICE.generateToken(user.id(), user.email(), user.name(), user.cpf(), user.phone(), user.role(), user.type());
     }
 
     @Nested
@@ -90,7 +81,7 @@ class AuthControllerImplTest {
             var request = new ChangePasswordRequestDto("joao@mail.com", "12345678900", "novaSenha123");
             var user = userWithEmail("joao@mail.com");
 
-            var result = authController.changePassword(request, tokenFor(user));
+            var result = authController.changePassword(request, user);
 
             assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
             verify(authPortIn).changePassword(request);
@@ -101,7 +92,7 @@ class AuthControllerImplTest {
             var request = new ChangePasswordRequestDto("Joao@Mail.com", "12345678900", "novaSenha123");
             var user = userWithEmail("joao@mail.com");
 
-            var result = authController.changePassword(request, tokenFor(user));
+            var result = authController.changePassword(request, user);
 
             assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
             verify(authPortIn).changePassword(request);
@@ -122,7 +113,7 @@ class AuthControllerImplTest {
             var request = new ChangePasswordRequestDto("outro@mail.com", "12345678900", "novaSenha123");
             var user = userWithEmail("joao@mail.com");
 
-            assertThatThrownBy(() -> authController.changePassword(request, tokenFor(user)))
+            assertThatThrownBy(() -> authController.changePassword(request, user))
                     .isInstanceOf(AccessDeniedException.class);
 
             verify(authPortIn, never()).changePassword(request);

@@ -40,7 +40,7 @@ class OrderControllerImplTest {
 
     @BeforeEach
     void setUp() {
-        controller = new OrderControllerImpl(orderPortIn, customerIdentityResolver, JWT_SERVICE);
+        controller = new OrderControllerImpl(orderPortIn, customerIdentityResolver);
     }
 
     private AuthenticatedUser customerUser(UUID id) {
@@ -68,7 +68,7 @@ class OrderControllerImplTest {
         when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
         when(orderPortIn.checkout(customerId, List.of(1L), token)).thenReturn(order);
 
-        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), token);
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), user, token);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getHeaders().getLocation()).hasToString("http://localhost:8086/api/v1/orders/" + order.getId());
@@ -79,11 +79,10 @@ class OrderControllerImplTest {
     void getOrderByIdChecksOwnershipAndReturnsMappedOrder() {
         var customerId = UUID.randomUUID();
         var user = customerUser(customerId);
-        var token = bearerTokenFor(user);
         var order = sampleOrder(customerId);
         when(orderPortIn.findById(order.getId())).thenReturn(order);
 
-        var response = controller.getOrderById(order.getId(), token);
+        var response = controller.getOrderById(order.getId(), user);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getId()).isEqualTo(order.getId());

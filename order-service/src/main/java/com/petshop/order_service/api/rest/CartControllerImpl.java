@@ -1,6 +1,6 @@
 package com.petshop.order_service.api.rest;
 
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.commons.security.jwt.AuthenticatedUser;
 import com.petshop.order_service.api.rest.dto.CartResponseDto;
 import com.petshop.order_service.core.port.in.CartPortIn;
 import com.petshop.order_service.core.port.in.dto.AddCartItemRequestDto;
@@ -17,27 +17,23 @@ public class CartControllerImpl implements CartController {
 
     private final CartPortIn cartPortIn;
     private final CustomerIdentityResolver customerIdentityResolver;
-    private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<CartResponseDto> addItem(AddCartItemRequestDto request, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CartResponseDto> addItem(AddCartItemRequestDto request, AuthenticatedUser user, String token) {
         var customerId = customerIdentityResolver.resolveCustomerId(request.getCustomerId(), user);
         var cart = cartPortIn.addItem(customerId, request.getProductId(), request.getQuantity(), token);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 
     @Override
-    public ResponseEntity<CartResponseDto> removeItem(Long productId, UUID customerId, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CartResponseDto> removeItem(Long productId, UUID customerId, AuthenticatedUser user, String token) {
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
         var cart = cartPortIn.removeItem(resolvedCustomerId, productId, token);
         return ResponseEntity.ok(new CartResponseDto(cart));
     }
 
     @Override
-    public ResponseEntity<CartResponseDto> getCart(UUID customerId, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<CartResponseDto> getCart(UUID customerId, AuthenticatedUser user, String token) {
         var resolvedCustomerId = customerIdentityResolver.resolveCustomerId(customerId, user);
         var cart = cartPortIn.getCart(resolvedCustomerId, token);
         return ResponseEntity.ok(new CartResponseDto(cart));

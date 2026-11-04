@@ -37,7 +37,7 @@ class CartControllerImplTest {
 
     @BeforeEach
     void setUp() {
-        controller = new CartControllerImpl(cartPortIn, customerIdentityResolver, JWT_SERVICE);
+        controller = new CartControllerImpl(cartPortIn, customerIdentityResolver);
     }
 
     private AuthenticatedUser customerUser(UUID id) {
@@ -61,7 +61,7 @@ class CartControllerImplTest {
         when(customerIdentityResolver.resolveCustomerId(request.getCustomerId(), user)).thenReturn(customerId);
         when(cartPortIn.addItem(customerId, 1L, 2, token)).thenReturn(CartView.withoutAvailability(cart));
 
-        var response = controller.addItem(request, token);
+        var response = controller.addItem(request, user, token);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getId()).isEqualTo(cart.getId());
@@ -78,7 +78,7 @@ class CartControllerImplTest {
         when(customerIdentityResolver.resolveCustomerId(customerId, null)).thenReturn(customerId);
         when(cartPortIn.addItem(customerId, 1L, 2, null)).thenReturn(CartView.withoutAvailability(cart));
 
-        var response = controller.addItem(request, null);
+        var response = controller.addItem(request, null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -92,7 +92,7 @@ class CartControllerImplTest {
         when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
         when(cartPortIn.removeItem(customerId, 1L, token)).thenReturn(CartView.withoutAvailability(cart));
 
-        var response = controller.removeItem(1L, customerId, token);
+        var response = controller.removeItem(1L, customerId, user, token);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getId()).isEqualTo(cart.getId());
@@ -105,7 +105,7 @@ class CartControllerImplTest {
         when(customerIdentityResolver.resolveCustomerId(customerId, null)).thenReturn(customerId);
         when(cartPortIn.getCart(customerId, null)).thenReturn(CartView.withoutAvailability(cart));
 
-        var response = controller.getCart(customerId, null);
+        var response = controller.getCart(customerId, null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getId()).isEqualTo(cart.getId());

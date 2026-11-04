@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import com.petshop.commons.dto.PageResponse;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -20,11 +20,9 @@ public class HistoryControllerImpl implements HistoryController {
 
     private final HistoryPortIn historyPortIn;
     private final CustomerIdentityResolver customerIdentityResolver;
-    private final JwtService jwtService;
 
     @Override
-    public ResponseEntity<List<BookingHistoryResponseDto>> getCustomerBookingHistory(UUID customerId, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<List<BookingHistoryResponseDto>> getCustomerBookingHistory(UUID customerId, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
         var history = historyPortIn.findCustomerBookingHistory(customerId)
                 .stream()
@@ -34,8 +32,7 @@ public class HistoryControllerImpl implements HistoryController {
     }
 
     @Override
-    public ResponseEntity<List<PurchaseHistoryResponseDto>> getCustomerPurchaseHistory(UUID customerId, String token) {
-        var user = jwtService.parseAuthorizationHeaderOrNull(token);
+    public ResponseEntity<List<PurchaseHistoryResponseDto>> getCustomerPurchaseHistory(UUID customerId, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
         var history = historyPortIn.findCustomerPurchaseHistory(customerId)
                 .stream()

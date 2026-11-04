@@ -3,7 +3,6 @@ package com.petshop.product_registration.api.rest;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
-import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.product_registration.core.domain.Product;
 import com.petshop.product_registration.core.port.in.ProductPortIn;
 import com.petshop.product_registration.core.port.in.dto.ProductRequestDto;
@@ -30,9 +29,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ProductControllerImplTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
-
     @Mock
     private ProductPortIn portIn;
 
@@ -40,7 +36,7 @@ class ProductControllerImplTest {
 
     @BeforeEach
     void setUp() {
-        controller = new ProductControllerImpl(portIn, JWT_SERVICE);
+        controller = new ProductControllerImpl(portIn);
     }
 
     private Product sampleProduct() {
@@ -53,10 +49,6 @@ class ProductControllerImplTest {
 
     private AuthenticatedUser customerUser() {
         return new AuthenticatedUser(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999", Role.CUSTOMER, AccountType.CUSTOMER);
-    }
-
-    private String tokenFor(AuthenticatedUser user) {
-        return "Bearer " + JWT_SERVICE.generateToken(user.id(), user.email(), user.name(), user.cpf(), user.phone(), user.role(), user.type());
     }
 
     @Test
@@ -79,7 +71,7 @@ class ProductControllerImplTest {
     void getProductsByIdsOmitsStockForCustomer() {
         when(portIn.getProductsByIds(List.of(1L))).thenReturn(List.of(sampleProduct()));
 
-        var response = controller.getProductsByIds(List.of(1L), tokenFor(customerUser()));
+        var response = controller.getProductsByIds(List.of(1L), customerUser());
 
         assertThat(response.getBody()).singleElement().satisfies(dto -> {
             assertThat(dto.getStock()).isNull();
@@ -91,7 +83,7 @@ class ProductControllerImplTest {
     void getProductsByIdsIncludesStockForStaff() {
         when(portIn.getProductsByIds(List.of(1L))).thenReturn(List.of(sampleProduct()));
 
-        var response = controller.getProductsByIds(List.of(1L), tokenFor(staffUser()));
+        var response = controller.getProductsByIds(List.of(1L), staffUser());
 
         assertThat(response.getBody()).singleElement()
                 .satisfies(dto -> assertThat(dto.getStock()).isEqualTo(50));
@@ -103,7 +95,7 @@ class ProductControllerImplTest {
     void listProductsMapsAllProductsToDto() {
         when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct(), sampleProduct())));
 
-        var response = controller.listProducts(pageable, tokenFor(staffUser()));
+        var response = controller.listProducts(pageable, staffUser());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().content()).hasSize(2);
@@ -113,14 +105,14 @@ class ProductControllerImplTest {
     void listProductsReturnsEmptyListWhenNoneEnabled() {
         when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of()));
 
-        assertThat(controller.listProducts(pageable, tokenFor(staffUser())).getBody().content()).isEmpty();
+        assertThat(controller.listProducts(pageable, staffUser()).getBody().content()).isEmpty();
     }
 
     @Test
     void listProductsIncludesStockWhenUserIsStaff() {
         when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct())));
 
-        var response = controller.listProducts(pageable, tokenFor(staffUser()));
+        var response = controller.listProducts(pageable, staffUser());
 
         assertThat(response.getBody().content().get(0).getStock()).isEqualTo(50);
         assertThat(response.getBody().content().get(0).getReservedPercentage()).isNotNull();
@@ -130,7 +122,7 @@ class ProductControllerImplTest {
     void listProductsOmitsStockWhenUserIsCustomer() {
         when(portIn.listProducts(pageable)).thenReturn(new PageImpl<>(List.of(sampleProduct())));
 
-        var response = controller.listProducts(pageable, tokenFor(customerUser()));
+        var response = controller.listProducts(pageable, customerUser());
 
         assertThat(response.getBody().content().get(0).getStock()).isNull();
         assertThat(response.getBody().content().get(0).getReservedPercentage()).isNull();
@@ -150,7 +142,7 @@ class ProductControllerImplTest {
         var product = sampleProduct();
         when(portIn.getProductById(1L)).thenReturn(product);
 
-        var response = controller.getProductById(1L, tokenFor(staffUser()));
+        var response = controller.getProductById(1L, staffUser());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getId()).isEqualTo(1L);
@@ -160,7 +152,7 @@ class ProductControllerImplTest {
     void getProductByIdIncludesStockWhenUserIsStaff() {
         when(portIn.getProductById(1L)).thenReturn(sampleProduct());
 
-        var response = controller.getProductById(1L, tokenFor(staffUser()));
+        var response = controller.getProductById(1L, staffUser());
 
         assertThat(response.getBody().getStock()).isEqualTo(50);
         assertThat(response.getBody().getReservedPercentage()).isNotNull();
@@ -170,7 +162,7 @@ class ProductControllerImplTest {
     void getProductByIdOmitsStockWhenUserIsCustomer() {
         when(portIn.getProductById(1L)).thenReturn(sampleProduct());
 
-        var response = controller.getProductById(1L, tokenFor(customerUser()));
+        var response = controller.getProductById(1L, customerUser());
 
         assertThat(response.getBody().getStock()).isNull();
     }
