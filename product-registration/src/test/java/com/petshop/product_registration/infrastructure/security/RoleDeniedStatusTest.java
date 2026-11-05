@@ -8,7 +8,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.product_registration.support.TestJwtService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,8 +34,8 @@ class RoleDeniedStatusTest {
     @ServiceConnection
     static MongoDBContainer mongo = new MongoDBContainer("mongo:6.0");
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @LocalServerPort
     private int port;

@@ -48,6 +48,30 @@
         "description": "Papel CUSTOMER",
         "composite": false,
         "clientRole": false
+      },
+      {
+        "name": "svc:staff:availability-read",
+        "description": "Permissao de servico (SDD-024 F4): booking-service -> staff-service GET /api/v1/availability/{general,schedule}",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "svc:customers:customer-read",
+        "description": "Permissao de servico (SDD-024 F4): order-service -> customer-management GET /api/v1/customers/find/customer/{id}",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "svc:customers:staff-read",
+        "description": "Permissao de servico (SDD-024 F4): staff-service -> customer-management GET /api/v1/staff/all",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "svc:products:stock-write",
+        "description": "Permissao de servico (SDD-024 F4): order-service -> product-registration POST /api/v1/products/{id}/{reserve,release,confirm}",
+        "composite": false,
+        "clientRole": false
       }
     ]
   },
@@ -548,6 +572,27 @@
     "web-origins",
     "petshop-claims"
   ],
+  "scopeMappings": [
+    {
+      "client": "booking-service",
+      "roles": [
+        "svc:staff:availability-read"
+      ]
+    },
+    {
+      "client": "order-service",
+      "roles": [
+        "svc:customers:customer-read",
+        "svc:products:stock-write"
+      ]
+    },
+    {
+      "client": "staff-service",
+      "roles": [
+        "svc:customers:staff-read"
+      ]
+    }
+  ],
   "clients": [
     {
       "clientId": "web",
@@ -572,6 +617,73 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:5173/*"
       },
+      "protocolMappers": [
+        {
+          "name": "audience customer-management",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "customer-management",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        },
+        {
+          "name": "audience product-registration",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "product-registration",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        },
+        {
+          "name": "audience staff-service",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "staff-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        },
+        {
+          "name": "audience booking-service",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "booking-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        },
+        {
+          "name": "audience order-service",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "order-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
       "fullScopeAllowed": true,
       "defaultClientScopes": [
         "basic",
@@ -617,6 +729,21 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience staff-service",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "staff-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
       "fullScopeAllowed": false,
       "defaultClientScopes": [
         "basic",
@@ -637,6 +764,34 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience customer-management",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "customer-management",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        },
+        {
+          "name": "audience product-registration",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "product-registration",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
       "fullScopeAllowed": false,
       "defaultClientScopes": [
         "basic",
@@ -657,6 +812,21 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience customer-management",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "customer-management",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
       "fullScopeAllowed": false,
       "defaultClientScopes": [
         "basic",
@@ -677,6 +847,31 @@
           "query-users"
         ]
       }
+    },
+    {
+      "username": "service-account-booking-service",
+      "enabled": true,
+      "serviceAccountClientId": "booking-service",
+      "realmRoles": [
+        "svc:staff:availability-read"
+      ]
+    },
+    {
+      "username": "service-account-order-service",
+      "enabled": true,
+      "serviceAccountClientId": "order-service",
+      "realmRoles": [
+        "svc:customers:customer-read",
+        "svc:products:stock-write"
+      ]
+    },
+    {
+      "username": "service-account-staff-service",
+      "enabled": true,
+      "serviceAccountClientId": "staff-service",
+      "realmRoles": [
+        "svc:customers:staff-read"
+      ]
     }
   ]
 }

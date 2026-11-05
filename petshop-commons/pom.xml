@@ -77,16 +77,46 @@
              tem resource server OAuth2 no classpath — e esse não usa
              BaseExceptionHandler. Os outros cinco já trazem spring-security-
              core transitivamente via spring-boot-starter-oauth2-resource-
-             server, então nada muda pra eles. -->
+             server, então nada muda pra eles. Spring Security 7.0.3 =
+             versão do BOM do Spring Boot 4.0.3 dos serviços (este módulo não
+             tem parent/BOM); só compila contra ela, quem roda é a do serviço. -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-core</artifactId>
-            <version>6.3.4</version>
+            <version>7.0.3</version>
             <scope>provided</scope>
         </dependency>
 
-        <!-- Servlet API: OncePerRequestFilter/HttpServletRequest usados pelo
-             JwtAuthenticationFilter. "provided" pelo mesmo motivo do
+        <!-- Resource Server (SDD-024 F2): JwtDecoder via JWKS do Keycloak e o
+             conversor Jwt -> AuthenticatedUser (security.oauth2). "provided":
+             cada serviço que valida token declara
+             spring-boot-starter-oauth2-resource-server. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-resource-server</artifactId>
+            <version>7.0.3</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+            <version>7.0.3</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Client Credentials (SDD-024 F4) do TokenPropagation. "provided": só
+             os serviços chamadores (booking/order/staff) declaram
+             spring-security-oauth2-client. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-client</artifactId>
+            <version>7.0.3</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Servlet API: HttpServletRequest/Response usados pelo
+             ProblemDetailAccessDeniedHandler e pelo
+             ProblemDetailAuthenticationEntryPoint. "provided" pelo mesmo motivo do
              spring-web/spring-security-core acima: todo serviço que usa
              petshop-commons já é uma app web Spring Boot e já traz isso. -->
         <dependency>
@@ -107,12 +137,10 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- JWT próprio (substitui o Keycloak) — diferente das dependências
-             acima, esta NÃO é "provided": nenhum serviço já traz jjwt no
-             classpath, então aqui ela é uma dependência de verdade (compile
-             para a API, runtime para impl/jackson), propagada
-             transitivamente pra quem depende de petshop-commons. Assim cada
-             microsserviço não precisa declarar jjwt no próprio pom. -->
+        <!-- jjwt: só para a EMISSÃO legada de token do customer-management
+             (JwtService.generateToken). Sai na SDD-024 F3, junto com o
+             JwtService. Nenhum serviço valida mais HS256 (F2): a validação é
+             o Resource Server com JWKS do Keycloak. -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

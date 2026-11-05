@@ -6,10 +6,10 @@ Microsserviço de carrinho, pedidos e pagamento simulado do WebCommerce/PetShop.
 
 - Java 21, Spring Boot 4.0.3, Spring Cloud 2025.1.2 (`spring-cloud-starter-openfeign` + `-loadbalancer`, sem Eureka/Consul — URLs estáticas por variável de ambiente)
 - Spring Web, Spring Data JPA (PostgreSQL), Bean Validation, Actuator, `@EnableScheduling`
-- Spring Security — infraestrutura apenas; validação de JWT feita pelo `petshop-commons`
+- Spring Security — Resource Server (valida o access token do Keycloak via JWKS) e `spring-security-oauth2-client` (Client Credentials do Feign)
 - Spring Kafka (produtor)
 - MapStruct + Lombok
-- [`petshop-commons`](../petshop-commons) — JWT próprio e `BaseExceptionHandler`
+- [`petshop-commons`](../petshop-commons) — configuração do Resource Server, `TokenPropagation` e `BaseExceptionHandler`
 - JaCoCo — gate de 90% de cobertura de instruções (exclui a classe principal)
 
 ## Endpoints — `/api/v1/orders`
@@ -36,7 +36,7 @@ O carrinho (`/api/v1/cart/**`) é acessível sem autenticação, permitindo mont
 
 ## Segurança
 
-JWT próprio via [`petshop-commons`](../petshop-commons) — este serviço só valida tokens. `/api/v1/cart/**` é público; o restante exige autenticação (401 em token ausente/inválido). `CustomerIdentityResolver` resolve o `customerId` a partir do JWT para contas `CUSTOMER` (ignora qualquer id enviado pelo cliente) e garante que cada cliente só acesse os próprios pedidos/carrinho. `FeignAuthConfig` repassa o header `Authorization` da requisição recebida nas chamadas Feign, ou emite um token de serviço local (`generateServiceToken`) quando a chamada é disparada por um scheduler (sem requisição de usuário em curso).
+Resource Server (SDD-024): valida o access token do Keycloak via JWKS (`iss`, `exp`, `aud=order-service`). `/api/v1/cart/**` é público; o restante exige usuário com papel (401 ProblemDetail em token ausente/inválido, 403 para token de serviço). `CustomerIdentityResolver` resolve o `customerId` a partir do JWT para contas `CUSTOMER` (ignora qualquer id enviado pelo cliente) e garante que cada cliente só acesse os próprios pedidos/carrinho. O `TokenPropagation` repassa o token do usuário da requisição nas chamadas Feign; sem usuário (ex.: scheduler), usa o token Client Credentials do client `order-service` do Keycloak (permissões `svc:customers:customer-read` e `svc:products:stock-write`).
 
 ## Integração com outros serviços
 
@@ -56,8 +56,11 @@ JWT próprio via [`petshop-commons`](../petshop-commons) — este serviço só v
 | `KAFKA_ORDER_USERNAME` / `PASSWORD` | — | Credenciais SASL/PLAIN do Kafka |
 | `EXTERNAL_API_PRODUCT_SERVICE_URL` | `http://localhost:8081` | URL do product-registration (Feign) |
 | `EXTERNAL_API_CUSTOMER_SERVICE_URL` | `http://localhost:8082` | URL do customer-management (Feign) |
-| `JWT_SECRET` | *(vazio)* | Segredo HS256 compartilhado (mín. 32 bytes) |
-| `JWT_EXPIRATION_MINUTES` | `60` | Validade do token |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/petshop` | `iss` esperado no token |
+| `KEYCLOAK_JWK_SET_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/certs` | JWKS (no compose, `http://keycloak:8080/...`) |
+| `KEYCLOAK_AUDIENCE` | `order-service` | `aud` exigido no token |
+| `KEYCLOAK_TOKEN_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/token` | Token endpoint do Client Credentials |
+| `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` | `order-service` / *(vazio)* | Client do Keycloak deste serviço (`KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE` do `.env`) |
 | `order.cart.abandoned-after-hours` | `24` | Tempo sem atividade até o carrinho ser considerado abandonado |
 | `order.payment.reservation-ttl-minutes` | `30` | Por quanto tempo o estoque fica reservado esperando pagamento |
 | `order.payment.mock-delay-seconds` | `30` | Delay simulado de aprovação de pagamento |
@@ -87,7 +90,7 @@ docker compose up api-order
 
 ## Kubernetes
 
-Manifests em [`k8s/api-order/`](../k8s/api-order): `deployment.yaml` (1 réplica, `api-order:latest`, probes `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml`, `service.yaml` (`NodePort`, `30086` → 8086) e `secret.yaml` (credenciais Kafka). Banco dedicado em [`k8s/db-order/`](../k8s/db-order); JWT via secret compartilhado `jwt-secret`.
+Manifests em [`k8s/api-order/`](../k8s/api-order): `deployment.yaml` (1 réplica, `api-order:latest`, probes `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml`, `service.yaml` (`NodePort`, `30086` → 8086) e `secret.yaml` (credenciais Kafka). Banco dedicado em [`k8s/db-order/`](../k8s/db-order); segredo do client Keycloak via `keycloak-secret`.
 
 ## Testes
 

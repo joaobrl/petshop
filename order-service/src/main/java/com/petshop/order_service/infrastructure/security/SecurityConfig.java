@@ -2,46 +2,41 @@ package com.petshop.order_service.infrastructure.security;
 
 import com.petshop.commons.feign.CorrelationIdFeignConfig;
 import com.petshop.commons.feign.TokenPropagation;
+import com.petshop.commons.security.PetshopAuthorization;
 import com.petshop.commons.security.ProblemDetailAccessDeniedHandler;
-import com.petshop.commons.security.jwt.JwtAuthenticationFilter;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.commons.security.ProblemDetailAuthenticationEntryPoint;
+import com.petshop.commons.security.oauth2.KeycloakJwtAuthenticationConverter;
+import com.petshop.commons.security.oauth2.KeycloakResourceServerConfig;
 import com.petshop.commons.web.CorrelationIdFilter;
 import com.petshop.commons.web.CorsSupport;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfigurationSource;
 
-import java.time.Duration;
-
 /**
- * JwtService daqui serve dois propósitos: validar tokens recebidos
- * (filtro) e assinar tokens de serviço pro Feign (FeignAuthConfig usa o
- * mesmo bean). Regra: {@code /api/v1/cart/**} público, resto autenticado.
+ * Resource Server (SDD-024): valida o access token do Keycloak via JWKS (iss, exp,
+ * aud = order-service). Chamadas de saída (customer-management, product-registration)
+ * usam o client {@code order-service} do Keycloak (Client Credentials) quando não há
+ * usuário para repassar. Regra: {@code /api/v1/cart/**} público, resto só usuário.
  */
 @Configuration
-@Import(CorrelationIdFeignConfig.class)
+@Import({CorrelationIdFeignConfig.class, KeycloakResourceServerConfig.class})
 public class SecurityConfig {
 
     @Bean
-    public TokenPropagation tokenPropagation(JwtService jwtService,
-                                             @Value("${spring.application.name}") String serviceName) {
-        return new TokenPropagation(jwtService, serviceName);
-    }
-
-    @Bean
-    public JwtService jwtService(@Value("${jwt.secret}") String secret,
-                                  @Value("${jwt.expiration-minutes:15}") long expirationMinutes) {
-        return new JwtService(secret, Duration.ofMinutes(expirationMinutes));
+    public TokenPropagation tokenPropagation(@Value("${keycloak.client.token-uri}") String tokenUri,
+                                             @Value("${keycloak.client.id}") String clientId,
+                                             @Value("${keycloak.client.secret}") String clientSecret) {
+        return TokenPropagation.clientCredentials(tokenUri, clientId, clientSecret);
     }
 
     @Bean
@@ -55,28 +50,33 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder,
+                                           KeycloakJwtAuthenticationConverter jwtAuthenticationConverter,
+                                           ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
                                            ProblemDetailAccessDeniedHandler accessDeniedHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Sem isso, Spring Security cai no default (Http403ForbiddenEntryPoint) e
-                // toda requisição sem token vira 403 em vez de 401. AccessDeniedException
-                // (autenticado mas sem permissão) vai pro ProblemDetailAccessDeniedHandler, 403 (SDD-034).
+                // Sem token -> 401 ProblemDetail (entry point); autenticado sem permissão ->
+                // ProblemDetailAccessDeniedHandler, 403 (SDD-034).
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler::handle))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter))
+                        .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler::handle))
                 .authorizeHttpRequests(auth -> auth
                         // Sem isso, o probe de liveness/readiness do k8s (sem token) cai em
-                        // anyRequest().authenticated() e toma 401 pra sempre — pod nunca fica
+                        // anyRequest() e toma 401 pra sempre — pod nunca fica
                         // Ready. Só /health é exposto por HTTP por padrão, então nada mais vaza.
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/cart/**").permitAll()
-                        .anyRequest().authenticated())
-                .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(new CorrelationIdFilter(), JwtAuthenticationFilter.class);
+                        // Só usuário: nenhum serviço chama o order-service (token de serviço -> 403).
+                        .anyRequest().access(PetshopAuthorization.anyUser()))
+                .addFilterBefore(new CorrelationIdFilter(), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 }

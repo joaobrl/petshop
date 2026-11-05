@@ -2,8 +2,6 @@ package com.petshop.commons.security.jwt;
 
 import com.petshop.commons.security.Role;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
@@ -49,22 +47,29 @@ class JwtServiceTest {
         assertThat(service.expirationSeconds()).isEqualTo(3600L);
     }
 
+    // parse() e generateServiceToken() saíram na SDD-024 (F2/F4): nenhum serviço valida
+    // HS256 nem assina token de serviço. Só a emissão legada do login fica, conferida
+    // aqui direto com o jjwt.
     @Test
-    void generateTokenAndParseRoundTrip() {
+    void generateTokenSignsLegacyClaims() {
         var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
         var id = UUID.randomUUID();
 
         String token = service.generateToken(id, "joao@petshop.com", "João", "12345678900", "11999999999",
                 Role.ADMIN, AccountType.STAFF);
-        AuthenticatedUser parsed = service.parse(token);
+        var claims = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(VALID_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
 
-        assertThat(parsed.id()).isEqualTo(id);
-        assertThat(parsed.email()).isEqualTo("joao@petshop.com");
-        assertThat(parsed.name()).isEqualTo("João");
-        assertThat(parsed.cpf()).isEqualTo("12345678900");
-        assertThat(parsed.phone()).isEqualTo("11999999999");
-        assertThat(parsed.role()).isEqualTo(Role.ADMIN);
-        assertThat(parsed.type()).isEqualTo(AccountType.STAFF);
+        assertThat(claims.getSubject()).isEqualTo(id.toString());
+        assertThat(claims.get("email")).isEqualTo("joao@petshop.com");
+        assertThat(claims.get("name")).isEqualTo("João");
+        assertThat(claims.get("cpf")).isEqualTo("12345678900");
+        assertThat(claims.get("phone")).isEqualTo("11999999999");
+        assertThat(claims.get("role")).isEqualTo("ADMIN");
+        assertThat(claims.get("type")).isEqualTo("STAFF");
     }
 
     private static Claims claimsOf(String token) {
@@ -76,27 +81,25 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Deve incluir a claim email_verified true no token e devolvê-la no parse")
-    void shouldIncludeEmailVerifiedClaimTrueAndReturnItOnParse() {
+    @DisplayName("Deve incluir a claim email_verified true no token")
+    void shouldIncludeEmailVerifiedClaimTrue() {
         var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
 
         String token = service.generateToken(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999",
                 Role.CUSTOMER, AccountType.CUSTOMER, true);
 
         assertThat(claimsOf(token).get("email_verified")).isEqualTo(true);
-        assertThat(service.parse(token).emailVerified()).isTrue();
     }
 
     @Test
-    @DisplayName("Deve incluir a claim email_verified false no token e devolvê-la no parse")
-    void shouldIncludeEmailVerifiedClaimFalseAndReturnItOnParse() {
+    @DisplayName("Deve incluir a claim email_verified false no token")
+    void shouldIncludeEmailVerifiedClaimFalse() {
         var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
 
         String token = service.generateToken(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999",
                 Role.CUSTOMER, AccountType.CUSTOMER, false);
 
         assertThat(claimsOf(token).get("email_verified")).isEqualTo(false);
-        assertThat(service.parse(token).emailVerified()).isFalse();
     }
 
     @Test
@@ -108,7 +111,6 @@ class JwtServiceTest {
                 Role.CUSTOMER, AccountType.CUSTOMER, null);
 
         assertThat(claimsOf(token).containsKey("email_verified")).isFalse();
-        assertThat(service.parse(token).emailVerified()).isNull();
     }
 
     @Test
@@ -120,78 +122,6 @@ class JwtServiceTest {
                 Role.ADMIN, AccountType.STAFF);
 
         assertThat(claimsOf(token).containsKey("email_verified")).isFalse();
-        assertThat(service.parse(token).emailVerified()).isNull();
-    }
-
-    @Test
-    @DisplayName("Deve lançar exceção no parse quando a claim email_verified não for booleana")
-    void shouldThrowOnParseWhenEmailVerifiedClaimIsNotBoolean() {
-        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
-        String token = Jwts.builder()
-                .subject(UUID.randomUUID().toString())
-                .claim("email", "maria@mail.com")
-                .claim("role", Role.CUSTOMER.name())
-                .claim("type", AccountType.CUSTOMER.name())
-                .claim("email_verified", "true")
-                .signWith(Keys.hmacShaKeyFor(VALID_SECRET.getBytes(StandardCharsets.UTF_8)))
-                .compact();
-
-        assertThatThrownBy(() -> service.parse(token))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Claim 'email_verified' não é booleana.");
-    }
-
-    @Test
-    void generateServiceTokenUsesServiceRoleAndDeterministicSubject() {
-        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
-
-        String token = service.generateServiceToken("order-service");
-        AuthenticatedUser parsed = service.parse(token);
-
-        var expectedId = UUID.nameUUIDFromBytes("order-service".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        assertThat(parsed.id()).isEqualTo(expectedId);
-        assertThat(parsed.email()).isEqualTo("order-service@internal");
-        assertThat(parsed.role()).isEqualTo(Role.SERVICE);
-        assertThat(parsed.type()).isEqualTo(AccountType.SERVICE);
-    }
-
-    @Test
-    void generateServiceTokenIsDeterministicAcrossCalls() {
-        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
-
-        AuthenticatedUser first = service.parse(service.generateServiceToken("notification-service"));
-        AuthenticatedUser second = service.parse(service.generateServiceToken("notification-service"));
-
-        assertThat(first.id()).isEqualTo(second.id());
-    }
-
-    @Test
-    void parseRejectsMalformedToken() {
-        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
-
-        assertThatThrownBy(() -> service.parse("isso-nao-e-um-jwt"))
-                .isInstanceOf(JwtException.class);
-    }
-
-    @Test
-    void parseRejectsTokenSignedWithDifferentKey() {
-        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
-        var otherService = new JwtService("outra-chave-secreta-com-pelo-menos-32-bytes!", Duration.ofMinutes(60));
-
-        String token = otherService.generateToken(UUID.randomUUID(), "x@x.com", "X", "1", "2", Role.CUSTOMER, AccountType.CUSTOMER);
-
-        assertThatThrownBy(() -> service.parse(token))
-                .isInstanceOf(JwtException.class);
-    }
-
-    @Test
-    void parseRejectsExpiredToken() {
-        var service = new JwtService(VALID_SECRET, Duration.ofSeconds(-1));
-
-        String token = service.generateToken(UUID.randomUUID(), "x@x.com", "X", "1", "2", Role.CUSTOMER, AccountType.CUSTOMER);
-
-        assertThatThrownBy(() -> service.parse(token))
-                .isInstanceOf(ExpiredJwtException.class);
     }
 
     @Test

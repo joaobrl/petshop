@@ -8,6 +8,14 @@ x-healthcheck-timing: &healthcheck-timing
   retries: 20
   start_period: 10s
 
+# Resource Server (SDD-024): cada serviço busca o JWKS pela rede interna
+# (keycloak:8080) e confere o iss público, fixado por KC_HOSTNAME no keycloak.
+x-keycloak-resource-server: &keycloak-resource-server
+  KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/petshop
+  KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/petshop/protocol/openid-connect/certs
+  # Token endpoint do Client Credentials dos serviços chamadores (F4).
+  KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/petshop/protocol/openid-connect/token
+
 services:
   db:
     image: postgres:14
@@ -71,11 +79,13 @@ services:
     container_name: api-products
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/produtos_db
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: product-registration
     ports:
       - "8081:8080"
     depends_on:
+      keycloak:
+        condition: service_healthy
       mongo:
         condition: service_healthy
 
@@ -93,6 +103,10 @@ services:
       KAFKA_CUSTOMER_USERNAME: ${KAFKA_CUSTOMER_USERNAME}
       KAFKA_CUSTOMER_PASSWORD: ${KAFKA_CUSTOMER_PASSWORD}
       KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-customer-group}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: customer-management
+      # Só a emissão legada do token no login (JwtService); nenhum serviço valida
+      # mais esse token. Sai na SDD-024 F3 (login via Keycloak).
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
       # SDD-020: base do link de verificação de e-mail (<APP_FRONTEND_URL>/verify-email?token=...).
@@ -108,6 +122,8 @@ services:
     ports:
       - "8082:8080"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       mongo:
@@ -127,11 +143,15 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EXTERNAL_API_CUSTOMER_MANAGEMENT_URL: http://api-customers:8080
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: staff-service
+      KEYCLOAK_CLIENT_ID: staff-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE}
     ports:
       - "8085:8085"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       api-customers:
@@ -151,14 +171,18 @@ services:
       KAFKA_BOOKING_USERNAME: ${KAFKA_BOOKING_USERNAME}
       KAFKA_BOOKING_PASSWORD: ${KAFKA_BOOKING_PASSWORD}
       EXTERNAL_API_STAFF_SERVICE_URL: http://api-staff:8085
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
       # Cache de horários compartilhado (SDD-023): mesmo Redis do rate limit do gateway.
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: booking-service
+      KEYCLOAK_CLIENT_ID: booking-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE}
     ports:
       - "8083:8083"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       kafka:
@@ -180,11 +204,15 @@ services:
       KAFKA_ORDER_PASSWORD: ${KAFKA_ORDER_PASSWORD}
       EXTERNAL_API_PRODUCT_SERVICE_URL: http://api-products:8080
       EXTERNAL_API_CUSTOMER_SERVICE_URL: http://api-customers:8080
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: order-service
+      KEYCLOAK_CLIENT_ID: order-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE}
     ports:
       - "8086:8086"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       kafka:
@@ -234,14 +262,17 @@ services:
       GATEWAY_BOOKING_URL: http://api-booking:8083
       GATEWAY_ORDER_URL: http://api-order:8086
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
-      # Rate limiting (SDD-022): baldes no Redis; JWT_SECRET só para validar
-      # a assinatura do Bearer e limitar por usuário (sub) em vez de IP.
+      # Rate limiting (SDD-022): baldes no Redis; o Bearer é validado via JWKS do
+      # Keycloak (SDD-024) só para limitar por usuário (sub) em vez de IP.
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/petshop
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/petshop/protocol/openid-connect/certs
     ports:
       - "8080:8080"
     depends_on:
+      keycloak:
+        condition: service_healthy
       api-products:
         condition: service_started
       api-customers:

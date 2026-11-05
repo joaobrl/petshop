@@ -33,11 +33,18 @@ external:
     staff-service:
       url: localhost:8080 # Valor dummy apenas para o Feign compilar a URL sem dar erro
 
-# Segredo dummy só pra o contexto de teste subir (JwtService exige >= 32
-# bytes) — mesmo valor usado em customer-management/staff-service.
-jwt:
-  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
-  expiration-minutes: 60
+# Keycloak de teste (SDD-024 RF4): sem Keycloak real. Os testes assinam RS256 com
+# chave gerada em memória (support.TestJwtService) e o support.TestJwtDecoderConfig
+# troca o JwtDecoder do JWKS por um que confere essa chave, com os mesmos
+# validadores de produção (iss/exp/aud abaixo). O jwk-set-uri nunca é chamado.
+keycloak:
+  issuer-uri: http://localhost:8180/realms/petshop
+  jwk-set-uri: http://localhost:8180/realms/petshop/protocol/openid-connect/certs
+  audience: booking-service
+  client:
+    token-uri: http://localhost:8180/realms/petshop/protocol/openid-connect/token
+    id: booking-service
+    secret: test-client-secret
 
 
 # Cache em memória nos testes: não exige Redis (SDD-023, RNF1).

@@ -1,7 +1,6 @@
 package com.petshop.commons.security.jwt;
 
 import com.petshop.commons.security.Role;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -12,15 +11,21 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_CPF;
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_EMAIL;
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_EMAIL_VERIFIED;
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_NAME;
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_PHONE;
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_ROLE;
-import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_TYPE;
-
+/**
+ * EMISSÃO legada do token HS256 do login do customer-management. Temporário: sai na
+ * SDD-024 F3 (login via Keycloak). Desde a F2 nenhum serviço valida esse token (o
+ * Resource Server só aceita RS256 do Keycloak) e não há mais token de serviço assinado
+ * aqui (F4: Client Credentials).
+ */
 public class JwtService {
+
+    static final String CLAIM_EMAIL = "email";
+    static final String CLAIM_NAME = "name";
+    static final String CLAIM_CPF = "cpf";
+    static final String CLAIM_PHONE = "phone";
+    static final String CLAIM_ROLE = "role";
+    static final String CLAIM_TYPE = "type";
+    static final String CLAIM_EMAIL_VERIFIED = AuthenticatedUser.CLAIM_EMAIL_VERIFIED;
 
     private final SecretKey key;
     private final Duration expiration;
@@ -42,7 +47,7 @@ public class JwtService {
 
     /**
      * {@code emailVerified} nulo = token sem a claim {@value AuthenticatedUser#CLAIM_EMAIL_VERIFIED}
-     * (staff/service): o jjwt descarta claims com valor nulo.
+     * (staff): o jjwt descarta claims com valor nulo.
      */
     public String generateToken(UUID subjectId, String email, String name, String cpf, String phone, Role role, AccountType type,
                                 Boolean emailVerified) {
@@ -60,21 +65,6 @@ public class JwtService {
                 .expiration(Date.from(now.plus(expiration)))
                 .signWith(key)
                 .compact();
-    }
-
-    public String generateServiceToken(String serviceName) {
-        var subjectId = UUID.nameUUIDFromBytes(serviceName.getBytes(StandardCharsets.UTF_8));
-        return generateToken(subjectId, serviceName + "@internal", null, null, null, Role.SERVICE, AccountType.SERVICE);
-    }
-
-    public AuthenticatedUser parse(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return AuthenticatedUser.fromClaims(claims);
     }
 
     public long expirationSeconds() {

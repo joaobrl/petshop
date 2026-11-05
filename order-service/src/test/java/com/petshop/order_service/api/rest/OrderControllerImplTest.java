@@ -3,7 +3,7 @@ package com.petshop.order_service.api.rest;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.order_service.support.TestJwtService;
 import com.petshop.order_service.core.domain.Cart;
 import com.petshop.order_service.core.domain.Order;
 import com.petshop.order_service.core.port.in.OrderPortIn;
@@ -32,8 +32,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OrderControllerImplTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService JWT_SERVICE =
+            new TestJwtService();
 
     @Mock
     private OrderPortIn orderPortIn;

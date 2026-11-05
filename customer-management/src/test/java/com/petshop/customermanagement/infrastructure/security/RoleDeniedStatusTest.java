@@ -2,7 +2,7 @@ package com.petshop.customermanagement.infrastructure.security;
 
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.customermanagement.support.TestJwtService;
 import com.petshop.customermanagement.core.port.out.BookingHistoryPortOut;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
@@ -30,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class RoleDeniedStatusTest {
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @LocalServerPort
     private int port;

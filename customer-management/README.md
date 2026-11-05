@@ -6,10 +6,10 @@ Microsserviço central de identidade do WebCommerce/PetShop: cadastro de cliente
 
 - Java 21, Spring Boot 4.0.3
 - Spring Web, Spring Data JPA (PostgreSQL), Spring Data MongoDB (histórico), Bean Validation, Actuator
-- Spring Security — infraestrutura de filtro/`PasswordEncoder` (BCrypt); a validação de token em si é feita pelo `JwtAuthenticationFilter` do `petshop-commons`
+- Spring Security — `PasswordEncoder` (BCrypt) e Resource Server (`spring-boot-starter-oauth2-resource-server`): valida o access token do Keycloak via JWKS (SDD-024)
 - Spring Kafka (produtor e consumidor)
 - MapStruct + Lombok
-- [`petshop-commons`](../petshop-commons) — `JwtService`/`JwtAuthenticationFilter` e `BaseExceptionHandler`
+- [`petshop-commons`](../petshop-commons) — configuração do Resource Server, `JwtService` (emissão legada) e `BaseExceptionHandler`
 - Testcontainers (PostgreSQL, MongoDB, Kafka) nos testes de integração
 - JaCoCo — gate de 90% de cobertura de instruções
 
@@ -62,7 +62,9 @@ A resposta é um `PageResponse`: `content`, `page`, `size`, `totalElements`, `to
 
 ## Segurança
 
-Esquema JWT próprio (não Keycloak/OAuth2) — este é o **único serviço que emite tokens** (`JwtService` do `petshop-commons`); os demais apenas validam. `CustomerIdentityResolver` garante que um JWT do tipo `CUSTOMER` só acesse os próprios dados; `ADMIN`/`RECEPTIONIST` têm acesso amplo.
+Resource Server (SDD-024): valida o access token do Keycloak via JWKS (`iss`, `exp`, `aud=customer-management`). Rotas de usuário exigem um papel do projeto (token de serviço recebe 403); as chamadas internas têm permissão própria: `GET /api/v1/staff/all` aceita `ADMIN` ou `svc:customers:staff-read` (staff-service) e `GET /api/v1/customers/find/customer/{id}` aceita usuário ou `svc:customers:customer-read` (order-service). `CustomerIdentityResolver` garante que um token do tipo `CUSTOMER` só acesse os próprios dados; `ADMIN`/`RECEPTIONIST` têm acesso amplo.
+
+> **Transitório (até a SDD-024 F3):** o login ainda emite o token HS256 legado (`JwtService`, `JWT_SECRET`), que nenhum serviço aceita mais — o login passa a ser do Keycloak na F3.
 
 ### Admin de bootstrap
 
@@ -90,8 +92,11 @@ Não possui clientes Feign de saída — é consumido por outros serviços:
 | `SPRING_KAFKA_BOOTSTRAP_SERVERS` | `localhost:9094` | Broker Kafka |
 | `KAFKA_CUSTOMER_USERNAME` / `PASSWORD` | — | Credenciais SASL/PLAIN do Kafka |
 | `KAFKA_CONSUMER_GROUP` | `customer-group` | Grupo de consumo Kafka |
-| `JWT_SECRET` | *(vazio)* | Segredo HS256 compartilhado entre serviços (mín. 32 bytes) |
-| `JWT_EXPIRATION_MINUTES` | `60` | Validade do token emitido |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/petshop` | `iss` esperado no token |
+| `KEYCLOAK_JWK_SET_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/certs` | JWKS (no compose, `http://keycloak:8080/...`) |
+| `KEYCLOAK_AUDIENCE` | `customer-management` | `aud` exigido no token |
+| `JWT_SECRET` | *(vazio)* | Só a emissão legada do login (mín. 32 bytes); sai na SDD-024 F3 |
+| `JWT_EXPIRATION_MINUTES` | `60` | Validade do token legado emitido |
 | `BOOTSTRAP_ADMIN_NAME/EMAIL/CPF/PHONE/PASSWORD` | ver acima | Dados do admin criado no bootstrap (`PASSWORD` opcional; se vazio, gera senha aleatória) |
 
 Porta padrão: **8080** (interna).
@@ -122,7 +127,7 @@ docker compose up api-customers
 
 ## Kubernetes
 
-Manifests em [`k8s/api-clientes/`](../k8s/api-clientes): `deployment.yaml` (1 réplica, `api-clientes:latest`, probes `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` e `service.yaml` (`NodePort`, `30082` → 8080). Segredos: `db-clientes-secret`, `api-clientes-secret` (Kafka) e `jwt-secret` compartilhado.
+Manifests em [`k8s/api-clientes/`](../k8s/api-clientes): `deployment.yaml` (1 réplica, `api-clientes:latest`, probes `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` e `service.yaml` (`NodePort`, `30082` → 8080). Segredos: `db-clientes-secret`, `api-clientes-secret` (Kafka) e `jwt-secret` (só a emissão legada, até a SDD-024 F3).
 
 ## Testes
 

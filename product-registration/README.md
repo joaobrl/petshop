@@ -8,7 +8,7 @@ Microsserviço de cadastro e controle de estoque de produtos do WebCommerce/PetS
 - Spring Web (MVC), Spring Data MongoDB, Spring Security, Bean Validation, Actuator
 - MongoDB (driver reativo síncrono padrão do Spring Data) — migrado de PostgreSQL nesta sessão; ver seção Persistência
 - MapStruct 1.5.5 + Lombok
-- [`petshop-commons`](../petshop-commons) — JWT próprio (substitui Keycloak) e `BaseExceptionHandler`
+- [`petshop-commons`](../petshop-commons) — configuração do Resource Server (Keycloak) e `BaseExceptionHandler`
 - JaCoCo — gate de cobertura de 90% de instruções (exclui a classe principal e os mappers gerados pelo MapStruct)
 - Não usa Feign, Kafka, Eureka/Consul ou service discovery — é consumido apenas via REST direto por outros serviços.
 
@@ -59,9 +59,9 @@ feita entre a leitura e a escrita.
 
 ## Segurança
 
-JWT próprio compartilhado via [`petshop-commons`](../petshop-commons) (`JwtService`/`JwtAuthenticationFilter`) — este serviço apenas **valida** tokens assinados com o mesmo `JWT_SECRET` usado pelos demais serviços; não emite tokens. Sessão stateless, CSRF desabilitado, 401 em caso de token ausente/inválido em endpoint que exige autenticação.
+Resource Server (SDD-024): apenas **valida** o access token do Keycloak via JWKS (`iss`, `exp`, `aud=product-registration`), com a configuração do [`petshop-commons`](../petshop-commons); não emite tokens. Sessão stateless, CSRF desabilitado, 401 ProblemDetail em token ausente/inválido. `reserve`/`release`/`confirm` aceitam usuário ou o token de serviço do order-service com `svc:products:stock-write`; o resto não-público exige usuário com papel.
 
-O `JwtAuthenticationFilter` roda em toda requisição, mesmo em endpoint `permitAll()` — se vier um Bearer válido, o `AuthenticatedUser` é populado no contexto de qualquer forma. `GET /list` usa isso pra token **opcional**: endpoint continua público, mas só mostra estoque pra quem manda um token de `STAFF` (ver tabela de endpoints acima).
+O Resource Server roda em toda requisição, mesmo em endpoint `permitAll()` — se vier um Bearer válido, o `AuthenticatedUser` é populado no contexto de qualquer forma (e um Bearer inválido dá 401 mesmo em rota pública). `GET /list` usa isso pra token **opcional**: endpoint continua público, mas só mostra estoque pra quem manda um token de `STAFF` (ver tabela de endpoints acima).
 
 ## Integração com outros serviços
 
@@ -72,8 +72,9 @@ Não chama nenhum outro serviço. É **consumido** pelo [`order-service`](../ord
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `SPRING_DATA_MONGODB_URI` | `mongodb://localhost:27017/produtos_db` | URI do MongoDB |
-| `JWT_SECRET` | *(vazio)* | Segredo HS256 compartilhado entre serviços (mín. 32 bytes) |
-| `JWT_EXPIRATION_MINUTES` | `60` | Validade do token |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/petshop` | `iss` esperado no token |
+| `KEYCLOAK_JWK_SET_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/certs` | JWKS (no compose, `http://keycloak:8080/...`) |
+| `KEYCLOAK_AUDIENCE` | `product-registration` | `aud` exigido no token |
 
 Porta padrão: **8080** (interna; ver mapeamento externo abaixo).
 

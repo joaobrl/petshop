@@ -2,7 +2,8 @@ package com.petshop.order_service.infrastructure.rest.product.feign.adapter;
 
 import com.petshop.commons.exception.BusinessRuleException;
 import com.petshop.commons.exception.NotFoundException;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.order_service.support.TestJwtService;
+import com.petshop.order_service.support.TestTokenPropagation;
 import com.petshop.order_service.infrastructure.rest.product.feign.ProductFeign;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.ProductStockResponseDto;
 import com.petshop.order_service.infrastructure.rest.product.feign.dto.StockAdjustmentRequestDto;
@@ -39,8 +40,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ProductStockAdapterOutTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService JWT_SERVICE =
+            new TestJwtService();
 
     @Mock
     private ProductFeign productFeign;
@@ -49,7 +50,7 @@ class ProductStockAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new ProductStockAdapterOut(productFeign, new TokenPropagation(JWT_SERVICE, "order-service"));
+        adapter = new ProductStockAdapterOut(productFeign, TestTokenPropagation.forService("order-service"));
     }
 
     @AfterEach
@@ -57,10 +58,9 @@ class ProductStockAdapterOutTest {
         SecurityContextHolder.clearContext();
     }
 
-    // Simula o que o JwtAuthenticationFilter faz com um token válido: guarda o token bruto como credentials.
+    // Simula o Resource Server com um token de usuário válido: guarda o token bruto como credentials.
     private static void authenticateWith(String rawToken) {
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                "user", rawToken, AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
+        TestTokenPropagation.authenticateUser(rawToken);
     }
 
     private FeignException feignException(int status, String body) {
@@ -220,8 +220,7 @@ class ProductStockAdapterOutTest {
 
             var captor = org.mockito.ArgumentCaptor.forClass(String.class);
             verify(productFeign).reserve(eq(1L), eq(new StockAdjustmentRequestDto(5)), captor.capture());
-            var parsed = JWT_SERVICE.parse(captor.getValue().substring("Bearer ".length()));
-            assertThat(parsed.type().name()).isEqualTo("SERVICE");
+            assertThat(captor.getValue()).isEqualTo("Bearer " + TestTokenPropagation.serviceToken("order-service"));
         }
 
         @Test

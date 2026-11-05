@@ -7,6 +7,11 @@ spring:
 server:
   port: 8080
 
-jwt:
-  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
-  expiration-minutes: 60
+# Keycloak de teste (SDD-024 RF4): sem Keycloak real. Os testes assinam RS256 com
+# chave gerada em memória (support.TestJwtService) e o support.TestJwtDecoderConfig
+# troca o JwtDecoder do JWKS por um que confere essa chave, com os mesmos
+# validadores de produção (iss/exp/aud abaixo). O jwk-set-uri nunca é chamado.
+keycloak:
+  issuer-uri: http://localhost:8180/realms/petshop
+  jwk-set-uri: http://localhost:8180/realms/petshop/protocol/openid-connect/certs
+  audience: product-registration

@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -108,25 +109,25 @@ class AuthenticatedUserTest {
 
     private static Map<String, Object> claims(Object emailVerified) {
         var claims = new HashMap<String, Object>();
-        claims.put("sub", UUID.randomUUID().toString());
+        claims.put("user_id", UUID.randomUUID().toString());
         claims.put("email", "x@mail.com");
-        claims.put("role", Role.CUSTOMER.name());
+        claims.put("realm_access", Map.of("roles", List.of(Role.CUSTOMER.name())));
         claims.put("type", AccountType.CUSTOMER.name());
         claims.put("email_verified", emailVerified);
         return claims;
     }
 
     @Test
-    void supportsNullNameCpfPhoneForServiceAccounts() {
+    void supportsNullNameCpfPhone() {
         var id = UUID.randomUUID();
 
-        var user = new AuthenticatedUser(id, "order-service@internal", null, null, null,
-                Role.SERVICE, AccountType.SERVICE);
+        var user = new AuthenticatedUser(id, "maria@mail.com", null, null, null,
+                Role.CUSTOMER, AccountType.CUSTOMER);
 
         assertThat(user.name()).isNull();
         assertThat(user.cpf()).isNull();
         assertThat(user.phone()).isNull();
-        assertThat(user.role()).isEqualTo(Role.SERVICE);
-        assertThat(user.type()).isEqualTo(AccountType.SERVICE);
+        assertThat(user.role()).isEqualTo(Role.CUSTOMER);
+        assertThat(user.type()).isEqualTo(AccountType.CUSTOMER);
     }
 }

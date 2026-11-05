@@ -17,9 +17,14 @@ spring:
   data:
     mongodb:
       auto-index-creation: true
-jwt:
-  secret: ${JWT_SECRET:}
-  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+# Resource Server (SDD-024): valida o access token do Keycloak. O JWKS é buscado
+# pela rede interna (http://keycloak:8080 no compose); o iss esperado é o público,
+# fixado no Keycloak por KC_HOSTNAME. audience = id deste serviço, que precisa
+# estar no aud do token (audience mappers do realm petshop).
+keycloak:
+  issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/petshop}
+  jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/petshop/protocol/openid-connect/certs}
+  audience: ${KEYCLOAK_AUDIENCE:product-registration}
 
 product:
   batch:

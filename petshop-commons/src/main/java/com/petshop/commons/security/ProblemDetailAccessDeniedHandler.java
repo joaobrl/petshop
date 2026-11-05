@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
  * não tem o papel exigido pela rota (SDD-034).
  *
  * <p>Escreve direto na response, sem {@code sendError}: com {@code sendError(403)}
- * o container redespacha para {@code /error}, onde o JwtAuthenticationFilter não
+ * o container redespacha para {@code /error}, onde a autenticação Bearer não
  * roda de novo, a requisição chega anônima e o entry point responde 401 — o que
  * desloga o usuário no frontend. Escrevendo direto, {@code /error} não precisa
  * virar rota aberta.

@@ -1,47 +1,39 @@
 package com.petshop.gateway_service.ratelimit;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class JwtSubjectResolverTest {
 
-    private static final String SECRET = "test-secret-key-for-jwt-signing-min-32-bytes-long";
-
     private static String bearer(String subject) {
-        var token = Jwts.builder()
-                .subject(subject)
-                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
-                .compact();
-        return "Bearer " + token;
+        return "Bearer " + TestJwts.validToken(subject);
     }
 
     @Test
     @DisplayName("Deve devolver o sub quando a assinatura do token for válida")
     void shouldReturnSubjectWhenSignatureIsValid() {
-        var resolver = new JwtSubjectResolver(SECRET);
+        var resolver = TestJwts.resolver();
 
-        var subject = resolver.resolveSubject(bearer("user-123"));
+        var subject = resolver.resolveSubject(bearer("user-123")).blockOptional();
 
         assertThat(subject).contains("user-123");
     }
 
     @ParameterizedTest
     @NullSource
-    @ValueSource(strings = {"", "   ", "segredo-curto"})
-    @DisplayName("Deve ignorar o token quando o segredo estiver ausente ou curto demais")
-    void shouldReturnEmptyWhenSecretIsMissingOrShort(String secret) {
-        var resolver = new JwtSubjectResolver(secret);
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("Deve ignorar o token quando o Keycloak não estiver configurado")
+    void shouldReturnEmptyWhenKeycloakIsNotConfigured(String jwkSetUri) {
+        var resolver = new JwtSubjectResolver(jwkSetUri, TestJwts.ISSUER);
 
-        var subject = resolver.resolveSubject(bearer("user-123"));
+        var subject = resolver.resolveSubject(bearer("user-123")).blockOptional();
 
         assertThat(subject).isEmpty();
     }
@@ -51,9 +43,9 @@ class JwtSubjectResolverTest {
     @ValueSource(strings = {"Basic dXNlcjpzZW5oYQ==", "token-sem-prefixo"})
     @DisplayName("Deve ignorar o header quando ele não for Bearer")
     void shouldReturnEmptyWhenHeaderIsNotBearer(String header) {
-        var resolver = new JwtSubjectResolver(SECRET);
+        var resolver = TestJwts.resolver();
 
-        var subject = resolver.resolveSubject(header);
+        var subject = resolver.resolveSubject(header).blockOptional();
 
         assertThat(subject).isEmpty();
     }
@@ -61,13 +53,10 @@ class JwtSubjectResolverTest {
     @Test
     @DisplayName("Deve ignorar o token quando ele não tiver sub")
     void shouldReturnEmptyWhenSubjectIsMissing() {
-        var resolver = new JwtSubjectResolver(SECRET);
-        var token = Jwts.builder()
-                .claim("role", "CUSTOMER")
-                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
-                .compact();
+        var resolver = TestJwts.resolver();
+        var token = TestJwts.token(TestJwts.KEYS, null, TestJwts.ISSUER, Instant.now().plusSeconds(3600));
 
-        var subject = resolver.resolveSubject("Bearer " + token);
+        var subject = resolver.resolveSubject("Bearer " + token).blockOptional();
 
         assertThat(subject).isEmpty();
     }

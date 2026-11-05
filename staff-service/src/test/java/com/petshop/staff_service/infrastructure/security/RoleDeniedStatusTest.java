@@ -6,7 +6,7 @@ import com.petshop.staff_service.core.port.out.StaffPortOut;
 import com.petshop.staff_service.core.port.out.WeekendAllocationPortOut;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.staff_service.support.TestJwtService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class RoleDeniedStatusTest {
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @LocalServerPort
     private int port;

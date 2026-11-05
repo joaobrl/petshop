@@ -46,26 +46,15 @@
 			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
 		</dependency>
 
-		<!-- Validação da assinatura HS256 do Bearer só para escolher a chave do
-		     rate limit (user:<sub> vs ip:<ip>) - SDD-022. Declarado direto aqui,
-		     na mesma versão do petshop-commons, porque o commons é servlet e
-		     o gateway é WebFlux (não dá pra depender dele). -->
+		<!-- Validação do Bearer (assinatura RS256 via JWKS do Keycloak, iss e exp)
+		     só para escolher a chave do rate limit (user:<sub> vs ip:<ip>) -
+		     SDD-022/SDD-024. Só o módulo JOSE (NimbusReactiveJwtDecoder), não o
+		     starter de resource server: o gateway não autentica nem rejeita
+		     nada, e o starter ligaria o Spring Security WebFlux em todas as rotas.
+		     Versão gerenciada pelo BOM do Spring Boot. -->
 		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-api</artifactId>
-			<version>0.12.6</version>
-		</dependency>
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-impl</artifactId>
-			<version>0.12.6</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-jackson</artifactId>
-			<version>0.12.6</version>
-			<scope>runtime</scope>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
 		</dependency>
 
 		<dependency>

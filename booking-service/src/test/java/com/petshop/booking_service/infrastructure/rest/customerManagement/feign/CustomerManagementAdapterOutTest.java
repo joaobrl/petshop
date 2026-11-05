@@ -3,7 +3,8 @@ package com.petshop.booking_service.infrastructure.rest.customerManagement.feign
 import com.petshop.booking_service.infrastructure.rest.customerManagement.feign.dto.StaffDto;
 import com.petshop.booking_service.infrastructure.rest.customerManagement.feign.mapper.CustomerMapper;
 import com.petshop.commons.feign.TokenPropagation;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.booking_service.support.TestJwtService;
+import com.petshop.booking_service.support.TestTokenPropagation;
 import feign.FeignException;
 import feign.Request;
 import feign.RequestTemplate;
@@ -41,8 +42,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CustomerManagementAdapterOutTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService JWT_SERVICE =
+            new TestJwtService();
 
     @Mock
     private CustomerManagementFeign feignClient;
@@ -51,7 +52,7 @@ class CustomerManagementAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new CustomerManagementAdapterOut(feignClient, new CustomerMapper(), new TokenPropagation(JWT_SERVICE, "booking-service"));
+        adapter = new CustomerManagementAdapterOut(feignClient, new CustomerMapper(), TestTokenPropagation.forService("booking-service"));
     }
 
     @AfterEach
@@ -83,16 +84,16 @@ class CustomerManagementAdapterOutTest {
 
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(feignClient).getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), captor.capture());
-        var parsed = JWT_SERVICE.parse(captor.getValue().substring("Bearer ".length()));
-        assertThat(parsed.type().name()).isEqualTo("SERVICE");
+        assertThat(captor.getValue()).isEqualTo("Bearer " + TestTokenPropagation.serviceToken("booking-service"));
     }
 
     @Test
     void relaysTheAuthenticatedUserTokenFromSecurityContext() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
-        var rawToken = JWT_SERVICE.generateServiceToken("quem-chamou");
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                "user", rawToken, AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
+        var rawToken = JWT_SERVICE.generateToken(TestTokenPropagation.USER.id(), TestTokenPropagation.USER.email(),
+                TestTokenPropagation.USER.name(), TestTokenPropagation.USER.cpf(), TestTokenPropagation.USER.phone(),
+                TestTokenPropagation.USER.role(), TestTokenPropagation.USER.type());
+        TestTokenPropagation.authenticateUser(rawToken);
         when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of());
 

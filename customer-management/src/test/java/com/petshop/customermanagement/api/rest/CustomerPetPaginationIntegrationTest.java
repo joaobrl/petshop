@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.customermanagement.support.TestJwtService;
 import com.petshop.customermanagement.core.port.out.BookingHistoryPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
 import com.petshop.customermanagement.core.port.out.PurchaseHistoryPortOut;
@@ -51,8 +51,8 @@ class CustomerPetPaginationIntegrationTest {
         registry.add("spring.jpa.properties.hibernate.generate_statistics", () -> "true");
     }
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     private static final int CUSTOMERS = 10;
     private static final int PETS = 45;

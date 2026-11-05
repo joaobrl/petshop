@@ -44,13 +44,17 @@
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
-		<!-- JWT próprio (não é mais Keycloak/oauth2-resource-server): só
-		     precisamos da infraestrutura de segurança (filter chain,
-		     PasswordEncoder/BCrypt) — a validação do token em si é o
-		     JwtAuthenticationFilter do petshop-commons. -->
+		<!-- Infraestrutura de segurança (filter chain, PasswordEncoder/BCrypt).
+		     A validação do token é o Resource Server (abaixo, SDD-024). -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Resource Server (SDD-024 F2): valida o access token do Keycloak via JWKS. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
 		</dependency>
 
 		<!-- Janelas do RateLimitingFilter com expiração e teto de tamanho

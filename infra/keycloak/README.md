@@ -1,7 +1,10 @@
-# Keycloak (SDD-024, Fase 1)
+# Keycloak (SDD-024)
 
-IdP do projeto. Aqui só está a infra: o realm `petshop` importado no boot. Os
-serviços ainda não o usam (isso é das Fases 2 a 4 da SDD-024).
+IdP do projeto: o realm `petshop` importado no boot (Fase 1). Desde as Fases 2 e 4
+todos os serviços são Resource Servers (validam o access token pelo JWKS: assinatura,
+`iss`, `exp` e `aud`) e as chamadas serviço-a-serviço usam Client Credentials com
+permissões próprias (ver [Permissões de serviço](#permissões-de-serviço-fase-4)).
+O login do `web/` via Keycloak é da Fase 3.
 
 ## Subir
 
@@ -44,8 +47,47 @@ Keycloak é acessado em `http://keycloak:8080` (use isso no `jwk-set-uri`, mante
 | `order-service` | confidencial, só service account | Idem, order-service (customer-management, product-registration). |
 | `staff-service` | confidencial, só service account | Idem, staff-service (customer-management). |
 
-Escopos/papéis finos por rota são da Fase 4. Os segredos vêm das variáveis
-`KEYCLOAK_CLIENT_SECRET_*` (`${...}` no JSON, resolvido no import); nenhum segredo é versionado.
+Os segredos vêm das variáveis `KEYCLOAK_CLIENT_SECRET_*` (`${...}` no JSON, resolvido
+no import); nenhum segredo é versionado. Os mesmos valores vão para os serviços
+chamadores como `KEYCLOAK_CLIENT_SECRET` (docker-compose / `keycloak-secret` no k8s).
+
+## Audience (`aud`)
+
+Cada serviço exige o próprio id no `aud` do token (`keycloak.audience`). Os ids são
+`customer-management`, `product-registration`, `staff-service`, `booking-service` e
+`order-service`. Não há client no realm para todos eles (customer-management e
+product-registration não chamam ninguém): os audience mappers usam
+`included.custom.audience` com o id em texto, o que o `oidc-audience-mapper` permite
+sem o client existir — por isso não foram criados clients bearer-only.
+
+| Client | Audience mappers (protocol mappers do client) |
+|---|---|
+| `web` | `customer-management`, `product-registration`, `staff-service`, `booking-service`, `order-service` (todos que o frontend chama via gateway; o token do usuário também é repassado entre serviços) |
+| `booking-service` | `staff-service` |
+| `order-service` | `customer-management`, `product-registration` |
+| `staff-service` | `customer-management` |
+
+## Permissões de serviço (Fase 4)
+
+O papel genérico `SERVICE` não existe mais. Cada chamada Feign tem um realm role
+`svc:<destino>:<ação>`, atribuído só ao service account do chamador
+(`users[].realmRoles`) e liberado no escopo do client (`scopeMappings`, já que os
+clients de serviço têm `fullScopeAllowed=false`). O conversor do `petshop-commons`
+transforma esses roles em authorities com o mesmo nome (`ServicePermissions`), e o
+`SecurityConfig` do destino libera a rota com `hasAuthority`.
+
+| Chamador | Rota no destino | Permissão |
+|---|---|---|
+| `booking-service` | staff-service `GET /api/v1/availability/general`, `GET /api/v1/availability/schedule` | `svc:staff:availability-read` |
+| `order-service` | customer-management `GET /api/v1/customers/find/customer/{id}` | `svc:customers:customer-read` |
+| `order-service` | product-registration `POST /api/v1/products/{id}/reserve`, `/release`, `/confirm` | `svc:products:stock-write` |
+| `order-service` | product-registration `GET /api/v1/products/find/{id}`, `GET /api/v1/products/find?ids=` | — (rotas públicas; só o `aud` precisa bater) |
+| `staff-service` | customer-management `GET /api/v1/staff/all` | `svc:customers:staff-read` |
+
+Token de service account só recebe authorities `svc:*` (nunca `ROLE_*`): em qualquer
+rota de usuário (`PetshopAuthorization.anyUser()`) ou que não libere a permissão dele,
+a resposta é **403**. Num serviço que não está no `aud` do token, a resposta é **401**
+(o token é recusado antes da autorização).
 
 ## Realm
 
@@ -85,3 +127,21 @@ curl -s http://localhost:8180/realms/petshop/protocol/openid-connect/certs
 ```
 
 Sem segredo (ou com segredo errado) o endpoint de token responde 401.
+
+O token do `booking-service` traz `aud: ["staff-service"]` e
+`realm_access.roles: ["svc:staff:availability-read"]`. Com ele (Fase 4):
+
+```
+# 200: rota liberada para a permissão
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8085/api/v1/availability/schedule?dateTime=2026-08-15T09:00:00&role=GROOMER'
+# 403: rota de usuário no mesmo serviço
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
+  -X POST http://localhost:8085/api/v1/weekend-allocation/generate
+# 401: customer-management não está no aud do booking-service
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
+  -X DELETE http://localhost:8082/api/v1/customers/delete/customer/00000000-0000-0000-0000-000000000000
+```
+
+Alterou o realm (ex.: estas permissões) com um volume já existente? O import ignora
+realm existente: recrie o database do Keycloak ou aplique pelo console.

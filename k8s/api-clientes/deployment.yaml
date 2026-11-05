@@ -22,6 +22,15 @@ spec:
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+          # Resource Server (SDD-024): JWKS pela rede interna, iss público (KC_HOSTNAME
+          # de k8s/keycloak/configmap.yaml).
+          env:
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://localhost:30180/realms/petshop
+            - name: KEYCLOAK_JWK_SET_URI
+              value: http://keycloak-svc:8080/realms/petshop/protocol/openid-connect/certs
+            - name: KEYCLOAK_AUDIENCE
+              value: customer-management
           envFrom:
             - configMapRef:
                 name: api-clientes-config
@@ -29,6 +38,7 @@ spec:
                 name: db-clientes-secret
             - secretRef:
                 name: api-clientes-secret
+            # JWT_SECRET só para a emissão legada do login; sai na SDD-024 F3.
             - secretRef:
                 name: jwt-secret
           ports:

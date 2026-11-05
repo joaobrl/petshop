@@ -1,7 +1,5 @@
 package com.petshop.gateway_service.ratelimit;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,28 +10,16 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ClientKeyResolverTest {
 
-    private static final String SECRET = "test-secret-key-for-jwt-signing-min-32-bytes-long";
-    private static final String OTHER_SECRET = "outro-segredo-com-pelo-menos-32-bytes-de-tamanho";
     private static final InetSocketAddress CLIENT = new InetSocketAddress("10.0.0.1", 54321);
 
-    private final ClientKeyResolver resolver = new ClientKeyResolver(new JwtSubjectResolver(SECRET));
-
-    private static String token(String secret, Instant expiration) {
-        return Jwts.builder()
-                .subject("user-123")
-                .expiration(Date.from(expiration))
-                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)))
-                .compact();
-    }
+    private final ClientKeyResolver resolver = new ClientKeyResolver(TestJwts.resolver());
 
     private static MockServerWebExchange exchange(String authorization, InetSocketAddress remote) {
         var request = MockServerHttpRequest.get("/api/v1/bookings/list").remoteAddress(remote);
@@ -46,14 +32,14 @@ class ClientKeyResolverTest {
     static Stream<Arguments> invalidTokens() {
         return Stream.of(
                 Arguments.of("Bearer lixo"),
-                Arguments.of("Bearer " + token(OTHER_SECRET, Instant.now().plusSeconds(3600))),
-                Arguments.of("Bearer " + token(SECRET, Instant.now().minusSeconds(60))));
+                Arguments.of("Bearer " + TestJwts.token(TestJwts.OTHER_KEYS, "user-123", TestJwts.ISSUER, Instant.now().plusSeconds(3600))),
+                Arguments.of("Bearer " + TestJwts.token(TestJwts.KEYS, "user-123", TestJwts.ISSUER, Instant.now().minusSeconds(3600))));
     }
 
     @Test
     @DisplayName("Deve usar a chave do usuário quando o token for válido")
     void shouldResolveUserKeyWhenTokenIsValid() {
-        var exchange = exchange("Bearer " + token(SECRET, Instant.now().plusSeconds(3600)), CLIENT);
+        var exchange = exchange("Bearer " + TestJwts.validToken("user-123"), CLIENT);
 
         var key = resolver.resolve(exchange).block();
 
@@ -96,7 +82,7 @@ class ClientKeyResolverTest {
     @Test
     @DisplayName("Deve usar a chave do IP mesmo com token válido quando o grupo for por IP")
     void shouldResolveIpKeyWhenResolvingByIpWithValidToken() {
-        var exchange = exchange("Bearer " + token(SECRET, Instant.now().plusSeconds(3600)), CLIENT);
+        var exchange = exchange("Bearer " + TestJwts.validToken("user-123"), CLIENT);
 
         var key = resolver.resolveByIp(exchange).block();
 

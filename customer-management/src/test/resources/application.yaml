@@ -21,11 +21,16 @@ spring:
 server:
   port: 8080
 
-# Segredo dummy só pra o contexto de teste subir (JwtService exige >= 32
-# bytes). Testes que precisam de um token válido geram um de verdade
-# usando este mesmo segredo via JwtService, não mais via
-# SecurityMockMvcRequestPostProcessors.jwt() (isso era específico do
-# oauth2-resource-server, que não existe mais aqui).
+# Keycloak de teste (SDD-024 RF4): sem Keycloak real. Os testes assinam RS256 com
+# chave gerada em memória (support.TestJwtService) e o support.TestJwtDecoderConfig
+# troca o JwtDecoder do JWKS por um que confere essa chave, com os mesmos
+# validadores de produção (iss/exp/aud abaixo). O jwk-set-uri nunca é chamado.
+keycloak:
+  issuer-uri: http://localhost:8180/realms/petshop
+  jwk-set-uri: http://localhost:8180/realms/petshop/protocol/openid-connect/certs
+  audience: customer-management
+
+# Só a emissão legada do token no login (JwtService); sai na SDD-024 F3.
 jwt:
   secret: test-secret-key-for-jwt-signing-min-32-bytes-long
   expiration-minutes: 60

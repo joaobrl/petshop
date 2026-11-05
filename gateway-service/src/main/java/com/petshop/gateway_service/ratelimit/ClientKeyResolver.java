@@ -34,9 +34,9 @@ public class ClientKeyResolver implements KeyResolver {
     @Override
     public Mono<String> resolve(ServerWebExchange exchange) {
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        return Mono.just(jwtSubjectResolver.resolveSubject(authorization)
+        return jwtSubjectResolver.resolveSubject(authorization)
                 .map(sub -> USER_PREFIX + sub)
-                .orElseGet(() -> resolveIp(exchange)));
+                .switchIfEmpty(Mono.fromSupplier(() -> resolveIp(exchange)));
     }
 
     /** Sempre por IP, mesmo com token (grupos públicos). */

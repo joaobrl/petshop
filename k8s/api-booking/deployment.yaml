@@ -22,6 +22,25 @@ spec:
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+          # Resource Server (SDD-024): JWKS pela rede interna, iss público (KC_HOSTNAME
+          # de k8s/keycloak/configmap.yaml).
+          env:
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://localhost:30180/realms/petshop
+            - name: KEYCLOAK_JWK_SET_URI
+              value: http://keycloak-svc:8080/realms/petshop/protocol/openid-connect/certs
+            - name: KEYCLOAK_AUDIENCE
+              value: booking-service
+            # Client Credentials das chamadas Feign (client booking-service do realm petshop).
+            - name: KEYCLOAK_TOKEN_URI
+              value: http://keycloak-svc:8080/realms/petshop/protocol/openid-connect/token
+            - name: KEYCLOAK_CLIENT_ID
+              value: booking-service
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE
           envFrom:
             - configMapRef:
                 name: api-booking-config
@@ -29,8 +48,6 @@ spec:
                 name: db-booking-secret
             - secretRef:
                 name: api-booking-secret
-            - secretRef:
-                name: jwt-secret
           ports:
             - containerPort: 8083
           resources:

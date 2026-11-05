@@ -44,9 +44,20 @@ spring:
       sasl.mechanism: PLAIN
       sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_ORDER_USERNAME}" password="${KAFKA_ORDER_PASSWORD}";'
 
-jwt:
-  secret: ${JWT_SECRET:}
-  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+# Resource Server (SDD-024): valida o access token do Keycloak. O JWKS é buscado
+# pela rede interna (http://keycloak:8080 no compose); o iss esperado é o público,
+# fixado no Keycloak por KC_HOSTNAME. audience = id deste serviço, que precisa
+# estar no aud do token (audience mappers do realm petshop).
+keycloak:
+  issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/petshop}
+  jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/petshop/protocol/openid-connect/certs}
+  audience: ${KEYCLOAK_AUDIENCE:order-service}
+  # Client Credentials das chamadas Feign sem usuário para repassar (client
+  # order-service do realm; segredo = KEYCLOAK_CLIENT_SECRET_* do .env).
+  client:
+    token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/petshop/protocol/openid-connect/token}
+    id: ${KEYCLOAK_CLIENT_ID:order-service}
+    secret: ${KEYCLOAK_CLIENT_SECRET:}
 
 # Regras do fluxo de compra
 order:

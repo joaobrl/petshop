@@ -2,7 +2,7 @@ package com.petshop.customermanagement.api.rest;
 
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.customermanagement.support.TestJwtService;
 import com.petshop.customermanagement.core.domain.PurchaseHistoryItem;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.infrastructure.persistence.mongo.entity.CustomerHistoryBookings;
@@ -42,8 +42,8 @@ class HistoryControllerIntegrationTest {
     @ServiceConnection
     static MongoDBContainer mongo = new MongoDBContainer("mongo:6.0");
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @Autowired
     private MockMvc mockMvc;

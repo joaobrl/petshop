@@ -24,12 +24,16 @@ spec:
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+          # Keycloak (SDD-024): valida o Bearer via JWKS só para a chave do rate limit
+          # (user:<sub>). JWKS pela rede interna, iss público (KC_HOSTNAME).
+          env:
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://localhost:30180/realms/petshop
+            - name: KEYCLOAK_JWK_SET_URI
+              value: http://keycloak-svc:8080/realms/petshop/protocol/openid-connect/certs
           envFrom:
             - configMapRef:
                 name: api-gateway-config
-            # JWT_SECRET compartilhado com os demais serviços (k8s/jwt-secret.yaml).
-            - secretRef:
-                name: jwt-secret
           ports:
             - containerPort: 8080
           resources:

@@ -3,7 +3,7 @@ package com.petshop.order_service.api.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.order_service.support.TestJwtService;
 import com.petshop.order_service.core.domain.ProductStockInfo;
 import com.petshop.order_service.core.port.in.dto.AddCartItemRequestDto;
 import com.petshop.order_service.core.port.out.CustomerPortOut;
@@ -46,8 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class CartControllerIntegrationTest {
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @Autowired
     private MockMvc mockMvc;

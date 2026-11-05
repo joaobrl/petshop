@@ -21,9 +21,10 @@ não tem rota aqui.
   domínio nem autentica ninguém (quem continua validando o JWT e
   rejeitando requisição é cada serviço downstream, como hoje).
 - Redis (`spring-boot-starter-data-redis-reactive`) só para os baldes do
-  rate limiting, e `jjwt` (mesma versão do `petshop-commons`, declarado
-  direto aqui porque o commons é servlet) só para ler o `sub` do Bearer —
-  ver [Rate limiting](#rate-limiting).
+  rate limiting, e `spring-security-oauth2-jose` (só o
+  `NimbusReactiveJwtDecoder`, não o starter de resource server, que ligaria
+  o Spring Security WebFlux) só para ler o `sub` do Bearer validado via
+  JWKS do Keycloak — ver [Rate limiting](#rate-limiting).
 
 ## Como funciona o roteamento
 
@@ -67,10 +68,12 @@ filtro nativo devolve o 429 sem corpo nem `Retry-After`.
 | `registration` | `POST /api/v1/customers/register/**` | IP | 5 req/min (1 ficha/s, 12 fichas por requisição, balde 60) |
 | `authenticated` | todo o resto que é roteado | `user:<sub>` se o Bearer tiver assinatura válida, senão `ip:<ip>` | 10 req/s, burst 20 |
 
-- **Chave por usuário**: o gateway valida a assinatura HS256 do
-  `Authorization: Bearer` com o mesmo `JWT_SECRET` dos serviços, só para
-  não aceitar um `sub` forjado. Token ausente, inválido ou expirado cai na
-  chave por IP — o gateway **não** rejeita a requisição por isso.
+- **Chave por usuário**: o gateway valida o `Authorization: Bearer` com a
+  chave pública do JWKS do Keycloak (assinatura RS256, `iss` e `exp`;
+  SDD-024), só para não aceitar um `sub` forjado — sem guardar segredo
+  nenhum. O `aud` não é checado (o gateway não é audience de nenhum token).
+  Token ausente, inválido ou expirado (ou Keycloak fora do ar) cai na chave
+  por IP — o gateway **não** rejeita a requisição por isso.
 - **IP**: é o do peer TCP. O gateway é a borda (sem LB/ingress na frente,
   ver SDD-028), então `X-Forwarded-For` enviado pelo cliente é ignorado.
 - **Excedeu**: `429` com `ProblemDetail` (`application/problem+json`,
@@ -103,7 +106,8 @@ filtro nativo devolve o 429 sem corpo nem `Retry-After`.
 | `GATEWAY_CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Origens liberadas no CORS, separadas por vírgula |
 | `SPRING_DATA_REDIS_HOST` / `SPRING_DATA_REDIS_PORT` | `localhost` / `6379` | Redis do rate limiting |
 | `SPRING_DATA_REDIS_TIMEOUT` / `SPRING_DATA_REDIS_CONNECT_TIMEOUT` | `500ms` / `500ms` | Quanto esperar o Redis antes de entrar em fail-open |
-| `JWT_SECRET` | *(vazio)* | Mesmo segredo dos serviços; sem ele (ou com menos de 32 bytes) tudo é limitado por IP e o gateway loga `WARN` na subida |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/petshop` | `iss` esperado no Bearer |
+| `KEYCLOAK_JWK_SET_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/certs` | JWKS do Keycloak (no compose, `http://keycloak:8080/...`); vazio = tudo limitado por IP, com `WARN` na subida |
 | `RATE_LIMIT_PUBLIC_READ_REPLENISH_RATE` / `_BURST_CAPACITY` / `_REQUESTED_TOKENS` | `20` / `40` / `1` | Grupo `public-read` |
 | `RATE_LIMIT_REGISTRATION_REPLENISH_RATE` / `_BURST_CAPACITY` / `_REQUESTED_TOKENS` | `1` / `60` / `12` | Grupo `registration` |
 | `RATE_LIMIT_AUTHENTICATED_REPLENISH_RATE` / `_BURST_CAPACITY` / `_REQUESTED_TOKENS` | `10` / `20` / `1` | Grupo `authenticated` |
@@ -132,7 +136,8 @@ docker build -f gateway-service/Dockerfile -t gateway-service .
 No `docker-compose.yml` raiz, serviço `api-gateway`, exposto em
 **`localhost:8080`**, com as 5 URLs já apontando para os nomes de container
 corretos (`depends_on` os 5 serviços REST e o `redis` saudável), mais
-`SPRING_DATA_REDIS_HOST=redis` e `JWT_SECRET`:
+`SPRING_DATA_REDIS_HOST=redis` e as URLs do Keycloak (`KEYCLOAK_ISSUER_URI`,
+`KEYCLOAK_JWK_SET_URI`):
 
 ```bash
 docker compose up api-gateway
