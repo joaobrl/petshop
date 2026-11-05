@@ -18,6 +18,9 @@ spec:
           imagePullPolicy: Never
           securityContext:
             runAsNonRoot: true
+            # UID/GID 10001 do usuário "spring" definido em staff-service/Dockerfile.
+            runAsUser: 10001
+            runAsGroup: 10001
             allowPrivilegeEscalation: false
           envFrom:
             - configMapRef:

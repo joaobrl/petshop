@@ -21,10 +21,10 @@ RUN mvn clean package -DskipTests
 # Etapa 3: Execução
 FROM eclipse-temurin:21-jre
 ENV TZ=America/Sao_Paulo
-RUN addgroup --system spring && adduser --system --ingroup spring spring
+RUN addgroup --system --gid 10001 spring && adduser --system --uid 10001 --ingroup spring spring
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 RUN chown spring:spring app.jar
-USER spring:spring
+USER 10001:10001
 EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "app.jar"]
