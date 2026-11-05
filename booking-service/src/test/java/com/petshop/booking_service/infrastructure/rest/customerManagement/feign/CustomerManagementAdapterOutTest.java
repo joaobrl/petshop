@@ -63,7 +63,7 @@ class CustomerManagementAdapterOutTest {
     void mapsFeignResponseToStaffAssignments() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
         var id = UUID.randomUUID();
-        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
+        when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of(new StaffDto(id, "Ciclana")));
 
         var result = adapter.getScheduledStaff(dateTime, "GROOMER", null);
@@ -76,13 +76,13 @@ class CustomerManagementAdapterOutTest {
     @Test
     void mintsFreshServiceTokenWhenNoCallerTokenIsProvided() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
-        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
+        when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of());
 
         adapter.getScheduledStaff(dateTime, "GROOMER", null);
 
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
-        org.mockito.Mockito.verify(feignClient).getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), captor.capture());
+        org.mockito.Mockito.verify(feignClient).getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), captor.capture());
         var parsed = JWT_SERVICE.parse(captor.getValue().substring("Bearer ".length()));
         assertThat(parsed.type().name()).isEqualTo("SERVICE");
     }
@@ -93,18 +93,18 @@ class CustomerManagementAdapterOutTest {
         var rawToken = JWT_SERVICE.generateServiceToken("quem-chamou");
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "user", rawToken, AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
-        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString()))
+        when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString()))
                 .thenReturn(List.of());
 
         adapter.getScheduledStaff(dateTime, "GROOMER", "Bearer ignorado");
 
-        org.mockito.Mockito.verify(feignClient).getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), eq("Bearer " + rawToken));
+        org.mockito.Mockito.verify(feignClient).getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), eq("Bearer " + rawToken));
     }
 
     @Test
     void returnsEmptyListWhenFeignReturnsNull() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
-        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString())).thenReturn(null);
+        when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString())).thenReturn(null);
 
         assertThat(adapter.getScheduledStaff(dateTime, "GROOMER", null)).isEmpty();
     }
@@ -112,7 +112,7 @@ class CustomerManagementAdapterOutTest {
     @Test
     void returnsEmptyListWhenFeignReturnsEmptyList() {
         var dateTime = LocalDateTime.of(2026, 8, 15, 9, 0);
-        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString())).thenReturn(List.of());
+        when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString())).thenReturn(List.of());
 
         assertThat(adapter.getScheduledStaff(dateTime, "GROOMER", null)).isEmpty();
     }
@@ -127,7 +127,7 @@ class CustomerManagementAdapterOutTest {
     }
 
     private void stubFeignThrows(RuntimeException ex) {
-        when(feignClient.getSchedule(eq("15/08/2026 09:00"), eq("GROOMER"), anyString())).thenThrow(ex);
+        when(feignClient.getSchedule(eq("2026-08-15T09:00:00"), eq("GROOMER"), anyString())).thenThrow(ex);
     }
 
     private List<ILoggingEvent> captureErrorLogs(Runnable action) {

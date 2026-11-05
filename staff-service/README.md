@@ -19,16 +19,24 @@ Microsserviço de disponibilidade e escala de funcionários do WebCommerce/PetSh
 ### `/api/v1/availability`
 | Método | Path | Acesso | Descrição |
 |---|---|---|---|
-| `GET` | `/general?dateTime=&role=` | Autenticado | Disponibilidade (capacidade/booleano) para uma role numa data/hora (`dd/MM/yyyy HH:mm`) |
+| `GET` | `/general?dateTime=&role=` | Autenticado | Disponibilidade (capacidade/booleano) para uma role numa data/hora (`yyyy-MM-dd'T'HH:mm:ss`) |
 | `GET` | `/schedule?dateTime=&role=` | Autenticado | Lista de funcionários escalados para aquele horário/role |
 
 ### `/api/v1/weekend-allocation`
 | Método | Path | Acesso | Descrição |
 |---|---|---|---|
 | `POST` | `/generate` | `ADMIN` | Gera a escala de tosadores (GROOMER) para os sábados do próximo mês ainda não preenchido, em rodízio; lança erro de negócio se houver menos tosadores habilitados que `STAFF_GROOMER_SATURDAY_COUNT` |
-| `GET` | `?date=dd/MM/yyyy` | Autenticado | Consulta a escala de uma data específica |
+| `GET` | `?date=yyyy-MM-dd` | Autenticado | Consulta a escala de uma data específica |
 
 `Staff` não é mais uma entidade persistida localmente — é um objeto de domínio populado a partir das chamadas Feign ao `customer-management`. Só `WeekendAllocation` é persistida no banco próprio (`staff_db`).
+
+### Formato de datas (ISO-8601) — mudança quebradora
+
+Toda data/hora trafegada (query params e JSON) é **ISO-8601 sem offset**, sempre em **horário de Brasília** implícito: `dateTime` de `/availability/*` e `validatedDateTime` da resposta como `2026-08-15T09:00:00`; `date` de `/weekend-allocation` como `2026-11-15`. Mensagens de texto lidas pelo usuário seguem em formato brasileiro.
+
+> **Mudança quebradora de contrato (SDD-035):** até esta versão o serviço usava `dd/MM/yyyy HH:mm` / `dd/MM/yyyy`. Agora `15/08/2026 09:00` e `15/11/2026` devolvem **400**. O armazenamento no banco não muda.
+>
+> **Ordem de deploy:** o contrato com o `booking-service` (Feign síncrono) não tolera os dois formatos — publicar `staff-service` e `booking-service` **no mesmo release** (subir juntos). Deploy fora de ordem faz o staff responder 400 e a criação de agendamento falhar ("sem funcionário"/503). O `web/` também deve sair junto (envia `yyyy-MM-dd` para `weekend-allocation`).
 
 ## Segurança
 

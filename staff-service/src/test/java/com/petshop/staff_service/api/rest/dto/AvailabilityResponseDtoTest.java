@@ -18,7 +18,7 @@ class AvailabilityResponseDtoTest {
 
         assertThat(dto.getAvailableSlots()).isEqualTo(2);
         assertThat(dto.getIsAvailable()).isTrue();
-        assertThat(dto.getValidatedDateTime()).isEqualTo("15/08/2026 09:30");
+        assertThat(dto.getValidatedDateTime()).isEqualTo("2026-08-15T09:30:00");
     }
 
     @Test

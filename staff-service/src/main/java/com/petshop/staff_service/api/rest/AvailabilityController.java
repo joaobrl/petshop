@@ -3,6 +3,7 @@ package com.petshop.staff_service.api.rest;
 import com.petshop.staff_service.api.rest.dto.AvailabilityResponseDto;
 import com.petshop.commons.security.Role;
 import com.petshop.staff_service.core.port.out.dto.StaffResponseDto;
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,12 +18,14 @@ public interface AvailabilityController {
 
     @GetMapping("/general")
     ResponseEntity<AvailabilityResponseDto> getGeneralAvailability(
-            @RequestParam("dateTime") @DateTimeFormat(pattern = "dd/MM/yyyy HH:mm") LocalDateTime dateTime,
+            @Parameter(description = "Data e hora em ISO-8601 sem offset (horário de Brasília)", example = "2026-08-15T09:00:00")
+            @RequestParam("dateTime") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTime,
             @RequestParam("role") Role role);
 
 
     @GetMapping("/schedule")
     ResponseEntity<List<StaffResponseDto>> getSchedule(
-            @RequestParam("dateTime") @DateTimeFormat(pattern = "dd/MM/yyyy HH:mm") LocalDateTime dateTime,
+            @Parameter(description = "Data e hora em ISO-8601 sem offset (horário de Brasília)", example = "2026-08-15T09:00:00")
+            @RequestParam("dateTime") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTime,
             @RequestParam("role") Role role);
 }

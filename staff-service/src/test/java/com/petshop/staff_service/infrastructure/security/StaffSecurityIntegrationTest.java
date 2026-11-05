@@ -74,7 +74,7 @@ class StaffSecurityIntegrationTest {
     @Test
     void availabilityGeneralRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/availability/general")
-                        .param("dateTime", "10/08/2026 09:00")
+                        .param("dateTime", "2026-08-10T09:00:00")
                         .param("role", "GROOMER"))
                 .andExpect(status().isUnauthorized());
     }
@@ -89,7 +89,7 @@ class StaffSecurityIntegrationTest {
                 .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 10, 9, 0)));
 
         mockMvc.perform(get("/api/v1/availability/general")
-                        .param("dateTime", "10/08/2026 09:00")
+                        .param("dateTime", "2026-08-10T09:00:00")
                         .param("role", "GROOMER")
                         .with(bearer(token(Role.CUSTOMER))))
                 .andExpect(status().isOk());
@@ -102,7 +102,7 @@ class StaffSecurityIntegrationTest {
                 .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 10, 9, 0)));
 
         mockMvc.perform(get("/api/v1/availability/general")
-                        .param("dateTime", "10/08/2026 09:00")
+                        .param("dateTime", "2026-08-10T09:00:00")
                         .param("role", "GROOMER")
                         .with(bearer(token(Role.ADMIN))))
                 .andExpect(status().isOk());
@@ -115,7 +115,7 @@ class StaffSecurityIntegrationTest {
                 .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 10, 9, 0)));
 
         mockMvc.perform(get("/api/v1/availability/general")
-                        .param("dateTime", "10/08/2026 09:00")
+                        .param("dateTime", "2026-08-10T09:00:00")
                         .param("role", "GROOMER")
                         .with(bearer(serviceToken())))
                 .andExpect(status().isOk());
@@ -146,7 +146,7 @@ class StaffSecurityIntegrationTest {
     @Test
     void weekendAllocationListForbiddenForNonAdminRole() throws Exception {
         mockMvc.perform(get("/api/v1/weekend-allocation")
-                        .param("date", "01/08/2026")
+                        .param("date", "2026-08-01")
                         .with(bearer(token(Role.RECEPTIONIST))))
                 .andExpect(status().isForbidden());
     }
@@ -157,8 +157,73 @@ class StaffSecurityIntegrationTest {
                 .thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/weekend-allocation")
-                        .param("date", "01/08/2026")
+                        .param("date", "2026-08-01")
                         .with(bearer(token(Role.ADMIN))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void availabilityGeneralAcceptsIsoDateTime() throws Exception {
+        org.mockito.Mockito.when(availabilityPortIn.checkGeneralAvailability(
+                        org.mockito.ArgumentMatchers.any(LocalDateTime.class), org.mockito.ArgumentMatchers.any(Role.class)))
+                .thenReturn(new AvailabilityResult(1, true, LocalDateTime.of(2026, 8, 15, 9, 0)));
+
+        mockMvc.perform(get("/api/v1/availability/general")
+                        .param("dateTime", "2026-08-15T09:00:00")
+                        .param("role", "GROOMER")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.validatedDateTime").value("2026-08-15T09:00:00"));
+    }
+
+    @Test
+    void availabilityGeneralRejectsBrazilianDateTimeWithBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/availability/general")
+                        .param("dateTime", "15/08/2026 09:00")
+                        .param("role", "GROOMER")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void availabilityScheduleAcceptsIsoDateTime() throws Exception {
+        org.mockito.Mockito.when(availabilityPortIn.scheduledStaffFor(
+                        org.mockito.ArgumentMatchers.any(LocalDateTime.class), org.mockito.ArgumentMatchers.any(Role.class)))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/availability/schedule")
+                        .param("dateTime", "2026-08-15T09:00:00")
+                        .param("role", "GROOMER")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void availabilityScheduleRejectsBrazilianDateTimeWithBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/availability/schedule")
+                        .param("dateTime", "15/08/2026 09:00")
+                        .param("role", "GROOMER")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void weekendAllocationAcceptsIsoDate() throws Exception {
+        org.mockito.Mockito.when(weekendAllocationPortOut.findByDate(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/weekend-allocation")
+                        .param("date", "2026-11-15")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void weekendAllocationRejectsBrazilianDateWithBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/weekend-allocation")
+                        .param("date", "15/11/2026")
+                        .with(bearer(token(Role.ADMIN))))
+                .andExpect(status().isBadRequest());
     }
 }
