@@ -18,11 +18,11 @@ spec:
           imagePullPolicy: Never
           securityContext:
             runAsNonRoot: true
-            # UID/GID numéricos do usuário "spring" da imagem (gateway-service/Dockerfile):
+            # UID/GID 10001 do usuário "spring" definido em gateway-service/Dockerfile:
             # sem eles o kubelet recusa o pod, porque não consegue provar que o
             # usuário por nome não é root (CreateContainerConfigError).
-            runAsUser: 100
-            runAsGroup: 101
+            runAsUser: 10001
+            runAsGroup: 10001
             allowPrivilegeEscalation: false
           envFrom:
             - configMapRef:
