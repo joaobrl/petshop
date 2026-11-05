@@ -12,6 +12,7 @@ import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
 import com.petshop.customermanagement.core.port.out.StaffPortOut;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,7 +87,7 @@ class AuthServiceTest {
             when(customerPortOut.findByEmail(customer.getEmail())).thenReturn(Optional.of(customer));
             when(passwordEncoder.matches("raw-password", "hashed-password")).thenReturn(true);
             when(jwtService.generateToken(customer.getId(), customer.getEmail(), customer.getName(),
-                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER)).thenReturn("token-customer");
+                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER, false)).thenReturn("token-customer");
             when(jwtService.expirationSeconds()).thenReturn(3600L);
 
             var response = authService.login(request);
@@ -102,6 +103,56 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("Deve emitir o token com emailVerified true quando o cliente tiver e-mail verificado")
+        void shouldGenerateTokenWithEmailVerifiedTrueWhenCustomerEmailIsVerified() {
+            var customer = sampleCustomer("hashed-password");
+            customer.markEmailVerified();
+            var request = new LoginRequestDto(customer.getEmail(), "raw-password");
+            when(customerPortOut.findByEmail(customer.getEmail())).thenReturn(Optional.of(customer));
+            when(passwordEncoder.matches("raw-password", "hashed-password")).thenReturn(true);
+            when(jwtService.generateToken(customer.getId(), customer.getEmail(), customer.getName(),
+                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER, true)).thenReturn("token-verified");
+            when(jwtService.expirationSeconds()).thenReturn(3600L);
+
+            var response = authService.login(request);
+
+            assertThat(response.accessToken()).isEqualTo("token-verified");
+        }
+
+        @Test
+        @DisplayName("Deve emitir o token com emailVerified false quando o cliente tiver e-mail não verificado")
+        void shouldGenerateTokenWithEmailVerifiedFalseWhenCustomerEmailIsNotVerified() {
+            var customer = sampleCustomer("hashed-password");
+            var request = new LoginRequestDto(customer.getEmail(), "raw-password");
+            when(customerPortOut.findByEmail(customer.getEmail())).thenReturn(Optional.of(customer));
+            when(passwordEncoder.matches("raw-password", "hashed-password")).thenReturn(true);
+            when(jwtService.generateToken(customer.getId(), customer.getEmail(), customer.getName(),
+                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER, false)).thenReturn("token-unverified");
+            when(jwtService.expirationSeconds()).thenReturn(3600L);
+
+            var response = authService.login(request);
+
+            assertThat(response.accessToken()).isEqualTo("token-unverified");
+        }
+
+        @Test
+        @DisplayName("Deve emitir o token com emailVerified true quando o cliente legado tiver a flag nula")
+        void shouldGenerateTokenWithEmailVerifiedTrueWhenCustomerFlagIsNull() {
+            var customer = sampleCustomer("hashed-password");
+            customer.setEmailVerified(null);
+            var request = new LoginRequestDto(customer.getEmail(), "raw-password");
+            when(customerPortOut.findByEmail(customer.getEmail())).thenReturn(Optional.of(customer));
+            when(passwordEncoder.matches("raw-password", "hashed-password")).thenReturn(true);
+            when(jwtService.generateToken(customer.getId(), customer.getEmail(), customer.getName(),
+                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER, true)).thenReturn("token-legacy");
+            when(jwtService.expirationSeconds()).thenReturn(3600L);
+
+            var response = authService.login(request);
+
+            assertThat(response.accessToken()).isEqualTo("token-legacy");
+        }
+
+        @Test
         void reactivatesDisabledCustomerOnSuccessfulLogin() {
             var customer = sampleCustomer("hashed-password");
             customer.setEnabled(false);
@@ -109,7 +160,7 @@ class AuthServiceTest {
             when(customerPortOut.findByEmail(customer.getEmail())).thenReturn(Optional.of(customer));
             when(passwordEncoder.matches("raw-password", "hashed-password")).thenReturn(true);
             when(jwtService.generateToken(customer.getId(), customer.getEmail(), customer.getName(),
-                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER)).thenReturn("token-customer");
+                    customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER, false)).thenReturn("token-customer");
             when(jwtService.expirationSeconds()).thenReturn(3600L);
             when(customerPortOut.save(customer)).thenReturn(customer);
 
@@ -171,6 +222,23 @@ class AuthServiceTest {
             assertThat(response.role()).isEqualTo(Role.RECEPTIONIST);
             assertThat(response.type()).isEqualTo(AccountType.STAFF);
             assertThat(response.mustChangePassword()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Deve emitir o token do staff sem a claim de e-mail verificado quando o staff logar")
+        void shouldGenerateStaffTokenWithoutEmailVerifiedClaimWhenStaffLogsIn() {
+            var staff = sampleStaff("hashed-staff-password");
+            var request = new LoginRequestDto(staff.getEmail(), "raw-password");
+            when(customerPortOut.findByEmail(staff.getEmail())).thenReturn(Optional.empty());
+            when(staffPortOut.findByEmail(staff.getEmail())).thenReturn(Optional.of(staff));
+            when(passwordEncoder.matches("raw-password", "hashed-staff-password")).thenReturn(true);
+            when(jwtService.generateToken(staff.getId(), staff.getEmail(), staff.getName(),
+                    staff.getCpf(), staff.getPhone(), staff.getRole(), AccountType.STAFF)).thenReturn("token-staff");
+            when(jwtService.expirationSeconds()).thenReturn(3600L);
+
+            authService.login(request);
+
+            verify(jwtService, never()).generateToken(any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test

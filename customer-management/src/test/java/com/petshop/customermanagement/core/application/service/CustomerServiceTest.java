@@ -6,6 +6,7 @@ import com.petshop.customermanagement.core.domain.Customer;
 import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.domain.enums.PetType;
 import com.petshop.customermanagement.core.domain.enums.SizeCategory;
+import com.petshop.customermanagement.core.port.in.EmailVerificationPortIn;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
@@ -45,11 +46,14 @@ class CustomerServiceTest {
     @Mock
     private NotificationPortOut notificationPortOut;
 
+    @Mock
+    private EmailVerificationPortIn emailVerificationPortIn;
+
     private CustomerService customerService;
 
     @BeforeEach
     void setUp() {
-        customerService = new CustomerService(customerPortOut, passwordEncoder, notificationPortOut);
+        customerService = new CustomerService(customerPortOut, passwordEncoder, notificationPortOut, emailVerificationPortIn);
     }
 
     private Customer sampleCustomer() {
@@ -77,6 +81,45 @@ class CustomerServiceTest {
             assertThat(result.getMustChangePassword()).isFalse();
             verify(customerPortOut).save(any(Customer.class));
             verify(notificationPortOut).sendRegistrationConfirmation("maria@mail.com", "Maria");
+        }
+
+        @Test
+        @DisplayName("Deve emitir a verificação de e-mail com o cliente salvo quando cadastrar")
+        void shouldIssueVerificationWithSavedCustomerWhenRegistering() {
+            var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+            var saved = sampleCustomer();
+            when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
+            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
+            when(customerPortOut.save(any(Customer.class))).thenReturn(saved);
+
+            var result = customerService.registerCustomer(request);
+
+            assertThat(result).isSameAs(saved);
+            verify(emailVerificationPortIn).issueVerification(saved);
+        }
+
+        @Test
+        @DisplayName("Deve criar o cliente com e-mail não verificado quando cadastrar")
+        void shouldSaveCustomerWithUnverifiedEmailWhenRegistering() {
+            var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+            when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
+            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
+            when(customerPortOut.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            var result = customerService.registerCustomer(request);
+
+            assertThat(result.hasVerifiedEmail()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Deve não emitir verificação quando o CPF já existir")
+        void shouldNotIssueVerificationWhenCpfAlreadyExists() {
+            var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+            when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.of(sampleCustomer()));
+
+            assertThatThrownBy(() -> customerService.registerCustomer(request)).isInstanceOf(ConflictException.class);
+
+            verifyNoInteractions(emailVerificationPortIn);
         }
 
         @Test

@@ -24,10 +24,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookingControllerImpl implements BookingController {
 
+    static final String EMAIL_NOT_VERIFIED_MESSAGE = "Confirme seu e-mail para continuar";
+
     private final BookingPortIn bookingPortIn;
 
     @Override
     public ResponseEntity<BookingResponseDto> createBooking(BookingRequestDto bookingRequest, UriComponentsBuilder uriBuilder, AuthenticatedUser user, String token) {
+        // SDD-020: cliente com e-mail não confirmado não cria agendamento.
+        if (user != null && user.isUnverifiedCustomer()) {
+            throw new AccessDeniedException(EMAIL_NOT_VERIFIED_MESSAGE);
+        }
         applyOwnerIdentity(bookingRequest, user);
         var booking = bookingPortIn.createBooking(bookingRequest, user != null ? user.role() : null, token);
         var uri = uriBuilder.path("/bookings/{id}").buildAndExpand(booking.getId()).toUri();

@@ -64,7 +64,8 @@ public class AuthService implements AuthPortIn {
         checkPassword(customer.getPasswordHash(), rawPassword);
         reactivateIfDisabled(customer);
         var token = jwtService.generateToken(customer.getId(), customer.getEmail(), customer.getName(),
-                customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER);
+                customer.getCpf(), customer.getPhone(), Role.CUSTOMER, AccountType.CUSTOMER,
+                customer.hasVerifiedEmail()); // claim email_verified (SDD-020)
         log.info("Login successful for customer: {}", customer.getEmail());
         return new LoginResponseDto(token, jwtService.expirationSeconds(), Role.CUSTOMER, AccountType.CUSTOMER,
                 Boolean.TRUE.equals(customer.getMustChangePassword()));

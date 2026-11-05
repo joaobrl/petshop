@@ -32,6 +32,7 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
     // no notification-service.
     private static final String TIPO_RESET_SENHA = "RESET_SENHA";
     private static final String TIPO_CADASTRO_CONFIRMADO = "CADASTRO_CONFIRMADO";
+    private static final String TIPO_VERIFICACAO_EMAIL = "VERIFICACAO_EMAIL";
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -53,6 +54,16 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
                 KafkaTopics.NOTIFICATION_COMMANDS, null, null, command, correlationIdHeaders());
         kafkaTemplate.send(record);
         log.info("Published registration-confirmation email command");
+    }
+
+    @Override
+    public void sendEmailVerification(String to, String name, String verificationLink) {
+        var params = Map.<String, Object>of("name", name, "verificationLink", verificationLink);
+        var command = new SendEmailCommandDto(to, TIPO_VERIFICACAO_EMAIL, params);
+        var record = new ProducerRecord<String, Object>(
+                KafkaTopics.NOTIFICATION_COMMANDS, null, null, command, correlationIdHeaders());
+        kafkaTemplate.send(record);
+        log.info("Published email-verification email command");
     }
 
     // O consumer (notification-service) extrai este header de volta pro MDC dele,

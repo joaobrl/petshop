@@ -10,11 +10,13 @@ import com.petshop.order_service.core.port.in.OrderPortIn;
 import com.petshop.order_service.core.port.in.dto.CheckoutRequestDto;
 import com.petshop.order_service.infrastructure.security.CustomerIdentityResolver;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
@@ -22,7 +24,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +77,85 @@ class OrderControllerImplTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getHeaders().getLocation()).hasToString("http://localhost:8086/api/v1/orders/" + order.getId());
         assertThat(response.getBody().getId()).isEqualTo(order.getId());
+    }
+
+    private AuthenticatedUser customerUser(UUID id, Boolean emailVerified) {
+        return new AuthenticatedUser(id, "maria@mail.com", "Maria", "12345678900", "11999999999", Role.CUSTOMER, AccountType.CUSTOMER, emailVerified);
+    }
+
+    @Test
+    @DisplayName("Deve lançar acesso negado e não chamar o checkout quando o cliente não tiver e-mail verificado")
+    void shouldThrowAccessDeniedAndNotCheckoutWhenCustomerEmailIsNotVerified() {
+        var customerId = UUID.randomUUID();
+        var user = customerUser(customerId, false);
+        var request = new CheckoutRequestDto(List.of(1L));
+        var uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8086");
+
+        assertThatThrownBy(() -> controller.checkout(customerId, request, uriBuilder, user, "Bearer token"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Confirme seu e-mail para continuar");
+
+        verifyNoInteractions(orderPortIn, customerIdentityResolver);
+    }
+
+    @Test
+    @DisplayName("Deve seguir o checkout quando o cliente tiver e-mail verificado")
+    void shouldProceedWithCheckoutWhenCustomerEmailIsVerified() {
+        var customerId = UUID.randomUUID();
+        var user = customerUser(customerId, true);
+        var order = sampleOrder(customerId);
+        when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
+        when(orderPortIn.checkout(customerId, List.of(1L), "Bearer token")).thenReturn(order);
+
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), user, "Bearer token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(orderPortIn).checkout(customerId, List.of(1L), "Bearer token");
+    }
+
+    @Test
+    @DisplayName("Deve seguir o checkout quando o usuário não tiver a claim de e-mail verificado")
+    void shouldProceedWithCheckoutWhenUserHasNoEmailVerifiedClaim() {
+        var customerId = UUID.randomUUID();
+        var user = customerUser(customerId, null);
+        var order = sampleOrder(customerId);
+        when(customerIdentityResolver.resolveCustomerId(customerId, user)).thenReturn(customerId);
+        when(orderPortIn.checkout(customerId, List.of(1L), "Bearer token")).thenReturn(order);
+
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), user, "Bearer token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(orderPortIn).checkout(customerId, List.of(1L), "Bearer token");
+    }
+
+    @Test
+    @DisplayName("Deve seguir o checkout quando o usuário for staff com e-mail não verificado")
+    void shouldProceedWithCheckoutWhenUserIsStaffEvenWithUnverifiedFlag() {
+        var customerId = UUID.randomUUID();
+        var staff = new AuthenticatedUser(UUID.randomUUID(), "recepcao@petshop.com", "Recepcao", "00000000000", "11988887777",
+                Role.RECEPTIONIST, AccountType.STAFF, false);
+        var order = sampleOrder(customerId);
+        when(customerIdentityResolver.resolveCustomerId(customerId, staff)).thenReturn(customerId);
+        when(orderPortIn.checkout(customerId, List.of(1L), "Bearer token")).thenReturn(order);
+
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), staff, "Bearer token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(orderPortIn).checkout(customerId, List.of(1L), "Bearer token");
+    }
+
+    @Test
+    @DisplayName("Deve seguir o checkout quando não houver usuário autenticado")
+    void shouldProceedWithCheckoutWhenUserIsNull() {
+        var customerId = UUID.randomUUID();
+        var order = sampleOrder(customerId);
+        when(customerIdentityResolver.resolveCustomerId(customerId, null)).thenReturn(customerId);
+        when(orderPortIn.checkout(customerId, List.of(1L), null)).thenReturn(order);
+
+        var response = controller.checkout(customerId, new CheckoutRequestDto(List.of(1L)), UriComponentsBuilder.fromUriString("http://localhost:8086"), null, null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(orderPortIn).checkout(customerId, List.of(1L), null);
     }
 
     @Test

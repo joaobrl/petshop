@@ -29,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -110,6 +111,65 @@ class BookingControllerImplTest {
 
         assertThat(request.getOwnerName()).isEqualTo("Nome Original");
         assertThat(request.getOwnerCpf()).isEqualTo("00000000000");
+    }
+
+    private AuthenticatedUser customer(String cpf, Boolean emailVerified) {
+        return new AuthenticatedUser(UUID.randomUUID(), "cliente@petshop.com", "Cliente Nome", cpf,
+                "11999990000", Role.CUSTOMER, AccountType.CUSTOMER, emailVerified);
+    }
+
+    @Test
+    @DisplayName("Deve lançar acesso negado e não criar agendamento quando o cliente não tiver e-mail verificado")
+    void shouldThrowAccessDeniedAndNotCreateBookingWhenCustomerEmailIsNotVerified() {
+        var user = customer("12345678900", false);
+        var request = requestDto();
+
+        assertThatThrownBy(() -> controller.createBooking(request, UriComponentsBuilder.newInstance(), user, "Bearer token"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Confirme seu e-mail para continuar");
+
+        verifyNoInteractions(bookingPortIn);
+        assertThat(request.getOwnerName()).isEqualTo("Nome Original");
+    }
+
+    @Test
+    @DisplayName("Deve criar o agendamento quando o cliente tiver e-mail verificado")
+    void shouldCreateBookingWhenCustomerEmailIsVerified() {
+        var user = customer("12345678900", true);
+        var request = requestDto();
+        when(bookingPortIn.createBooking(request, Role.CUSTOMER, "Bearer token")).thenReturn(bookingWithOwnerCpf("12345678900"));
+
+        var response = controller.createBooking(request, UriComponentsBuilder.newInstance(), user, "Bearer token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(bookingPortIn).createBooking(request, Role.CUSTOMER, "Bearer token");
+    }
+
+    @Test
+    @DisplayName("Deve criar o agendamento quando o usuário não tiver a claim de e-mail verificado")
+    void shouldCreateBookingWhenUserHasNoEmailVerifiedClaim() {
+        var user = customer("12345678900", null);
+        var request = requestDto();
+        when(bookingPortIn.createBooking(request, Role.CUSTOMER, "Bearer token")).thenReturn(bookingWithOwnerCpf("12345678900"));
+
+        var response = controller.createBooking(request, UriComponentsBuilder.newInstance(), user, "Bearer token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(bookingPortIn).createBooking(request, Role.CUSTOMER, "Bearer token");
+    }
+
+    @Test
+    @DisplayName("Deve criar o agendamento quando o usuário for staff com e-mail não verificado")
+    void shouldCreateBookingWhenUserIsStaffEvenWithUnverifiedFlag() {
+        var staff = new AuthenticatedUser(UUID.randomUUID(), "recepcao@petshop.com", "Recepcao", "00000000000",
+                "11988887777", Role.RECEPTIONIST, AccountType.STAFF, false);
+        var request = requestDto();
+        when(bookingPortIn.createBooking(request, Role.RECEPTIONIST, "Bearer token")).thenReturn(bookingWithOwnerCpf("00000000000"));
+
+        var response = controller.createBooking(request, UriComponentsBuilder.newInstance(), staff, "Bearer token");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(bookingPortIn).createBooking(request, Role.RECEPTIONIST, "Bearer token");
     }
 
     @Test

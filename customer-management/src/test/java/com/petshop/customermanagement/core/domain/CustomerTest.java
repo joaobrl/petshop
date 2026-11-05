@@ -1,5 +1,6 @@
 package com.petshop.customermanagement.core.domain;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -152,6 +153,66 @@ class CustomerTest {
             var customer = new Customer("A", "11111111111", "a@mail.com", "1");
 
             assertThat(customer).isEqualTo(customer);
+        }
+    }
+
+    @Nested
+    class EmailVerification {
+
+        @Test
+        @DisplayName("Deve nascer com e-mail não verificado quando criado pelo construtor de cadastro")
+        void shouldStartWithUnverifiedEmailWhenCreatedByBusinessConstructor() {
+            var customer = new Customer("Maria", "12345678900", "maria@mail.com", "11999999999");
+
+            assertThat(customer.getEmailVerified()).isFalse();
+            assertThat(customer.hasVerifiedEmail()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Deve marcar o e-mail como verificado quando chamar markEmailVerified")
+        void shouldMarkEmailAsVerifiedWhenMarkEmailVerifiedIsCalled() {
+            var customer = new Customer("Maria", "12345678900", "maria@mail.com", "11999999999");
+
+            customer.markEmailVerified();
+
+            assertThat(customer.getEmailVerified()).isTrue();
+            assertThat(customer.hasVerifiedEmail()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Deve considerar verificado quando a flag for true")
+        void shouldHaveVerifiedEmailWhenFlagIsTrue() {
+            var customer = new Customer();
+            customer.setEmailVerified(true);
+
+            assertThat(customer.hasVerifiedEmail()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Deve considerar não verificado quando a flag for false")
+        void shouldNotHaveVerifiedEmailWhenFlagIsFalse() {
+            var customer = new Customer();
+            customer.setEmailVerified(false);
+
+            assertThat(customer.hasVerifiedEmail()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Deve considerar verificado quando a flag for nula")
+        void shouldHaveVerifiedEmailWhenFlagIsNull() {
+            var customer = new Customer();
+            customer.setEmailVerified(null);
+
+            assertThat(customer.hasVerifiedEmail()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Deve deixar a flag nula quando criado pelo construtor completo")
+        void shouldLeaveFlagNullWhenCreatedByAllArgsConstructor() {
+            var customer = new Customer(UUID.randomUUID(), "Joao", "99988877766", "joao@mail.com", "11888888888", true, new ArrayList<>());
+
+            assertThat(customer.getEmailVerified()).isNull();
+            assertThat(customer.hasVerifiedEmail()).isTrue();
         }
     }
 

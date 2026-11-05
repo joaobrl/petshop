@@ -17,6 +17,7 @@ import { LoginPage } from "./pages/account/LoginPage";
 import { RegisterPage } from "./pages/account/RegisterPage";
 import { MyPetsPage } from "./pages/account/MyPetsPage";
 import { MyOrdersPage } from "./pages/account/MyOrdersPage";
+import { VerifyEmailPage } from "./pages/account/VerifyEmailPage";
 
 import { NewBookingPage } from "./pages/booking/NewBookingPage";
 import { MyBookingsPage } from "./pages/booking/MyBookingsPage";
@@ -48,6 +49,7 @@ function App() {
 
               <Route path="/entrar" element={<LoginPage />} />
               <Route path="/cadastro" element={<RegisterPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
 
               <Route
                 path="/minha-conta/pets"
