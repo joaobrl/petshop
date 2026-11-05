@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+# Senhas locais do seed (SDD-021); o versionado é o .env.seed.example
+.env.seed
 
 # Editor directories and files
 .vscode/*

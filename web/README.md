@@ -44,26 +44,55 @@ portas individuais. Para outra base, defina `VITE_API_BASE_URL` (ver
    Para outro host/porta, edite a chamada `CorsSupport.defaultConfigurationSource(...)`
    em cada um.
 
-3. **Dados iniciais**: o banco sobe vazio — sem produtos nem contas de staff
-   além do admin de bootstrap. Rode o script de seed (login como admin,
-   cadastra produtos e três contas de staff) depois que os containers
-   estiverem de pé:
+3. **Dados iniciais (seed)**: o banco sobe vazio — só existe o admin de
+   bootstrap. Com a stack de pé (gateway em `http://localhost:8080`), rode em
+   `web/`:
 
    ```bash
-   node scripts/seed-backend.mjs
+   # credenciais do admin de bootstrap (as do .env da raiz); sem default no script
+   export BOOTSTRAP_ADMIN_EMAIL=...
+   export BOOTSTRAP_ADMIN_PASSWORD=...
+   # o admin de bootstrap nasce com troca de senha obrigatória; o seed troca
+   # para este valor na 1ª execução (mín. 6 caracteres)
+   export SEED_ADMIN_NEW_PASSWORD=...
+   npm run seed
    ```
 
-   As contas de staff criadas têm senha inicial = o próprio CPF (ver
-   `StaffService.createStaff`); o login exige troca de senha no primeiro
-   acesso (`mustChangePassword`), que a tela de login já trata.
+   O script usa só a API (nada de SQL), é **idempotente** (rodar de novo não
+   duplica) e **recusa** rodar se a base URL não for `localhost`/`127.0.0.1`.
+   Cria: 10 produtos (um com estoque baixo e um esgotado), staff de cada cargo
+   (recepcionista, 2 tosadores, veterinário), escala de sábados, 3 clientes com
+   pets, agendamentos (futuro, cancelado e concluído), pedidos e um carrinho.
+   Ao final imprime um resumo (criado / já existia / pulado) e os logins de
+   exemplo.
+
+   Configuração (`web/.env.seed.example` é versionado, com valores de teste):
+   variáveis do ambiente > `web/.env.seed.local` > `web/.env.seed` >
+   `web/.env.seed.example`. `API_BASE_URL` (padrão `http://localhost:8080`) e,
+   opcionalmente, `CUSTOMERS_URL`/`PRODUCTS_URL`/`STAFF_URL`/`BOOKING_URL`/
+   `ORDERS_URL` para falar direto com um serviço (também só local). Senhas de
+   exemplo: `SEED_CUSTOMER_PASSWORD` e `SEED_STAFF_PASSWORD`. Use
+   `.env.seed.local` ou `.env.seed` (ambos ignorados pelo git) para valores seus.
+
+   Observações: (a) os clientes de exemplo são verificados pelo seed lendo o
+   token do tópico Kafka `notification-commands` via `docker exec petshop-kafka`
+   (SDD-020; sem Docker/Kafka o seed pula agendamentos e pedidos desses clientes
+   e avisa no resumo); (b) o gateway limita login/cadastro a ~5/min por IP — o
+   seed espera o `Retry-After` do 429 e segue, então a primeira execução pode
+   levar alguns minutos; (c) o pagamento dos pedidos é simulado pelo
+   `order-service` (aprova após ~30 s; não pagos expiram em 30 min); (d) os ids
+   dos pedidos criados ficam em `web/.seed-state.local` (ignorado pelo git) para
+   a idempotência, já que não existe endpoint de listar pedidos; (e) "Meus
+   pedidos" lê os ids do `localStorage` do navegador, então os pedidos do seed
+   aparecem no histórico de compras do cliente (após pagos) e na busca por id do
+   painel, não na lista "Meus pedidos".
 
 ### Login para testar
 
 - **Cliente**: crie uma conta em `/cadastro`, ou use uma conta já criada.
 - **Painel interno** (`/interno/entrar`): a conta admin de bootstrap
   (`BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` no `.env`) ou uma das
-  contas de staff do seed (CPF como senha, troca obrigatória no primeiro
-  login).
+  contas de staff do seed (senha `SEED_STAFF_PASSWORD`, ver acima).
 
 ## Bug de backend corrigido durante a integração
 
@@ -117,7 +146,7 @@ src/
     booking/     novo agendamento, meus agendamentos
     internal/    login do painel, dashboard, agendamentos, pedidos (busca por id), equipe
 scripts/
-  seed-backend.mjs   popula produtos e contas de staff via API, depois do docker compose up
+  seed-backend.mjs   `npm run seed`: produtos, staff, escala, clientes, pets, agendamentos e pedidos via API
 ```
 
 ## O que não está coberto
