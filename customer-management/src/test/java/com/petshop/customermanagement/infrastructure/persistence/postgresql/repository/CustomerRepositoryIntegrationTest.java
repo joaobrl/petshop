@@ -37,6 +37,7 @@ class CustomerRepositoryIntegrationTest {
         entity.setEmail(email);
         entity.setPhone("11999999999");
         entity.setEnabled(true);
+        entity.setEmailVerified(true);
         entity.setPet(new ArrayList<>());
         return entity;
     }

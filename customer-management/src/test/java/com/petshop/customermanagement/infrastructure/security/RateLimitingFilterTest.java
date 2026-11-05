@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -89,6 +90,52 @@ class RateLimitingFilterTest {
         verify(filterChain, times(5)).doFilter(request, response);
         verify(response).setStatus(429);
         assertThat(responseBody.toString()).contains("Muitas tentativas");
+    }
+
+    @Test
+    @DisplayName("Deve bloquear a sexta tentativa de reenvio de verificação do mesmo IP dentro da janela")
+    void shouldBlockSixthResendVerificationAttemptFromSameIpWithinWindow() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/v1/auth/resend-verification");
+        when(request.getRemoteAddr()).thenReturn("10.0.0.6");
+
+        for (int i = 0; i < 5; i++) {
+            filter.doFilterInternal(request, response, filterChain);
+        }
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain, times(5)).doFilter(request, response);
+        verify(response).setStatus(429);
+        assertThat(responseBody.toString()).contains("Muitas tentativas");
+    }
+
+    @Test
+    @DisplayName("Deve contar o reenvio de verificação em janela separada do login para o mesmo IP")
+    void shouldTrackResendVerificationAndLoginIndependentlyForSameIp() throws Exception {
+        when(request.getRemoteAddr()).thenReturn("10.0.0.7");
+
+        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
+        for (int i = 0; i < 5; i++) {
+            filter.doFilterInternal(request, response, filterChain);
+        }
+
+        when(request.getRequestURI()).thenReturn("/api/v1/auth/resend-verification");
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain, times(6)).doFilter(request, response);
+        verify(response, never()).setStatus(429);
+    }
+
+    @Test
+    @DisplayName("Deve não limitar o endpoint de verificação de e-mail")
+    void shouldNotLimitVerifyEmailEndpoint() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/v1/auth/verify-email");
+
+        for (int i = 0; i < 20; i++) {
+            filter.doFilterInternal(request, response, filterChain);
+        }
+
+        verify(filterChain, times(20)).doFilter(request, response);
+        verify(response, never()).setStatus(429);
     }
 
     @Test

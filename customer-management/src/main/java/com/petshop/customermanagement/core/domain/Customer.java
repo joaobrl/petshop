@@ -22,6 +22,10 @@ public class Customer {
     private List<Pet> pet;
     private String passwordHash;
     private Boolean mustChangePassword;
+    // SDD-020: cadastro novo nasce false; clientes anteriores à mudança ficam
+    // true pelo default da coluna (RF6). null é tratado como verificado, ver
+    // hasVerifiedEmail().
+    private Boolean emailVerified;
     // Versão do lock otimista (SDD-010). Opaca para o domínio: só é lida da
     // entidade e devolvida no save; null = cliente ainda não persistido.
     private Long version;
@@ -35,6 +39,7 @@ public class Customer {
         this.enabled = true;
         this.pet = new ArrayList<>();
         this.mustChangePassword = true;
+        this.emailVerified = false;
     }
 
     public Customer(UUID id, String name, String cpf, String email, String phone, Boolean enabled, List<Pet> pet) {
@@ -51,6 +56,15 @@ public class Customer {
         if (name != null) this.name = name;
         if (email != null) this.email = email;
         if (phone != null) this.phone = phone;
+    }
+
+    // Só false explícito conta como "não verificado" (não pune a base atual).
+    public boolean hasVerifiedEmail() {
+        return !Boolean.FALSE.equals(emailVerified);
+    }
+
+    public void markEmailVerified() {
+        this.emailVerified = true;
     }
 
 }

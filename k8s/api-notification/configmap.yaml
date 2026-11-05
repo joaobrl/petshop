@@ -18,3 +18,5 @@ data:
   BREVO_TEMPLATE_ORDER_READY_FOR_PICKUP: "8"
   BREVO_TEMPLATE_CART_REMINDER: "9"
   BREVO_TEMPLATE_PASSWORD_RESET: "10"
+  # SDD-020: preencha depois de criar o template "Verificação de e-mail" no Brevo.
+  BREVO_TEMPLATE_EMAIL_VERIFICATION: ""

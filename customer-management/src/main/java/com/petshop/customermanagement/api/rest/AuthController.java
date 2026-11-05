@@ -4,6 +4,8 @@ import com.petshop.customermanagement.api.rest.dto.LoginResponseDto;
 import com.petshop.customermanagement.core.port.in.dto.ChangePasswordRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.ForgotPasswordRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.LoginRequestDto;
+import com.petshop.customermanagement.core.port.in.dto.ResendVerificationRequestDto;
+import com.petshop.customermanagement.core.port.in.dto.VerifyEmailRequestDto;
 import jakarta.validation.Valid;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.http.ResponseEntity;
@@ -24,4 +26,10 @@ public interface AuthController {
 
     @PatchMapping("/change-password")
     ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequestDto request, @AuthenticationPrincipal AuthenticatedUser user);
+
+    @PostMapping("/verify-email")
+    ResponseEntity<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequestDto request);
+
+    @PostMapping("/resend-verification")
+    ResponseEntity<Void> resendVerification(@Valid @RequestBody ResendVerificationRequestDto request);
 }

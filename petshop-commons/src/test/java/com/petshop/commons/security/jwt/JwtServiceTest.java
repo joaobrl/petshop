@@ -1,11 +1,15 @@
 package com.petshop.commons.security.jwt;
 
 import com.petshop.commons.security.Role;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
 
@@ -61,6 +65,80 @@ class JwtServiceTest {
         assertThat(parsed.phone()).isEqualTo("11999999999");
         assertThat(parsed.role()).isEqualTo(Role.ADMIN);
         assertThat(parsed.type()).isEqualTo(AccountType.STAFF);
+    }
+
+    private static Claims claimsOf(String token) {
+        return Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(VALID_SECRET.getBytes(StandardCharsets.UTF_8)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    @Test
+    @DisplayName("Deve incluir a claim email_verified true no token e devolvê-la no parse")
+    void shouldIncludeEmailVerifiedClaimTrueAndReturnItOnParse() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+
+        String token = service.generateToken(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999",
+                Role.CUSTOMER, AccountType.CUSTOMER, true);
+
+        assertThat(claimsOf(token).get("email_verified")).isEqualTo(true);
+        assertThat(service.parse(token).emailVerified()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Deve incluir a claim email_verified false no token e devolvê-la no parse")
+    void shouldIncludeEmailVerifiedClaimFalseAndReturnItOnParse() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+
+        String token = service.generateToken(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999",
+                Role.CUSTOMER, AccountType.CUSTOMER, false);
+
+        assertThat(claimsOf(token).get("email_verified")).isEqualTo(false);
+        assertThat(service.parse(token).emailVerified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Deve omitir a claim email_verified quando o valor for nulo")
+    void shouldOmitEmailVerifiedClaimWhenValueIsNull() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+
+        String token = service.generateToken(UUID.randomUUID(), "maria@mail.com", "Maria", "12345678900", "11999999999",
+                Role.CUSTOMER, AccountType.CUSTOMER, null);
+
+        assertThat(claimsOf(token).containsKey("email_verified")).isFalse();
+        assertThat(service.parse(token).emailVerified()).isNull();
+    }
+
+    @Test
+    @DisplayName("Deve omitir a claim email_verified quando usar a versão sem o parâmetro")
+    void shouldOmitEmailVerifiedClaimWhenUsingOverloadWithoutParameter() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+
+        String token = service.generateToken(UUID.randomUUID(), "joao@petshop.com", "João", "12345678900", "11999999999",
+                Role.ADMIN, AccountType.STAFF);
+
+        assertThat(claimsOf(token).containsKey("email_verified")).isFalse();
+        assertThat(service.parse(token).emailVerified()).isNull();
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção no parse quando a claim email_verified não for booleana")
+    void shouldThrowOnParseWhenEmailVerifiedClaimIsNotBoolean() {
+        var service = new JwtService(VALID_SECRET, Duration.ofMinutes(60));
+        String token = Jwts.builder()
+                .subject(UUID.randomUUID().toString())
+                .claim("email", "maria@mail.com")
+                .claim("role", Role.CUSTOMER.name())
+                .claim("type", AccountType.CUSTOMER.name())
+                .claim("email_verified", "true")
+                .signWith(Keys.hmacShaKeyFor(VALID_SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        assertThatThrownBy(() -> service.parse(token))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Claim 'email_verified' não é booleana.");
     }
 
     @Test

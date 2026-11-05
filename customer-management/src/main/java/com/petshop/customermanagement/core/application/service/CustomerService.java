@@ -6,6 +6,7 @@ import com.petshop.customermanagement.core.domain.Customer;
 import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.domain.enums.PetType;
 import com.petshop.customermanagement.core.port.in.CustomerPortIn;
+import com.petshop.customermanagement.core.port.in.EmailVerificationPortIn;
 import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
@@ -30,6 +31,7 @@ public class CustomerService implements CustomerPortIn {
     private final CustomerPortOut customerPortOut;
     private final PasswordEncoder passwordEncoder;
     private final NotificationPortOut notificationPortOut;
+    private final EmailVerificationPortIn emailVerificationPortIn;
 
     @Override
     public Customer registerCustomer (CustomerRequestDto request) {
@@ -53,6 +55,9 @@ public class CustomerService implements CustomerPortIn {
         customer.setMustChangePassword(false);
         var saved = customerPortOut.save(customer);
         notificationPortOut.sendRegistrationConfirmation(saved.getEmail(), saved.getName());
+        // SDD-020: conta nasce com emailVerified=false (ver Customer); o link
+        // de confirmação vai num e-mail separado do de boas-vindas.
+        emailVerificationPortIn.issueVerification(saved);
         log.info("Customer registered: id={}", saved.getId());
         return saved;
     }

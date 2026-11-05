@@ -14,3 +14,7 @@ data:
   # Rede interna do cluster (pods) — só dela o X-Forwarded-For é aceito
   # pelo rate limit de login. Ajustar ao pod CIDR real do cluster.
   RATE_LIMIT_TRUSTED_PROXIES: 10.0.0.0/8
+  # SDD-020: base do link de verificação de e-mail (<APP_FRONTEND_URL>/verify-email?token=...).
+  # Ajustar à URL pública do front no cluster.
+  APP_FRONTEND_URL: http://localhost:5173
+  EMAIL_VERIFICATION_TOKEN_TTL: 24h

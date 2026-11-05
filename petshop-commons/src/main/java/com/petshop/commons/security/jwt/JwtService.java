@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_CPF;
 import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_EMAIL;
+import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_EMAIL_VERIFIED;
 import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_NAME;
 import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_PHONE;
 import static com.petshop.commons.security.jwt.AuthenticatedUser.CLAIM_ROLE;
@@ -36,6 +37,15 @@ public class JwtService {
     }
 
     public String generateToken(UUID subjectId, String email, String name, String cpf, String phone, Role role, AccountType type) {
+        return generateToken(subjectId, email, name, cpf, phone, role, type, null);
+    }
+
+    /**
+     * {@code emailVerified} nulo = token sem a claim {@value AuthenticatedUser#CLAIM_EMAIL_VERIFIED}
+     * (staff/service): o jjwt descarta claims com valor nulo.
+     */
+    public String generateToken(UUID subjectId, String email, String name, String cpf, String phone, Role role, AccountType type,
+                                Boolean emailVerified) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(subjectId.toString())
@@ -45,6 +55,7 @@ public class JwtService {
                 .claim(CLAIM_PHONE, phone)
                 .claim(CLAIM_ROLE, role.name())
                 .claim(CLAIM_TYPE, type.name())
+                .claim(CLAIM_EMAIL_VERIFIED, emailVerified)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(expiration)))
                 .signWith(key)

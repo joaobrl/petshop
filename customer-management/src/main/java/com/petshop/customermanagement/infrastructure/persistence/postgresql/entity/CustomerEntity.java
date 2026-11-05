@@ -38,6 +38,12 @@ public class CustomerEntity implements Persistable<UUID> {
     @Column(name = "must_change_password")
     private Boolean mustChangePassword;
 
+    // SDD-020 (RF6): sem Flyway, o ddl-auto=update adiciona a coluna com
+    // default true, então os clientes que já existiam ficam verificados; o
+    // cadastro novo grava false explicitamente (ver Customer).
+    @Column(name = "email_verified", nullable = false, columnDefinition = "boolean default true")
+    private Boolean emailVerified;
+
     // Lock otimista (SDD-010): o save() do adapter monta uma entidade nova a
     // partir do domínio, então a versão lida precisa viajar no Customer e
     // voltar aqui; sem isso o Hibernate não detecta o lost update na coleção
