@@ -24,6 +24,46 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       <<: *healthcheck-timing
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.0
+    container_name: petshop-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak_db
+      KC_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      # Health em /health/ready na porta de management (9000), não exposta no host.
+      KC_HEALTH_ENABLED: "true"
+      # Issuer fixo (http://localhost:8180/realms/petshop) para o navegador e para
+      # os containers, que buscam o JWKS por http://keycloak:8080 (rede interna).
+      KC_HOSTNAME: http://localhost:8180
+      # Segredos dos clients confidenciais, resolvidos via ${VAR} no realm-petshop.json.
+      KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN: ${KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN}
+      KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE: ${KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE}
+      KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE: ${KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE}
+      KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE: ${KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE}
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    # A imagem não tem curl: o check abre o socket da porta 9000 com bash.
+    # start_period maior porque o primeiro boot cria o schema e importa o realm.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      <<: *healthcheck-timing
+      start_period: 40s
+
   api-products:
     build:
       context: .
