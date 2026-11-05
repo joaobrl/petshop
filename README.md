@@ -17,6 +17,12 @@ notificação por e-mail).
 painel interno simples), integrada aos microsserviços reais via `fetch`; ver
 [`web/README.md`](web/README.md) para como rodar, CORS e o script de seed.
 
+**Dados de exemplo para desenvolvimento**: com a stack local de pé
+(`docker compose up -d --build`), `cd web && npm run seed` popula produtos,
+staff, escala, clientes com pets, agendamentos e pedidos via API (idempotente;
+só roda contra `localhost`). Variáveis e detalhes em
+[`web/README.md`](web/README.md) e `web/.env.seed.example`.
+
 ## Arquitetura
 
 ```
