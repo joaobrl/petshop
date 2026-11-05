@@ -8,11 +8,11 @@ class AvailabilityDTOTest {
 
     @Test
     void allArgsConstructorAndGetters() {
-        var dto = new AvailabilityDTO(2, true, "15/08/2026 09:00");
+        var dto = new AvailabilityDTO(2, true, "2026-08-15T09:00:00");
 
         assertThat(dto.getAvailableSlots()).isEqualTo(2);
         assertThat(dto.getIsAvailable()).isTrue();
-        assertThat(dto.getValidatedDateTime()).isEqualTo("15/08/2026 09:00");
+        assertThat(dto.getValidatedDateTime()).isEqualTo("2026-08-15T09:00:00");
     }
 
     @Test
@@ -29,8 +29,8 @@ class AvailabilityDTOTest {
 
     @Test
     void equalsAndHashCodeConsiderAllFields() {
-        var a = new AvailabilityDTO(2, true, "15/08/2026 09:00");
-        var b = new AvailabilityDTO(2, true, "15/08/2026 09:00");
+        var a = new AvailabilityDTO(2, true, "2026-08-15T09:00:00");
+        var b = new AvailabilityDTO(2, true, "2026-08-15T09:00:00");
 
         assertThat(a).isEqualTo(b);
         assertThat(a.hashCode()).isEqualTo(b.hashCode());

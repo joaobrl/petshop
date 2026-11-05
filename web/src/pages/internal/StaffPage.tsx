@@ -7,11 +7,6 @@ import { InitialsAvatar } from "../../components/ui/InitialsAvatar";
 import { TextField } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
 
-function toBackendDate(isoDate: string) {
-  const [year, month, day] = isoDate.split("-");
-  return `${day}/${month}/${year}`;
-}
-
 export function StaffPage() {
   const [staff, setStaff] = useState<Staff[] | null>(null);
   const [staffError, setStaffError] = useState<string | null>(null);
@@ -39,7 +34,7 @@ export function StaffPage() {
     setLoadingAllocation(true);
     setAllocationError(null);
     try {
-      setAllocations(await staffService.getWeekendAllocation(toBackendDate(date)));
+      setAllocations(await staffService.getWeekendAllocation(date));
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setAllocationError("Só uma conta de administrador pode consultar a escala.");

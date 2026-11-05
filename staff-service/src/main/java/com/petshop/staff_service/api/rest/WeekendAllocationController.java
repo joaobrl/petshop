@@ -1,6 +1,7 @@
 package com.petshop.staff_service.api.rest;
 
 import com.petshop.staff_service.api.rest.dto.WeekendAllocationResponseDto;
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,5 +20,6 @@ public interface WeekendAllocationController {
 
     @GetMapping
     ResponseEntity<List<WeekendAllocationResponseDto>> getAllocationsForDate(
-            @RequestParam("date") @DateTimeFormat(pattern = "dd/MM/yyyy") LocalDate date);
+            @Parameter(description = "Data em ISO-8601 (yyyy-MM-dd)", example = "2026-11-15")
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date);
 }
