@@ -36,7 +36,7 @@ Toda data/hora trafegada (query params e JSON) é **ISO-8601 sem offset**, sempr
 
 > **Mudança quebradora de contrato (SDD-035):** até esta versão o serviço usava `dd/MM/yyyy HH:mm` / `dd/MM/yyyy`. Agora `15/08/2026 09:00` e `15/11/2026` devolvem **400**. O armazenamento no banco não muda.
 >
-> **Ordem de deploy:** o contrato com o `booking-service` (Feign síncrono) não tolera os dois formatos — publicar `staff-service` e `booking-service` **no mesmo release** (subir juntos). Deploy fora de ordem faz o staff responder 400 e a criação de agendamento falhar ("sem funcionário"/503). O `web/` também deve sair junto (envia `yyyy-MM-dd` para `weekend-allocation`).
+> **Ordem de deploy:** o contrato com o `booking-service` (Feign síncrono) não tolera os dois formatos — publicar `staff-service` e `booking-service` **no mesmo release** (subir juntos). Deploy fora de ordem faz o staff responder 400; o `booking-service` trata 4xx como contrato quebrado e repassa o erro, então a criação de agendamento falha com **500**. O `web/` também deve sair junto (envia `yyyy-MM-dd` para `weekend-allocation`).
 
 ## Segurança
 

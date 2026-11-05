@@ -7,7 +7,6 @@ import { InitialsAvatar } from "../../components/ui/InitialsAvatar";
 import { TextField } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
 
-
 export function StaffPage() {
   const [staff, setStaff] = useState<Staff[] | null>(null);
   const [staffError, setStaffError] = useState<string | null>(null);
