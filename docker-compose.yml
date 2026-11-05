@@ -110,12 +110,17 @@ services:
       EXTERNAL_API_STAFF_SERVICE_URL: http://api-staff:8085
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      # Cache de horários compartilhado (SDD-023): mesmo Redis do rate limit do gateway.
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
     ports:
       - "8083:8083"
     depends_on:
       db:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   api-order:

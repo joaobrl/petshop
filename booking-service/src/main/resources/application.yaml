@@ -36,6 +36,19 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+  # Redis do cache de horários (SDD-023), o mesmo do rate limit do gateway.
+  # Timeouts curtos de propósito: com o Redis fora do ar o cache entra em
+  # fail-open (lê direto da origem) e a consulta não pode ficar travada.
+  # Sem repositórios Spring Data Redis: só usamos o Redis como cache.
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:500ms}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:500ms}
+    repositories:
+      enabled: false
+
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     producer:
@@ -45,6 +58,25 @@ spring:
       security.protocol: SASL_PLAINTEXT
       sasl.mechanism: PLAIN
       sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_BOOKING_USERNAME}" password="${KAFKA_BOOKING_PASSWORD}";'
+
+# Cache de horários disponíveis (SDD-023). Tipo "redis" (compartilhado entre
+# réplicas) é o padrão (booking.cache.type ausente); "simple" (memória local)
+# é setado só no application.yml de teste. TTL é a rede de
+# segurança caso um evict se perca.
+booking:
+  cache:
+    available-slots:
+      ttl: ${BOOKING_CACHE_AVAILABLE_SLOTS_TTL:5m}
+    # Depois de uma falha, o cache fica sem chamar o Redis por este intervalo
+    # (evita esperar o timeout a cada chamada com o Redis fora do ar).
+    redis:
+      retry-interval: ${BOOKING_CACHE_REDIS_RETRY_INTERVAL:30s}
+
+# Redis fora não derruba o health geral: o cache é fail-open (SDD-023).
+management:
+  health:
+    redis:
+      enabled: false
 
 jwt:
   secret: ${JWT_SECRET:}
