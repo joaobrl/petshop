@@ -39,3 +39,8 @@ jwt:
   secret: test-secret-key-for-jwt-signing-min-32-bytes-long
   expiration-minutes: 60
 
+
+# Cache em memória nos testes: não exige Redis (SDD-023, RNF1).
+booking:
+  cache:
+    type: simple
