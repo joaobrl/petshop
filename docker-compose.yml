@@ -53,6 +53,13 @@ services:
       KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE: ${KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE}
       KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE: ${KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE}
       KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE: ${KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE}
+      # SMTP do realm (SDD-024 F3: e-mail de definir/redefinir senha), resolvido via ${...}
+      # no realm-petshop.json. Padrão: SMTP relay da Brevo (porta 587, STARTTLS).
+      KEYCLOAK_SMTP_HOST: ${KEYCLOAK_SMTP_HOST:-smtp-relay.brevo.com}
+      KEYCLOAK_SMTP_PORT: ${KEYCLOAK_SMTP_PORT:-587}
+      KEYCLOAK_SMTP_FROM: ${KEYCLOAK_SMTP_FROM:-}
+      KEYCLOAK_SMTP_USER: ${KEYCLOAK_SMTP_USER:-}
+      KEYCLOAK_SMTP_PASSWORD: ${KEYCLOAK_SMTP_PASSWORD:-}
     ports:
       - "8180:8080"
     volumes:
@@ -105,10 +112,14 @@ services:
       KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-customer-group}
       <<: *keycloak-resource-server
       KEYCLOAK_AUDIENCE: customer-management
-      # Só a emissão legada do token no login (JwtService); nenhum serviço valida
-      # mais esse token. Sai na SDD-024 F3 (login via Keycloak).
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      # Admin API do Keycloak (SDD-024 F3): cadastro cria/mantém os usuários no realm.
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080
+      KEYCLOAK_CLIENT_ID: customer-management-admin
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN}
+      # Seed de funcionários de dev (DevStaffSeedRunner): desligado por padrão. Para ligar,
+      # defina SPRING_PROFILES_ACTIVE=dev no .env (também liga logs DEBUG de SQL/segurança).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      DEV_SEED_STAFF_PASSWORD: ${DEV_SEED_STAFF_PASSWORD:-Petshop@dev123}
       # SDD-020: base do link de verificação de e-mail (<APP_FRONTEND_URL>/verify-email?token=...).
       APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
       EMAIL_VERIFICATION_TOKEN_TTL: ${EMAIL_VERIFICATION_TOKEN_TTL:-24h}

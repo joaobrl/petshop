@@ -15,7 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,13 +34,13 @@ class StaffServiceTest {
     @Mock
     private StaffPortOut staffPortOut;
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private IdentityProviderPortOut identityProviderPortOut;
 
     private StaffService staffService;
 
     @BeforeEach
     void setUp() {
-        staffService = new StaffService(staffPortOut, passwordEncoder);
+        staffService = new StaffService(staffPortOut, identityProviderPortOut);
     }
 
     private StaffRequestDto sampleRequest() {
@@ -61,19 +61,19 @@ class StaffServiceTest {
     class CreateStaff {
 
         @Test
-        void savesStaffWithHashedCpfAsInitialPassword() {
+        void savesStaffWithoutPasswordAndSendsSetPasswordEmail() {
             var request = sampleRequest();
             when(staffPortOut.findByCpf(request.getCpf())).thenReturn(Optional.empty());
             when(staffPortOut.findByEmail(request.getEmail())).thenReturn(Optional.empty());
-            when(passwordEncoder.encode(request.getCpf())).thenReturn("hashed-cpf");
             when(staffPortOut.save(any(Staff.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             var result = staffService.createStaff(request);
 
             assertThat(result.getName()).isEqualTo("João");
             assertThat(result.getCpf()).isEqualTo("12345678900");
-            assertThat(result.getPasswordHash()).isEqualTo("hashed-cpf");
-            assertThat(result.getMustChangePassword()).isTrue();
+            // Sem senha provisória (SDD-024 F3): Keycloak sem credencial + e-mail UPDATE_PASSWORD.
+            verify(identityProviderPortOut).createUser(any(), org.mockito.ArgumentMatchers.isNull());
+            verify(identityProviderPortOut).sendSetPasswordEmail(any());
             assertThat(result.getEnabled()).isTrue();
 
             var captor = ArgumentCaptor.forClass(Staff.class);

@@ -52,7 +52,6 @@ class CustomerPersistenceAdapterOutOpenInViewIntegrationTest {
 
     private Customer saveCustomerWithPet(String cpf, String email) {
         var customer = new Customer("Cliente Teste", cpf, email, "11999990000");
-        customer.setPasswordHash("hash");
         customer.getPet().add(new Pet(UUID.randomUUID(), "Rex", PetType.DOG, "SRD", SizeCategory.MEDIUM, 12.5, null));
         return customerPortOut.save(customer);
     }

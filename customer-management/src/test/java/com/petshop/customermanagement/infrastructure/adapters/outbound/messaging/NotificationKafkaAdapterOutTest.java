@@ -47,18 +47,6 @@ class NotificationKafkaAdapterOutTest {
     }
 
     @Test
-    void publishesSendPasswordResetCommandToNotificationCommandsTopic() {
-        publisher.sendPasswordReset("maria@mail.com", "Maria", "N0vaSenha!");
-
-        var record = capturedRecord();
-
-        assertThat(record.topic()).isEqualTo(KafkaTopics.NOTIFICATION_COMMANDS);
-        assertThat(record.value()).isEqualTo(
-                new SendEmailCommandDto("maria@mail.com", "RESET_SENHA",
-                        Map.of("name", "Maria", "newPassword", "N0vaSenha!")));
-    }
-
-    @Test
     void publishesSendRegistrationConfirmationCommandToNotificationCommandsTopic() {
         publisher.sendRegistrationConfirmation("maria@mail.com", "Maria");
 
@@ -98,7 +86,7 @@ class NotificationKafkaAdapterOutTest {
     void includesCorrelationIdKafkaHeaderWhenPresentInMdc() {
         MDC.put(CorrelationIdFilter.MDC_KEY, "corr-789");
 
-        publisher.sendPasswordReset("maria@mail.com", "Maria", "N0vaSenha!");
+        publisher.sendRegistrationConfirmation("maria@mail.com", "Maria");
 
         var header = capturedRecord().headers().lastHeader(CorrelationIdFilter.HEADER);
         assertThat(header).isNotNull();
@@ -107,7 +95,7 @@ class NotificationKafkaAdapterOutTest {
 
     @Test
     void omitsCorrelationIdHeaderWhenAbsentFromMdc() {
-        publisher.sendPasswordReset("maria@mail.com", "Maria", "N0vaSenha!");
+        publisher.sendRegistrationConfirmation("maria@mail.com", "Maria");
 
         assertThat(capturedRecord().headers().lastHeader(CorrelationIdFilter.HEADER)).isNull();
     }

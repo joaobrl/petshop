@@ -20,8 +20,6 @@ public class Customer {
     private String phone;
     private Boolean enabled;
     private List<Pet> pet;
-    private String passwordHash;
-    private Boolean mustChangePassword;
     // SDD-020: cadastro novo nasce false; clientes anteriores à mudança ficam
     // true pelo default da coluna (RF6). null é tratado como verificado, ver
     // hasVerifiedEmail().
@@ -38,7 +36,6 @@ public class Customer {
         this.phone = phone;
         this.enabled = true;
         this.pet = new ArrayList<>();
-        this.mustChangePassword = true;
         this.emailVerified = false;
     }
 

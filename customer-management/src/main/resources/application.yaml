@@ -56,12 +56,18 @@ keycloak:
   issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/petshop}
   jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/petshop/protocol/openid-connect/certs}
   audience: ${KEYCLOAK_AUDIENCE:customer-management}
-
-# Só para a EMISSÃO legada do token no login (JwtService.generateToken); nenhum
-# serviço valida mais esse token. Sai na SDD-024 F3 (login via Keycloak).
-jwt:
-  secret: ${JWT_SECRET:}
-  expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+  # Admin API (SDD-024 F3): o cadastro cria/mantém os usuários no realm. Client
+  # Credentials com o client customer-management-admin (manage-users); segredo =
+  # KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN do .env. Nenhum token é assinado aqui.
+  client:
+    token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/petshop/protocol/openid-connect/token}
+    id: ${KEYCLOAK_CLIENT_ID:customer-management-admin}
+    secret: ${KEYCLOAK_CLIENT_SECRET:}
+  admin:
+    base-url: ${KEYCLOAK_ADMIN_URL:http://localhost:8180}
+    realm: ${KEYCLOAK_REALM:petshop}
+    # Client e redirect (app.frontend-base-url) do link do e-mail de ação UPDATE_PASSWORD.
+    web-client-id: ${KEYCLOAK_WEB_CLIENT_ID:web}
 
 # Verificação de e-mail do cliente (SDD-020). O link enviado por e-mail é
 # ${app.frontend-base-url}/verify-email?token=<token>; o token vale
@@ -78,11 +84,11 @@ app:
 rate-limit:
   trusted-proxies: ${RATE_LIMIT_TRUSTED_PROXIES:}
 
-# Funcionário ADMIN criado automaticamente no primeiro start (ver
-# BootstrapAdminRunner), só quando a tabela de staff está vazia. Senha
-# inicial é BOOTSTRAP_ADMIN_PASSWORD se setada, senão uma senha aleatória
-# gerada em runtime (nunca o cpf) — impressa uma única vez no log; troca
-# obrigatória no primeiro login via /api/v1/auth/change-password.
+# Funcionário ADMIN criado automaticamente (ver BootstrapAdminRunner): localmente
+# só quando a tabela de staff está vazia; no Keycloak, garantido a cada start
+# (idempotente). Com BOOTSTRAP_ADMIN_PASSWORD, ela é a credencial (não temporária);
+# vazia = usuário sem senha + e-mail do Keycloak para definir a senha. Sem senha
+# provisória gerada.
 bootstrap:
   admin:
     name: ${BOOTSTRAP_ADMIN_NAME:Admin Petshop}
@@ -103,15 +109,19 @@ logging:
     org.hibernate.orm.jdbc.error: "OFF"
 
 # DEBUG/TRACE de segurança e Hibernate (loga parâmetros de bind SQL — CPF,
-# hashes de senha, dados pessoais — em texto claro) gatiados atrás do
+# dados pessoais — em texto claro) gatiados atrás do
 # profile "dev": nunca ativos por padrão (docker-compose/k8s não setam
 # SPRING_PROFILES_ACTIVE), só quando alguém liga esse profile explicitamente
-# pra debugar localmente.
+# pra debugar localmente. O mesmo profile liga o seed de funcionários de dev
+# (DevStaffSeedRunner), com a senha de dev conhecida abaixo (não é segredo: só dev).
 ---
 spring:
   config:
     activate:
       on-profile: dev
+dev:
+  seed:
+    staff-password: ${DEV_SEED_STAFF_PASSWORD:Petshop@dev123}
 logging:
   level:
     org:

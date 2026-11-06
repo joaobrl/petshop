@@ -21,8 +21,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RateLimitingFilter extends OncePerRequestFilter {
 
     private static final Set<String> LIMITED_PATHS = Set.of(
-            "/api/v1/auth/login",
-            "/api/v1/auth/forgot-password",
             "/api/v1/auth/resend-verification"
     );
 

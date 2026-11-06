@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { resendVerification, verifyEmail } from "../../services/authService";
@@ -24,7 +24,7 @@ type Status = "verifying" | "success" | "error";
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, refreshSession } = useAuth();
   const [status, setStatus] = useState<Status>(token ? "verifying" : "error");
   const [error, setError] = useState<string | null>(token ? null : "Link de verificação inválido.");
 
@@ -45,10 +45,15 @@ export function VerifyEmailPage() {
     };
   }, [token]);
 
-  // The current JWT still says email_verified=false: a fresh login is needed (CA3).
+  // The current token still says email_verified=false. The backend already set it to
+  // true in Keycloak (SDD-024 F3), so a renewed token carries the new claim (CA3) —
+  // no logout needed.
+  const refreshed = useRef(false);
   useEffect(() => {
-    if (status === "success" && isAuthenticated) logout();
-  }, [status, isAuthenticated, logout]);
+    if (status !== "success" || !isAuthenticated || refreshed.current) return;
+    refreshed.current = true;
+    void refreshSession();
+  }, [status, isAuthenticated, refreshSession]);
 
   return (
     <div style={{ maxWidth: 420, margin: "0 auto", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -59,11 +64,17 @@ export function VerifyEmailPage() {
       {status === "success" && (
         <>
           <p className="body" style={{ color: "var(--success)", margin: 0 }}>
-            E-mail confirmado. Entre novamente para continuar.
+            {isAuthenticated ? "E-mail confirmado." : "E-mail confirmado. Entre para continuar."}
           </p>
-          <Link to="/entrar" className="btn btn-primary">
-            Entrar
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/" className="btn btn-primary">
+              Continuar
+            </Link>
+          ) : (
+            <Link to="/entrar" className="btn btn-primary">
+              Entrar
+            </Link>
+          )}
         </>
       )}
 

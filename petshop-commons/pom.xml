@@ -137,28 +137,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- jjwt: só para a EMISSÃO legada de token do customer-management
-             (JwtService.generateToken). Sai na SDD-024 F3, junto com o
-             JwtService. Nenhum serviço valida mais HS256 (F2): a validação é
-             o Resource Server com JWKS do Keycloak. -->
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-
         <!-- Módulo não usa spring-boot-starter-parent (é uma lib pura, sem
              starter), então declara as dependências de teste direto, sem
              gerenciamento de versão herdado. -->

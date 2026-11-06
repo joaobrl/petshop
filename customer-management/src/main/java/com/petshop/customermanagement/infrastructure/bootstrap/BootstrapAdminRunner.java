@@ -8,24 +8,27 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.security.SecureRandom;
+import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * ADMIN inicial (SDD-024 F3). Local: criado só quando a tabela de staff está vazia.
+ * Keycloak: garantido a cada start, de forma idempotente — com BOOTSTRAP_ADMIN_PASSWORD
+ * como credencial não temporária, ou, se vazia, sem senha e com o e-mail de ação
+ * UPDATE_PASSWORD do Keycloak. Não existe senha provisória gerada.
+ */
 @Component
+@Order(0)
 @RequiredArgsConstructor
 @Slf4j
 public class BootstrapAdminRunner implements ApplicationRunner {
 
-    private static final String PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*";
-    private static final int GENERATED_PASSWORD_LENGTH = 20;
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final StaffPortOut staffPortOut;
-    private final PasswordEncoder passwordEncoder;
+    private final StaffIdentityProvisioner staffIdentityProvisioner;
 
     @Value("${bootstrap.admin.name}")
     private String name;
@@ -44,35 +47,31 @@ public class BootstrapAdminRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!staffPortOut.findAll().isEmpty()) {
+        var admin = staffPortOut.findByEmail(email).or(this::createLocalAdminIfNoStaff);
+        if (admin.isEmpty()) {
+            // Já há funcionários e o e-mail do bootstrap não é de nenhum: nada a garantir.
             return;
         }
-
-        String rawPassword = StringUtils.hasText(configuredPassword) ? configuredPassword : generateRandomPassword();
-
-        var admin = new Staff();
-        admin.setId(UUID.randomUUID());
-        admin.setName(name);
-        admin.setEmail(email);
-        admin.setCpf(cpf);
-        admin.setPhone(phone);
-        admin.setEnabled(true);
-        admin.setRole(Role.ADMIN);
-        admin.setPasswordHash(passwordEncoder.encode(rawPassword));
-        admin.setMustChangePassword(true);
-        staffPortOut.save(admin);
-
-        log.warn("Nenhum funcionário encontrado — ADMIN inicial criado. ", email);
-        System.out.println("========================================================================");
-        System.out.println("ADMIN inicial criado. Senha temporária (não será exibida novamente): " + rawPassword);
-        System.out.println("========================================================================");
+        try {
+            if (staffIdentityProvisioner.ensure(admin.get(), configuredPassword)) {
+                log.warn("ADMIN inicial criado no Keycloak ({}).", StringUtils.hasText(configuredPassword)
+                        ? "senha = BOOTSTRAP_ADMIN_PASSWORD"
+                        : "sem senha: o Keycloak enviou o e-mail para definir a senha");
+            }
+        } catch (RuntimeException e) {
+            // Não derruba o serviço: o próximo start tenta de novo.
+            log.error("ADMIN inicial não garantido no Keycloak ({}); tentará de novo no próximo start.",
+                    e.getClass().getSimpleName());
+        }
     }
 
-    private String generateRandomPassword() {
-        var sb = new StringBuilder(GENERATED_PASSWORD_LENGTH);
-        for (int i = 0; i < GENERATED_PASSWORD_LENGTH; i++) {
-            sb.append(PASSWORD_ALPHABET.charAt(RANDOM.nextInt(PASSWORD_ALPHABET.length())));
+    private Optional<Staff> createLocalAdminIfNoStaff() {
+        if (!staffPortOut.findAll().isEmpty()) {
+            return Optional.empty();
         }
-        return sb.toString();
+        var admin = new Staff(UUID.randomUUID(), name, cpf, email, phone, true, Role.ADMIN);
+        log.warn("Nenhum funcionário encontrado — ADMIN inicial criado localmente.");
+        staffPortOut.save(admin);
+        return Optional.of(admin);
     }
 }

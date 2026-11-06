@@ -6,6 +6,7 @@ import com.petshop.customermanagement.core.domain.exception.InvalidVerificationT
 import com.petshop.customermanagement.core.port.in.EmailVerificationPortIn;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.EmailVerificationTokenPortOut;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,17 +45,20 @@ public class EmailVerificationService implements EmailVerificationPortIn {
     private final CustomerPortOut customerPortOut;
     private final EmailVerificationTokenPortOut tokenPortOut;
     private final NotificationPortOut notificationPortOut;
+    private final IdentityProviderPortOut identityProviderPortOut;
     private final Duration tokenTtl;
     private final String frontendBaseUrl;
 
     public EmailVerificationService(CustomerPortOut customerPortOut,
                                     EmailVerificationTokenPortOut tokenPortOut,
                                     NotificationPortOut notificationPortOut,
+                                    IdentityProviderPortOut identityProviderPortOut,
                                     @Value("${app.email-verification.token-ttl:24h}") Duration tokenTtl,
                                     @Value("${app.frontend-base-url:http://localhost:5173}") String frontendBaseUrl) {
         this.customerPortOut = customerPortOut;
         this.tokenPortOut = tokenPortOut;
         this.notificationPortOut = notificationPortOut;
+        this.identityProviderPortOut = identityProviderPortOut;
         this.tokenTtl = tokenTtl;
         this.frontendBaseUrl = stripTrailingSlash(frontendBaseUrl);
     }
@@ -91,6 +95,10 @@ public class EmailVerificationService implements EmailVerificationPortIn {
             customer.markEmailVerified();
             customerPortOut.save(customer);
         }
+        // O claim email_verified vem do Keycloak (SDD-024 F3): sem isto o próximo token
+        // continuaria false e o checkout/agendamento seguiria bloqueado. Falha aqui desfaz
+        // a transação (token volta a valer).
+        identityProviderPortOut.markEmailVerified(customer.getId());
         log.info("Email verified for customer: id={}", customer.getId());
     }
 

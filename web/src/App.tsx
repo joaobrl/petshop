@@ -18,6 +18,8 @@ import { RegisterPage } from "./pages/account/RegisterPage";
 import { MyPetsPage } from "./pages/account/MyPetsPage";
 import { MyOrdersPage } from "./pages/account/MyOrdersPage";
 import { VerifyEmailPage } from "./pages/account/VerifyEmailPage";
+import { AuthCallbackPage } from "./pages/account/AuthCallbackPage";
+import { CALLBACK_PATH } from "./services/oidc";
 
 import { NewBookingPage } from "./pages/booking/NewBookingPage";
 import { MyBookingsPage } from "./pages/booking/MyBookingsPage";
@@ -50,6 +52,8 @@ function App() {
               <Route path="/entrar" element={<LoginPage />} />
               <Route path="/cadastro" element={<RegisterPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
+              {/* redirect_uri do Keycloak (Authorization Code + PKCE, SDD-024 F3). */}
+              <Route path={CALLBACK_PATH} element={<AuthCallbackPage />} />
 
               <Route
                 path="/minha-conta/pets"

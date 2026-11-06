@@ -10,9 +10,8 @@ data:
   SPRING_DATA_MONGODB_URI: mongodb://mongo-svc:27017/customer_history_db
   SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-svc:9092
   KAFKA_CONSUMER_GROUP: customer-group
-  JWT_EXPIRATION_MINUTES: "15"
   # Rede interna do cluster (pods) — só dela o X-Forwarded-For é aceito
-  # pelo rate limit de login. Ajustar ao pod CIDR real do cluster.
+  # pelo rate limit do reenvio de verificação de e-mail. Ajustar ao pod CIDR real do cluster.
   RATE_LIMIT_TRUSTED_PROXIES: 10.0.0.0/8
   # SDD-020: base do link de verificação de e-mail (<APP_FRONTEND_URL>/verify-email?token=...).
   # Ajustar à URL pública do front no cluster.

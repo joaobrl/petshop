@@ -4,12 +4,15 @@ IdP do projeto: o realm `petshop` importado no boot (Fase 1). Desde as Fases 2 e
 todos os serviços são Resource Servers (validam o access token pelo JWKS: assinatura,
 `iss`, `exp` e `aud`) e as chamadas serviço-a-serviço usam Client Credentials com
 permissões próprias (ver [Permissões de serviço](#permissões-de-serviço-fase-4)).
-O login do `web/` via Keycloak é da Fase 3.
+Desde a Fase 3 o login do `web/` é Authorization Code + PKCE no client `web`, e o
+customer-management cria/mantém os usuários pela Admin API (client
+`customer-management-admin`). Nenhum serviço guarda senha nem assina token.
 
 ## Subir
 
 1. No `.env` da raiz, defina as variáveis do Keycloak (modelo em `.env.example`):
-   `KC_BOOTSTRAP_ADMIN_PASSWORD` e os `KEYCLOAK_CLIENT_SECRET_*`.
+   `KC_BOOTSTRAP_ADMIN_PASSWORD`, os `KEYCLOAK_CLIENT_SECRET_*` e, para os e-mails
+   de senha, os `KEYCLOAK_SMTP_*` (ver [E-mail (SMTP)](#e-mail-smtp)).
 2. `docker compose up -d keycloak` (sobe o `db` junto).
 
 O Keycloak usa o database `keycloak_db` do Postgres `db`. O `postgres-init/init.sql`
@@ -41,8 +44,8 @@ Keycloak é acessado em `http://keycloak:8080` (use isso no `jwk-set-uri`, mante
 
 | Client | Tipo | Para quê |
 |---|---|---|
-| `web` | público, Authorization Code + PKCE S256 | SPA em `http://localhost:5173` (Fase 3). Sem direct access grants. |
-| `customer-management-admin` | confidencial, só service account | Admin API (`manage-users`, `view-users`, `query-users`) para o customer-management criar usuários (Fase 3). |
+| `web` | público, Authorization Code + PKCE S256 | SPA em `http://localhost:5173` (Fase 3): redirect `/auth/callback`, renovação silenciosa `/auth/silent`, logout volta para `/`. Sem direct access grants (nenhum client tem password grant). |
+| `customer-management-admin` | confidencial, só service account | Admin API (`manage-users`, `view-users`, `query-users`) para o customer-management criar/atualizar/desabilitar usuários e disparar o e-mail de definir senha (Fase 3). Como o client tem `fullScopeAllowed=false`, esses papéis também estão no escopo dele (`clientScopeMappings` de `realm-management`) — sem isso a Admin API responde 403. |
 | `booking-service` | confidencial, só service account | Client Credentials das chamadas Feign do booking-service (staff-service). |
 | `order-service` | confidencial, só service account | Idem, order-service (customer-management, product-registration). |
 | `staff-service` | confidencial, só service account | Idem, staff-service (customer-management). |
@@ -97,6 +100,10 @@ a resposta é **403**. Num serviço que não está no `aud` do token, a resposta
   `petshop-claims` os emite com o mesmo nome no access token e no id token; `email` e
   `name` vêm dos escopos padrão `email` e `profile`. `lastName` é opcional (clientes com nome único).
 - Cadastro público desligado (`registrationAllowed=false`): quem cria o usuário é o customer-management.
+- Usuários: username = e-mail; credencial só no Keycloak. Cliente define a senha no cadastro;
+  funcionário criado pelo admin nasce sem senha e recebe o e-mail de ação `UPDATE_PASSWORD`.
+- "Esqueci a senha" na tela de login (`resetPasswordAllowed=true`); "Minha conta / alterar
+  senha" no Account Console (`/realms/petshop/account`).
 - Access token: 5 min. Refresh token com rotação (`revokeRefreshToken=true`, `refreshTokenMaxReuse=0`).
 - Sessão (SSO), deslizante pela inatividade:
 
@@ -108,6 +115,17 @@ a resposta é **403**. Num serviço que não está no `aud` do token, a resposta
   O Keycloak só distingue as duas situações por esses dois pares de campos
   (`ssoSessionIdleTimeout`/`ssoSessionMaxLifespan` e as variantes `...RememberMe`).
   Sem "Lembrar de mim" o cookie de sessão é descartado ao fechar o navegador (CA6).
+
+## E-mail (SMTP)
+
+`smtpServer` do realm usa `${KEYCLOAK_SMTP_HOST}`, `${KEYCLOAK_SMTP_PORT}`,
+`${KEYCLOAK_SMTP_FROM}`, `${KEYCLOAK_SMTP_USER}` e `${KEYCLOAK_SMTP_PASSWORD}`, resolvidos
+no import (STARTTLS, com autenticação). Padrão: SMTP relay da Brevo
+(`smtp-relay.brevo.com:587`; usuário = login SMTP da conta, senha = chave SMTP, `from` =
+remetente validado na Brevo). No compose vêm do `.env`; no k8s, do `keycloak-secret`
+(`secret.example.yaml`). Sem SMTP configurado, os e-mails de definir/redefinir senha falham
+(o cadastro de funcionário segue e loga aviso). Como os demais itens do realm, só vale num
+realm importado do zero (ou ajuste em *Realm settings → Email* no console).
 
 ## Validar
 

@@ -196,8 +196,8 @@ class CustomerPetOptimisticLockIntegrationTest {
     void customerWithoutVersionColumnGetsZeroAndFirstEditBumpsToOne() {
         var legacyId = UUID.randomUUID();
         jdbc.execute("alter table customers drop column version");
-        jdbc.update("insert into customers (id, name, cpf, email, phone, enabled, must_change_password) "
-                + "values (?, 'Legado', '86288366757', 'legado@mail.com', '11999999999', true, false)", legacyId);
+        jdbc.update("insert into customers (id, name, cpf, email, phone, enabled) "
+                + "values (?, 'Legado', '86288366757', 'legado@mail.com', '11999999999', true)", legacyId);
 
         // buildSessionFactory com hbm2ddl.auto=update roda o mesmo caminho do ddl-auto=update
         schemaMetadata().buildSessionFactory().close();

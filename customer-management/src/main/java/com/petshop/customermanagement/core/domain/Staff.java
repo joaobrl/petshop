@@ -30,8 +30,6 @@ public class Staff {
     private String phone;
     private Boolean enabled;
     private Role role;
-    private String passwordHash;
-    private Boolean mustChangePassword;
 
     public Staff(StaffRequestDto request) {
         this.id = UUID.randomUUID();
@@ -41,19 +39,6 @@ public class Staff {
         this.phone = request.getPhone();
         this.enabled = true;
         this.role = request.getRole();
-        this.mustChangePassword = true;
-    }
-
-    // Construtor "original" (7 campos, pré-login) preservado por
-    // compatibilidade com testes — ver Customer.java pro mesmo raciocínio.
-    public Staff(UUID id, String name, String cpf, String email, String phone, Boolean enabled, Role role) {
-        this.id = id;
-        this.name = name;
-        this.cpf = cpf;
-        this.email = email;
-        this.phone = phone;
-        this.enabled = enabled;
-        this.role = role;
     }
 
     public void update(StaffRequestDto request) {

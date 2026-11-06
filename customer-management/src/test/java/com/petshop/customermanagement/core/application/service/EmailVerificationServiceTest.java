@@ -5,6 +5,7 @@ import com.petshop.customermanagement.core.domain.EmailVerificationToken;
 import com.petshop.customermanagement.core.domain.exception.InvalidVerificationTokenException;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.EmailVerificationTokenPortOut;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,11 +52,14 @@ class EmailVerificationServiceTest {
     @Mock
     private NotificationPortOut notificationPortOut;
 
+    @Mock
+    private IdentityProviderPortOut identityProviderPortOut;
+
     private EmailVerificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new EmailVerificationService(customerPortOut, tokenPortOut, notificationPortOut,
+        service = new EmailVerificationService(customerPortOut, tokenPortOut, notificationPortOut, identityProviderPortOut,
                 Duration.ofHours(24), FRONTEND_BASE_URL);
     }
 
@@ -155,7 +159,7 @@ class EmailVerificationServiceTest {
         @Test
         @DisplayName("Deve remover a barra final do frontend-base-url ao montar o link")
         void shouldStripTrailingSlashFromFrontendBaseUrlWhenBuildingLink() {
-            var slashService = new EmailVerificationService(customerPortOut, tokenPortOut, notificationPortOut,
+            var slashService = new EmailVerificationService(customerPortOut, tokenPortOut, notificationPortOut, identityProviderPortOut,
                     Duration.ofHours(24), FRONTEND_BASE_URL + "/");
             var customer = unverifiedCustomer();
 

@@ -4,7 +4,6 @@ import com.petshop.commons.security.PetshopAuthorization;
 import com.petshop.commons.security.ProblemDetailAccessDeniedHandler;
 import com.petshop.commons.security.ProblemDetailAuthenticationEntryPoint;
 import com.petshop.commons.security.ServicePermissions;
-import com.petshop.commons.security.jwt.JwtService;
 import com.petshop.commons.security.oauth2.KeycloakJwtAuthenticationConverter;
 import com.petshop.commons.security.oauth2.KeycloakResourceServerConfig;
 import com.petshop.commons.web.CorrelationIdFilter;
@@ -18,14 +17,11 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfigurationSource;
 
-import java.time.Duration;
 import java.util.List;
 
 /**
@@ -37,21 +33,6 @@ import java.util.List;
 @Configuration
 @Import(KeycloakResourceServerConfig.class)
 public class SecurityConfig {
-
-    /**
-     * Só a EMISSÃO legada do token no login (AuthService). Sai na SDD-024 F3, junto com
-     * JWT_SECRET/JWT_EXPIRATION_MINUTES. Não valida nada: a validação é o Resource Server.
-     */
-    @Bean
-    public JwtService jwtService(@Value("${jwt.secret}") String secret,
-                                  @Value("${jwt.expiration-minutes:15}") long expirationMinutes) {
-        return new JwtService(secret, Duration.ofMinutes(expirationMinutes));
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 
     @Bean
     public ProblemDetailAccessDeniedHandler accessDeniedHandler() {
@@ -91,11 +72,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/v1/auth/login").permitAll()
-                        .requestMatchers("/api/v1/auth/forgot-password").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/verify-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/resend-verification").permitAll()
-                        .requestMatchers("/api/v1/auth/change-password").access(PetshopAuthorization.anyUser())
                         .requestMatchers(HttpMethod.GET, "/api/v1/staff/all")
                             .access(PetshopAuthorization.rolesOr(ServicePermissions.CUSTOMERS_STAFF_READ, "ADMIN"))
                         .requestMatchers("/api/v1/staff/**").hasRole("ADMIN")

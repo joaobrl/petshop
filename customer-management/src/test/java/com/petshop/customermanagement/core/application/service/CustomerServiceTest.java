@@ -22,7 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ class CustomerServiceTest {
     private CustomerPortOut customerPortOut;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private IdentityProviderPortOut identityProviderPortOut;
 
     @Mock
     private NotificationPortOut notificationPortOut;
@@ -53,7 +53,7 @@ class CustomerServiceTest {
 
     @BeforeEach
     void setUp() {
-        customerService = new CustomerService(customerPortOut, passwordEncoder, notificationPortOut, emailVerificationPortIn);
+        customerService = new CustomerService(customerPortOut, identityProviderPortOut, notificationPortOut, emailVerificationPortIn);
     }
 
     private Customer sampleCustomer() {
@@ -69,7 +69,6 @@ class CustomerServiceTest {
         void savesNewCustomerWhenCpfDoesNotExist() {
             var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
             when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
-            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
             when(customerPortOut.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
             var result = customerService.registerCustomer(request);
@@ -77,8 +76,8 @@ class CustomerServiceTest {
             assertThat(result.getName()).isEqualTo("Maria");
             assertThat(result.getCpf()).isEqualTo("12345678900");
             assertThat(result.getEnabled()).isTrue();
-            assertThat(result.getPasswordHash()).isEqualTo("hashed-password");
-            assertThat(result.getMustChangePassword()).isFalse();
+            // A senha escolhida vai para o Keycloak (SDD-024 F3), não para o banco local.
+            verify(identityProviderPortOut).createUser(any(), org.mockito.ArgumentMatchers.eq("Senha123"));
             verify(customerPortOut).save(any(Customer.class));
             verify(notificationPortOut).sendRegistrationConfirmation("maria@mail.com", "Maria");
         }
@@ -89,7 +88,6 @@ class CustomerServiceTest {
             var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
             var saved = sampleCustomer();
             when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
-            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
             when(customerPortOut.save(any(Customer.class))).thenReturn(saved);
 
             var result = customerService.registerCustomer(request);
@@ -103,7 +101,6 @@ class CustomerServiceTest {
         void shouldSaveCustomerWithUnverifiedEmailWhenRegistering() {
             var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
             when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
-            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
             when(customerPortOut.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
             var result = customerService.registerCustomer(request);

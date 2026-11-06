@@ -89,8 +89,8 @@ class CustomerPetPaginationIntegrationTest {
         for (int i = 0; i < CUSTOMERS; i++) {
             var id = UUID.randomUUID();
             customerIds.add(id);
-            jdbc.update("insert into customers (id, name, cpf, email, phone, enabled, must_change_password, version) "
-                    + "values (?, ?, ?, ?, '11999999999', true, false, 0)",
+            jdbc.update("insert into customers (id, name, cpf, email, phone, enabled, version) "
+                    + "values (?, ?, ?, ?, '11999999999', true, 0)",
                     id, "Cliente " + i, String.format("%011d", i), "cliente" + i + "@mail.com");
         }
 
@@ -271,8 +271,8 @@ class CustomerPetPaginationIntegrationTest {
     @DisplayName("Deve devolver 200 com página vazia quando o cliente existir sem pets")
     void shouldReturnEmptyPageWhenCustomerExistsWithoutPets() throws Exception {
         var id = UUID.randomUUID();
-        jdbc.update("insert into customers (id, name, cpf, email, phone, enabled, must_change_password, version) "
-                + "values (?, 'Sem Pets', '99999999999', 'sempets@mail.com', '11999999999', true, false, 0)", id);
+        jdbc.update("insert into customers (id, name, cpf, email, phone, enabled, version) "
+                + "values (?, 'Sem Pets', '99999999999', 'sempets@mail.com', '11999999999', true, 0)", id);
 
         var result = mockMvc.perform(get("/api/v1/customers/" + id + "/pets")
                 .header("Authorization", customer(id))).andReturn();

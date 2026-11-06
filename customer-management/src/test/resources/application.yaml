@@ -29,11 +29,15 @@ keycloak:
   issuer-uri: http://localhost:8180/realms/petshop
   jwk-set-uri: http://localhost:8180/realms/petshop/protocol/openid-connect/certs
   audience: customer-management
-
-# Só a emissão legada do token no login (JwtService); sai na SDD-024 F3.
-jwt:
-  secret: test-secret-key-for-jwt-signing-min-32-bytes-long
-  expiration-minutes: 60
+  # Admin API (SDD-024 F3): nunca chamada nos testes — o
+  # support.TestIdentityProviderConfig troca o adapter por um mock.
+  client:
+    token-uri: http://localhost:8180/realms/petshop/protocol/openid-connect/token
+    id: customer-management-admin
+    secret: test-secret
+  admin:
+    base-url: http://localhost:8180
+    realm: petshop
 
 # Mesmas chaves do main/resources/application.yml — precisa existir aqui
 # porque este arquivo substitui (não complementa) o de main no classpath de

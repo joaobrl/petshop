@@ -17,7 +17,6 @@ Cada serviço é um Resource Server: valida o access token do Keycloak (realm `p
 - **`AuthenticatedUser`** — usuário autenticado (id = claim `user_id`, email, nome, cpf, telefone, role, tipo de conta).
 - **`Role`** — papéis de usuário: `ADMIN`, `RECEPTIONIST`, `GROOMER`, `VETERINARIAN`, `CUSTOMER` (o antigo `SERVICE` não existe mais).
 - **`AccountType`** — tipo de conta: `CUSTOMER`, `STAFF`, `SERVICE`.
-- **`JwtService`** — só a emissão legada do token HS256 do login do customer-management (`generateToken`). Sai na SDD-024 F3.
 
 ### Tratamento de erros (`com.petshop.commons.handler` / `exception`)
 
@@ -43,8 +42,7 @@ Cada serviço é um Resource Server: valida o access token do Keycloak (realm `p
 
 - Java 21
 - Empacotado como `jar` puro (sem `spring-boot-starter-parent`) — dependências Spring/Servlet/Security/Validation declaradas com escopo `provided`, pois todo serviço consumidor já é uma aplicação Spring Boot e as traz transitivamente.
-- `spring-security-oauth2-resource-server`/`-jose`/`-client` `7.0.3` (`provided`): cada serviço declara `spring-boot-starter-oauth2-resource-server` (e, os chamadores, `spring-security-oauth2-client`).
-- `io.jsonwebtoken` (`jjwt-api`, `jjwt-impl`, `jjwt-jackson`) `0.12.6` — só para a emissão legada do `JwtService`; sai na SDD-024 F3.
+- `spring-security-oauth2-resource-server`/`-jose`/`-client` `7.0.3` (`provided`): cada serviço declara `spring-boot-starter-oauth2-resource-server` (e, os chamadores e o customer-management (Admin API do Keycloak), `spring-security-oauth2-client`).
 - Testes: JUnit 5, Mockito, AssertJ. Cobertura mínima de 90% de instruções verificada via JaCoCo (`mvn verify`).
 
 ## Uso pelos demais serviços

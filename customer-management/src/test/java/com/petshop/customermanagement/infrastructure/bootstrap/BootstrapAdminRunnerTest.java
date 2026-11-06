@@ -9,14 +9,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
@@ -36,13 +34,13 @@ class BootstrapAdminRunnerTest {
     private StaffPortOut staffPortOut;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private StaffIdentityProvisioner staffIdentityProvisioner;
 
     private BootstrapAdminRunner runner;
 
     @BeforeEach
     void setUp() {
-        runner = new BootstrapAdminRunner(staffPortOut, passwordEncoder);
+        runner = new BootstrapAdminRunner(staffPortOut, staffIdentityProvisioner);
         ReflectionTestUtils.setField(runner, "name", NAME);
         ReflectionTestUtils.setField(runner, "email", EMAIL);
         ReflectionTestUtils.setField(runner, "cpf", CPF);
@@ -62,7 +60,6 @@ class BootstrapAdminRunnerTest {
     @Test
     void createsAdminWhenNoStaffExists() throws Exception {
         when(staffPortOut.findAll()).thenReturn(List.of());
-        when(passwordEncoder.encode(anyString())).thenReturn("hashed-random-password");
         when(staffPortOut.save(any(Staff.class))).thenAnswer(inv -> inv.getArgument(0));
 
         runner.run(null);
@@ -78,34 +75,19 @@ class BootstrapAdminRunnerTest {
         assertThat(admin.getPhone()).isEqualTo(PHONE);
         assertThat(admin.getEnabled()).isTrue();
         assertThat(admin.getRole()).isEqualTo(Role.ADMIN);
-        assertThat(admin.getPasswordHash()).isEqualTo("hashed-random-password");
-        assertThat(admin.getMustChangePassword()).isTrue();
+        // Sem senha provisória (SDD-024 F3): BOOTSTRAP_ADMIN_PASSWORD vazia = Keycloak sem senha.
+        verify(staffIdentityProvisioner).ensure(admin, "");
     }
 
     @Test
-    void generatesARandomPasswordInsteadOfUsingTheCpf() throws Exception {
-        when(staffPortOut.findAll()).thenReturn(List.of());
-        when(staffPortOut.save(any(Staff.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        runner.run(null);
-
-        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(passwordEncoder).encode(passwordCaptor.capture());
-        var generatedPassword = passwordCaptor.getValue();
-
-        assertThat(generatedPassword).isNotEqualTo(CPF);
-        assertThat(generatedPassword).hasSize(20);
-    }
-
-    @Test
-    void usesTheConfiguredPasswordWhenPresentInsteadOfGeneratingOne() throws Exception {
+    void usesTheConfiguredPasswordAsKeycloakCredentialWhenPresent() throws Exception {
         ReflectionTestUtils.setField(runner, "configuredPassword", "S3nhaF0rteConfigurada!");
         when(staffPortOut.findAll()).thenReturn(List.of());
         when(staffPortOut.save(any(Staff.class))).thenAnswer(inv -> inv.getArgument(0));
 
         runner.run(null);
 
-        verify(passwordEncoder).encode("S3nhaF0rteConfigurada!");
+        verify(staffIdentityProvisioner).ensure(any(Staff.class), org.mockito.ArgumentMatchers.eq("S3nhaF0rteConfigurada!"));
     }
 
     @Test

@@ -11,12 +11,14 @@ import com.petshop.customermanagement.core.port.in.dto.CustomerRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.CustomerUpdateDto;
 import com.petshop.customermanagement.core.port.in.dto.PetRequestDto;
 import com.petshop.customermanagement.core.port.out.CustomerPortOut;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
+import com.petshop.customermanagement.core.port.out.dto.IdentityUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -29,11 +31,15 @@ import java.util.UUID;
 public class CustomerService implements CustomerPortIn {
 
     private final CustomerPortOut customerPortOut;
-    private final PasswordEncoder passwordEncoder;
+    private final IdentityProviderPortOut identityProviderPortOut;
     private final NotificationPortOut notificationPortOut;
     private final EmailVerificationPortIn emailVerificationPortIn;
 
+    // Transação: o usuário é criado no Keycloak antes do commit local. Falha no Keycloak
+    // (inclusive 409 de e-mail já usado) desfaz o cadastro local; falha no commit depois
+    // de criar no Keycloak remove o usuário de lá (IdentityCompensation).
     @Override
+    @Transactional
     public Customer registerCustomer (CustomerRequestDto request) {
         customerPortOut.findByCpf(request.getCpf())
                 .ifPresent(c -> {
@@ -46,17 +52,14 @@ public class CustomerService implements CustomerPortIn {
                 request.getEmail(),
                 request.getPhone()
         );
-        // Cliente escolhe a própria senha no cadastro (validado em
-        // CustomerRequestDto — password/confirmPassword) — diferente do
-        // Staff, que ainda nasce com senha = CPF (troca no primeiro login,
-        // ver StaffService), porque quem cria o funcionário é o ADMIN, não
-        // a própria pessoa.
-        customer.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        customer.setMustChangePassword(false);
         var saved = customerPortOut.save(customer);
+        // Cliente escolhe a própria senha no cadastro (validada em CustomerRequestDto);
+        // ela vai direto para o Keycloak, único dono da credencial (SDD-024 F3).
+        var idpUserId = identityProviderPortOut.createUser(IdentityUser.of(saved), request.getPassword());
+        IdentityCompensation.deleteOnRollback(identityProviderPortOut, idpUserId);
         notificationPortOut.sendRegistrationConfirmation(saved.getEmail(), saved.getName());
-        // SDD-020: conta nasce com emailVerified=false (ver Customer); o link
-        // de confirmação vai num e-mail separado do de boas-vindas.
+        // SDD-020: conta nasce com emailVerified=false (ver Customer); o link de
+        // confirmação vai num e-mail separado do de boas-vindas.
         emailVerificationPortIn.issueVerification(saved);
         log.info("Customer registered: id={}", saved.getId());
         return saved;
@@ -73,11 +76,15 @@ public class CustomerService implements CustomerPortIn {
     }
 
     @Override
+    @Transactional
     public Customer updateCustomer(UUID id, CustomerUpdateDto dto) {
         var customer = findCustomer(id);
         customer.update(dto.getName(), dto.getEmail(), dto.getPhone());
+        var saved = customerPortOut.save(customer);
+        // Nome, e-mail e telefone também são claims do token: mantém o Keycloak igual.
+        identityProviderPortOut.updateUser(IdentityUser.of(saved));
         log.info("Customer with ID: {} updated.", id);
-        return customerPortOut.save(customer);
+        return saved;
     }
 
     @Override
@@ -102,11 +109,15 @@ public class CustomerService implements CustomerPortIn {
     }
 
     @Override
+    @Transactional
     public Customer deleteCustomer(UUID id) {
         var customer = findCustomer(id);
         customer.setEnabled(false);
+        var saved = customerPortOut.save(customer);
+        // Soft-delete local + usuário desabilitado no Keycloak: sem novo login nem refresh (CA4).
+        identityProviderPortOut.setEnabled(id, false);
         log.info("Customer with ID {} deleted.", id);
-        return customerPortOut.save(customer);
+        return saved;
     }
 
     @Override

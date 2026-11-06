@@ -7,7 +7,7 @@
   "registrationEmailAsUsername": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": true,
   "editUsernameAllowed": false,
   "rememberMe": true,
   "accessTokenLifespan": 300,
@@ -17,6 +17,18 @@
   "ssoSessionMaxLifespanRememberMe": 7776000,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
+  "smtpServer": {
+    "host": "${KEYCLOAK_SMTP_HOST}",
+    "port": "${KEYCLOAK_SMTP_PORT}",
+    "from": "${KEYCLOAK_SMTP_FROM}",
+    "fromDisplayName": "Petshop",
+    "replyTo": "",
+    "starttls": "true",
+    "ssl": "false",
+    "auth": "true",
+    "user": "${KEYCLOAK_SMTP_USER}",
+    "password": "${KEYCLOAK_SMTP_PASSWORD}"
+  },
   "roles": {
     "realm": [
       {
@@ -593,6 +605,18 @@
       ]
     }
   ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "customer-management-admin",
+        "roles": [
+          "manage-users",
+          "view-users",
+          "query-users"
+        ]
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "web",

@@ -1,31 +1,19 @@
 package com.petshop.customermanagement.api.rest;
 
-import com.petshop.customermanagement.api.rest.dto.LoginResponseDto;
-import com.petshop.customermanagement.core.port.in.dto.ChangePasswordRequestDto;
-import com.petshop.customermanagement.core.port.in.dto.ForgotPasswordRequestDto;
-import com.petshop.customermanagement.core.port.in.dto.LoginRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.ResendVerificationRequestDto;
 import com.petshop.customermanagement.core.port.in.dto.VerifyEmailRequestDto;
 import jakarta.validation.Valid;
-import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+/**
+ * Só a verificação de e-mail (SDD-020). Login, troca e recuperação de senha são do
+ * Keycloak desde a SDD-024 F3 — o customer-management não guarda nem valida senha.
+ */
 @RequestMapping("/api/v1/auth")
 public interface AuthController {
-
-    @PostMapping("/login")
-    ResponseEntity<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto request);
-
-    @PostMapping("/forgot-password")
-    ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDto request);
-
-    @PatchMapping("/change-password")
-    ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequestDto request, @AuthenticationPrincipal AuthenticatedUser user);
 
     @PostMapping("/verify-email")
     ResponseEntity<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequestDto request);

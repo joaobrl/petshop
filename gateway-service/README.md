@@ -90,8 +90,9 @@ filtro nativo devolve o 429 sem corpo nem `Retry-After`.
 - **Fora do limite**: `/actuator/**` (servido pelo próprio gateway, não
   passa pelas rotas) e Swagger (`/v3/api-docs/**`, `/swagger-ui/**`,
   `/swagger-ui.html`), via `gateway.rate-limit.excluded-paths`.
-- O limite de login/forgot-password do `customer-management` continua
-  existindo como segunda camada.
+- O limite do reenvio de verificação de e-mail do `customer-management`
+  continua existindo como segunda camada (login e senha são do Keycloak desde a
+  SDD-024 F3).
 
 ## Configuração (`application.yaml`)
 

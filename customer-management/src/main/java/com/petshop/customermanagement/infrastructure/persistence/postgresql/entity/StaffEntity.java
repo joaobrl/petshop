@@ -43,10 +43,6 @@ public class StaffEntity implements Persistable<UUID> {
     private Boolean enabled;
     @Enumerated(EnumType.STRING)
     private Role role;
-    @Column(name = "password_hash")
-    private String passwordHash;
-    @Column(name = "must_change_password")
-    private Boolean mustChangePassword;
 
     @Transient
     private boolean isNew = true;

@@ -33,10 +33,6 @@ public class CustomerEntity implements Persistable<UUID> {
     @ElementCollection
     @CollectionTable(name = "customer_pets", joinColumns = @JoinColumn(name = "customer_id"))
     private List<PetEmbeddable> pet = new ArrayList<>();
-    @Column(name = "password_hash")
-    private String passwordHash;
-    @Column(name = "must_change_password")
-    private Boolean mustChangePassword;
 
     // SDD-020 (RF6): sem Flyway, o ddl-auto=update adiciona a coluna com
     // default true, então os clientes que já existiam ficam verificados; o
