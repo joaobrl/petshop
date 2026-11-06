@@ -915,7 +915,7 @@ metadata:
   name: keycloak-config
 data:
   KC_HEALTH_ENABLED: "true"
-  # Dev: H2 embutido (start-dev). Os dados somem se o pod for recriado.
+  # Banco: Postgres do db-keycloak (KC_DB_* no deployment.yaml); dados no PVC.
   # Issuer fixo para o NodePort do service.yaml; ajustar a URL real do cluster.
   KC_HOSTNAME: http://localhost:30180
   KC_HTTP_ENABLED: "true"

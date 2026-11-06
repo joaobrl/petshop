@@ -1,33 +1,64 @@
 package com.petshop.commons.security.oauth2;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
 
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.mockStatic;
 
-@ExtendWith(MockitoExtension.class)
 class KeycloakJwtDecodersTest {
 
-    private static final String JWK_SET_URI = "http://localhost:8180/realms/petshop/protocol/openid-connect/certs";
     private static final String ISSUER = "http://localhost:8180/realms/petshop";
     private static final String AUDIENCE = "order-service";
+
+    private static RSAKey signingKey;
+    private static HttpServer jwksServer;
+    private static String jwkSetUri;
+
+    @BeforeAll
+    static void startJwksServer() throws Exception {
+        signingKey = new RSAKeyGenerator(2048).keyID("petshop-test-key").generate();
+        var jwks = new JWKSet(signingKey.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8);
+        jwksServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        jwksServer.createContext("/certs", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, jwks.length);
+            exchange.getResponseBody().write(jwks);
+            exchange.close();
+        });
+        jwksServer.start();
+        jwkSetUri = "http://127.0.0.1:" + jwksServer.getAddress().getPort() + "/certs";
+    }
+
+    @AfterAll
+    static void stopJwksServer() {
+        jwksServer.stop(0);
+    }
 
     private static Jwt jwt(String issuer, List<String> audience, Instant issuedAt, Instant expiresAt) {
         return Jwt.withTokenValue("raw.jwt.token")
@@ -43,31 +74,75 @@ class KeycloakJwtDecodersTest {
         return jwt(issuer, audience, Instant.now(), Instant.now().plusSeconds(300));
     }
 
-    @Mock
-    private NimbusJwtDecoder.JwkSetUriJwtDecoderBuilder builder;
-    @Mock
-    private NimbusJwtDecoder nimbusDecoder;
+    private static JWTClaimsSet claims(String issuer, String audience) {
+        return new JWTClaimsSet.Builder()
+                .issuer(issuer)
+                .audience(audience)
+                .subject("user-1")
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .build();
+    }
+
+    private static String signRs256(JWTClaimsSet claims) throws JOSEException {
+        var jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKey.getKeyID()).build(), claims);
+        jwt.sign(new RSASSASigner(signingKey));
+        return jwt.serialize();
+    }
+
+    private static String signHs256(JWTClaimsSet claims) throws JOSEException {
+        var jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+        jwt.sign(new MACSigner("segredo-antigo-hs256-com-pelo-menos-32-bytes".getBytes(StandardCharsets.UTF_8)));
+        return jwt.serialize();
+    }
 
     @Test
-    @DisplayName("Deve montar o decoder com o jwkSetUri e o validador quando tudo estiver configurado")
-    void shouldBuildDecoderWhenAllPropertiesAreConfigured() {
-        try (MockedStatic<NimbusJwtDecoder> nimbus = mockStatic(NimbusJwtDecoder.class)) {
-            nimbus.when(() -> NimbusJwtDecoder.withJwkSetUri(JWK_SET_URI)).thenReturn(builder);
-            given(builder.build()).willReturn(nimbusDecoder);
+    @DisplayName("Deve decodificar o token RS256 assinado pela chave do JWKS quando iss e aud estiverem corretos")
+    void shouldDecodeTokenWhenSignedByJwksKeyWithCorrectIssuerAndAudience() throws Exception {
+        var decoder = KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, ISSUER, AUDIENCE);
 
-            var decoder = KeycloakJwtDecoders.fromJwkSetUri(JWK_SET_URI, ISSUER, AUDIENCE);
+        var decoded = decoder.decode(signRs256(claims(ISSUER, AUDIENCE)));
 
-            assertThat(decoder).isSameAs(nimbusDecoder);
-            then(nimbusDecoder).should().setJwtValidator(any());
-        }
+        assertThat(decoded.getSubject()).isEqualTo("user-1");
+        assertThat(decoded.getAudience()).containsExactly(AUDIENCE);
+    }
+
+    @Test
+    @DisplayName("Deve recusar no decoder o token cujo aud não contém o serviço")
+    void shouldRejectInDecoderWhenAudienceDoesNotContainService() throws Exception {
+        var decoder = KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, ISSUER, AUDIENCE);
+        var token = signRs256(claims(ISSUER, "customer-management"));
+
+        assertThatThrownBy(() -> decoder.decode(token))
+                .isInstanceOf(JwtValidationException.class);
+    }
+
+    @Test
+    @DisplayName("Deve recusar no decoder o token cujo iss é diferente do esperado")
+    void shouldRejectInDecoderWhenIssuerIsWrong() throws Exception {
+        var decoder = KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, ISSUER, AUDIENCE);
+        var token = signRs256(claims("http://evil.example/realms/petshop", AUDIENCE));
+
+        assertThatThrownBy(() -> decoder.decode(token))
+                .isInstanceOf(JwtValidationException.class);
+    }
+
+    @Test
+    @DisplayName("Deve recusar o token HS256 quando o decoder só aceita RS256")
+    void shouldRejectHs256TokenWhenDecoderOnlyAcceptsRs256() throws Exception {
+        var decoder = KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, ISSUER, AUDIENCE);
+        var token = signHs256(claims(ISSUER, AUDIENCE));
+
+        assertThatThrownBy(() -> decoder.decode(token))
+                .isInstanceOf(BadJwtException.class);
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = "   ")
     @DisplayName("Deve lançar IllegalArgumentException quando o jwkSetUri for vazio")
-    void shouldThrowIllegalArgumentWhenJwkSetUriIsBlank(String jwkSetUri) {
-        assertThatThrownBy(() -> KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, ISSUER, AUDIENCE))
+    void shouldThrowIllegalArgumentWhenJwkSetUriIsBlank(String blankJwkSetUri) {
+        assertThatThrownBy(() -> KeycloakJwtDecoders.fromJwkSetUri(blankJwkSetUri, ISSUER, AUDIENCE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jwk-set-uri");
     }
@@ -80,14 +155,9 @@ class KeycloakJwtDecodersTest {
         assertThatThrownBy(() -> KeycloakJwtDecoders.validator(issuerUri, AUDIENCE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("issuer-uri");
-        try (MockedStatic<NimbusJwtDecoder> nimbus = mockStatic(NimbusJwtDecoder.class)) {
-            nimbus.when(() -> NimbusJwtDecoder.withJwkSetUri(JWK_SET_URI)).thenReturn(builder);
-            given(builder.build()).willReturn(nimbusDecoder);
-
-            assertThatThrownBy(() -> KeycloakJwtDecoders.fromJwkSetUri(JWK_SET_URI, issuerUri, AUDIENCE))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("issuer-uri");
-        }
+        assertThatThrownBy(() -> KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, issuerUri, AUDIENCE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("issuer-uri");
     }
 
     @ParameterizedTest
@@ -98,14 +168,9 @@ class KeycloakJwtDecodersTest {
         assertThatThrownBy(() -> KeycloakJwtDecoders.validator(ISSUER, audience))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("audience");
-        try (MockedStatic<NimbusJwtDecoder> nimbus = mockStatic(NimbusJwtDecoder.class)) {
-            nimbus.when(() -> NimbusJwtDecoder.withJwkSetUri(JWK_SET_URI)).thenReturn(builder);
-            given(builder.build()).willReturn(nimbusDecoder);
-
-            assertThatThrownBy(() -> KeycloakJwtDecoders.fromJwkSetUri(JWK_SET_URI, ISSUER, audience))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("audience");
-        }
+        assertThatThrownBy(() -> KeycloakJwtDecoders.fromJwkSetUri(jwkSetUri, ISSUER, audience))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("audience");
     }
 
     @Test

@@ -104,7 +104,7 @@ docker compose up api-products
 
 ## Kubernetes
 
-Manifests em [`k8s/api-produtos/`](../k8s/api-produtos): `deployment.yaml` (1 réplica, imagem local `api-produtos:latest`, probes de liveness/readiness em `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` (aponta pro `mongo-svc` compartilhado, ver [`k8s/mongo/`](../k8s/mongo)) e `service.yaml` (`NodePort`, `30081` → 8080). Sem secret de banco próprio — só `jwt-secret` (Mongo aqui não tem autenticação configurada, mesmo padrão do `customer-management`). O antigo `k8s/db-produtos/` (Postgres dedicado) foi removido na migração pra Mongo.
+Manifests em [`k8s/api-produtos/`](../k8s/api-produtos): `deployment.yaml` (1 réplica, imagem local `api-produtos:latest`, probes de liveness/readiness em `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` (aponta pro `mongo-svc` compartilhado, ver [`k8s/mongo/`](../k8s/mongo)) e `service.yaml` (`NodePort`, `30081` → 8080). Sem secret de banco próprio (Mongo aqui não tem autenticação configurada, mesmo padrão do `customer-management`); o token é validado pelo JWKS do Keycloak (`KEYCLOAK_ISSUER_URI`/`KEYCLOAK_JWK_SET_URI`/`KEYCLOAK_AUDIENCE`, ver `infra/keycloak/README.md`). O antigo `k8s/db-produtos/` (Postgres dedicado) foi removido na migração pra Mongo.
 
 ## Testes
 

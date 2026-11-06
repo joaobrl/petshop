@@ -18,14 +18,41 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Mesmas versões dos serviços: spring-boot.version = parent
+             spring-boot-starter-parent deles, spring-cloud.version =
+             spring-cloud-dependencies deles. Subir junto com os serviços. -->
+        <spring-boot.version>4.0.3</spring-boot.version>
+        <spring-cloud.version>2025.1.2</spring-cloud.version>
     </properties>
+
+    <!-- Módulo não herda spring-boot-starter-parent (é uma lib pura, sem
+         starter), então importa os BOMs que os serviços usam: compila e testa
+         contra o mesmo Spring Framework / Security / Jackson / Feign que roda
+         neles, em vez de versões fixadas à mão. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Spring Web: fornece ProblemDetail, ResponseEntity, anotações -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
-            <version>6.1.14</version>
             <scope>provided</scope>
         </dependency>
 
@@ -33,7 +60,6 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
-            <version>6.1.14</version>
             <scope>provided</scope>
         </dependency>
 
@@ -42,7 +68,6 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>
-            <version>6.1.14</version>
             <scope>provided</scope>
         </dependency>
 
@@ -51,7 +76,6 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-tx</artifactId>
-            <version>6.1.14</version>
             <scope>provided</scope>
         </dependency>
 
@@ -59,7 +83,6 @@
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
-            <version>3.0.2</version>
             <scope>provided</scope>
         </dependency>
 
@@ -67,7 +90,6 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.9</version>
             <scope>provided</scope>
         </dependency>
 
@@ -77,13 +99,10 @@
              tem resource server OAuth2 no classpath — e esse não usa
              BaseExceptionHandler. Os outros cinco já trazem spring-security-
              core transitivamente via spring-boot-starter-oauth2-resource-
-             server, então nada muda pra eles. Spring Security 7.0.3 =
-             versão do BOM do Spring Boot 4.0.3 dos serviços (este módulo não
-             tem parent/BOM); só compila contra ela, quem roda é a do serviço. -->
+             server, então nada muda pra eles. -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-core</artifactId>
-            <version>7.0.3</version>
             <scope>provided</scope>
         </dependency>
 
@@ -94,13 +113,11 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-resource-server</artifactId>
-            <version>7.0.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-jose</artifactId>
-            <version>7.0.3</version>
             <scope>provided</scope>
         </dependency>
 
@@ -110,7 +127,6 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-client</artifactId>
-            <version>7.0.3</version>
             <scope>provided</scope>
         </dependency>
 
@@ -122,24 +138,19 @@
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
-            <version>6.0.0</version>
             <scope>provided</scope>
         </dependency>
 
         <!-- OpenFeign: RequestInterceptor usado pelo CorrelationIdFeignConfig.
              "provided": só quem usa Feign (e importa a config) precisa dele.
-             Versão deve acompanhar a resolvida pelo spring-cloud-dependencies
-             dos serviços (este módulo não tem parent/BOM). -->
+             Versão vem do spring-cloud-dependencies importado acima. -->
         <dependency>
             <groupId>io.github.openfeign</groupId>
             <artifactId>feign-core</artifactId>
-            <version>13.6.1</version>
             <scope>provided</scope>
         </dependency>
 
-        <!-- Módulo não usa spring-boot-starter-parent (é uma lib pura, sem
-             starter), então declara as dependências de teste direto, sem
-             gerenciamento de versão herdado. -->
+        <!-- Dependências de teste: versões do BOM do Spring Boot importado. -->
         <!-- slf4j-api sozinho (acima, "provided") não tem implementação —
              sem um binding, org.slf4j.MDC vira NOP (put/get não fazem
              nada), o que tornaria um teste de CorrelationIdFilter que
@@ -151,31 +162,34 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.5.12</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Jackson 3, o que os serviços trazem via spring-boot-starter-json:
+             conversor JSON da resposta do token endpoint usado por
+             TokenPropagation.clientCredentials nos testes. -->
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.11.4</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.14.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
-            <version>5.14.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <version>3.26.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -57,9 +57,12 @@ public class CustomerService implements CustomerPortIn {
         // ela vai direto para o Keycloak, único dono da credencial (SDD-024 F3).
         var idpUserId = identityProviderPortOut.createUser(IdentityUser.of(saved), request.getPassword());
         IdentityCompensation.deleteOnRollback(identityProviderPortOut, idpUserId);
-        notificationPortOut.sendRegistrationConfirmation(saved.getEmail(), saved.getName());
+        // Publicação dos e-mails só depois do commit: se o commit falhar, ninguém recebe
+        // e-mail de uma conta que não existe.
+        AfterCommit.run(() -> notificationPortOut.sendRegistrationConfirmation(saved.getEmail(), saved.getName()));
         // SDD-020: conta nasce com emailVerified=false (ver Customer); o link de
-        // confirmação vai num e-mail separado do de boas-vindas.
+        // confirmação vai num e-mail separado do de boas-vindas. O token é gravado aqui,
+        // dentro da transação; o envio do link é adiado para o commit (EmailVerificationService).
         emailVerificationPortIn.issueVerification(saved);
         log.info("Customer registered: id={}", saved.getId());
         return saved;

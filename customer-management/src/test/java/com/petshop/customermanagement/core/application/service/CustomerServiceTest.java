@@ -633,10 +633,40 @@ class CustomerServiceTest {
         assertThat(captor.getValue().userId()).isEqualTo(result.getId());
         assertThat(captor.getValue().email()).isEqualTo("maria@mail.com");
         assertThat(captor.getValue().role()).isEqualTo(Role.CUSTOMER);
-        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(2);
         TransactionSynchronizationManager.getSynchronizations()
                 .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
         then(identityProviderPortOut).should().deleteUser("kc-1");
+    }
+
+    @Test
+    @DisplayName("Deve enviar o e-mail de boas-vindas somente após o commit quando cadastrar o cliente")
+    void shouldSendWelcomeEmailOnlyAfterCommitWhenRegisteringCustomer() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+
+        customerService.registerCustomer(request);
+
+        then(notificationPortOut).should(never()).sendRegistrationConfirmation(any(), any());
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        then(notificationPortOut).should().sendRegistrationConfirmation("maria@mail.com", "Maria");
+    }
+
+    @Test
+    @DisplayName("Deve não enviar o e-mail de boas-vindas quando a transação sofrer rollback")
+    void shouldNotSendWelcomeEmailWhenTransactionRollsBack() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+
+        customerService.registerCustomer(request);
+
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        then(notificationPortOut).should(never()).sendRegistrationConfirmation(any(), any());
     }
 
     @Test

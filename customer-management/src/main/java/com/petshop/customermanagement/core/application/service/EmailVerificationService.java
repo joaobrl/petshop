@@ -68,7 +68,9 @@ public class EmailVerificationService implements EmailVerificationPortIn {
         var rawToken = generateRawToken();
         var now = Instant.now();
         tokenPortOut.save(new EmailVerificationToken(customer.getId(), hash(rawToken), now, now.plus(tokenTtl)));
-        notificationPortOut.sendEmailVerification(customer.getEmail(), customer.getName(), verificationLink(rawToken));
+        // O token é gravado na transação do chamador; o e-mail com o link só sai depois do commit.
+        var link = verificationLink(rawToken);
+        AfterCommit.run(() -> notificationPortOut.sendEmailVerification(customer.getEmail(), customer.getName(), link));
         log.info("Email verification issued for customer: id={}", customer.getId());
     }
 

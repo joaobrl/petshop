@@ -11,7 +11,10 @@ import com.petshop.commons.exception.DependencyUnavailableException;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -65,6 +68,13 @@ class EmailVerificationServiceTest {
     void setUp() {
         service = new EmailVerificationService(customerPortOut, tokenPortOut, notificationPortOut, identityProviderPortOut,
                 Duration.ofHours(24), FRONTEND_BASE_URL);
+    }
+
+    @AfterEach
+    void clearTransactionSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clear();
+        }
     }
 
     private static String sha256Hex(String value) throws Exception {
@@ -170,6 +180,32 @@ class EmailVerificationServiceTest {
             slashService.issueVerification(customer);
 
             assertThat(captureSentLink(customer)).startsWith(LINK_PREFIX).doesNotContain("//verify-email");
+        }
+
+        @Test
+        @DisplayName("Deve gravar o token já e enviar o e-mail somente após o commit quando houver transação")
+        void shouldSaveTokenNowAndSendEmailOnlyAfterCommitWhenInTransaction() {
+            var customer = unverifiedCustomer();
+            TransactionSynchronizationManager.initSynchronization();
+
+            service.issueVerification(customer);
+
+            then(tokenPortOut).should().save(any(EmailVerificationToken.class));
+            then(notificationPortOut).shouldHaveNoInteractions();
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+            assertThat(captureSentLink(customer)).startsWith(LINK_PREFIX);
+        }
+
+        @Test
+        @DisplayName("Deve não enviar o e-mail quando a transação sofrer rollback")
+        void shouldNotSendEmailWhenTransactionRollsBack() {
+            TransactionSynchronizationManager.initSynchronization();
+
+            service.issueVerification(unverifiedCustomer());
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+            then(notificationPortOut).shouldHaveNoInteractions();
         }
 
         @Test

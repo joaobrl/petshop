@@ -43,7 +43,7 @@ public class StaffService implements StaffPortIn {
         // própria senha pelo e-mail de ação do Keycloak (UPDATE_PASSWORD).
         var idpUserId = identityProviderPortOut.createUser(IdentityUser.of(saved), null);
         IdentityCompensation.deleteOnRollback(identityProviderPortOut, idpUserId);
-        sendSetPasswordEmail(idpUserId, saved);
+        AfterCommit.run(() -> sendSetPasswordEmail(idpUserId, saved));
         log.info("Staff registered: id={}", saved.getId());
         return saved;
     }

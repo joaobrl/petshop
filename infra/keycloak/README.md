@@ -26,6 +26,16 @@ O realm é importado no primeiro boot (`--import-realm`, estratégia "ignorar se
 existir"). Alterar `realm-petshop.json` não afeta um realm já importado: para
 reaplicar, apague o database (`docker compose down -v`) ou edite pelo console.
 
+## Kubernetes
+
+Manifests em [`k8s/keycloak/`](../../k8s/keycloak) e [`k8s/db-keycloak/`](../../k8s/db-keycloak):
+
+- **Banco:** `db-keycloak` (Postgres 14 com PVC, `db-keycloak-svc:5432`, database `keycloak_db`), mesmo padrão dos demais `db-*`. A senha vem do `db-keycloak-secret` (`k8s/db-keycloak/secret.example.yaml`, `POSTGRES_PASSWORD`; copie para `secret.yaml` e preencha). Os dados do Keycloak sobrevivem à recriação do pod.
+- **Modo produção:** o `deployment.yaml` roda `start --import-realm --http-enabled=true` (sem `start-dev`/H2; o TLS é terminado fora do pod, como nos demais serviços), com `KC_DB=postgres`, `KC_DB_URL=jdbc:postgresql://db-keycloak-svc:5432/keycloak_db` e `KC_DB_USERNAME`/`KC_DB_PASSWORD` (esta do `db-keycloak-secret`). `KC_HOSTNAME`, `KC_HEALTH_ENABLED` e `KC_HTTP_ENABLED` ficam no `keycloak-config`.
+- **Health:** `startupProbe` em `/health/started`, `livenessProbe` em `/health/live` e `readinessProbe` em `/health/ready`, todos na porta de management `9000`.
+- **Segredos:** `keycloak-secret` (`secret.example.yaml`): admin de bootstrap, `KEYCLOAK_CLIENT_SECRET_*` e `KEYCLOAK_SMTP_*`. O realm vem do ConfigMap `keycloak-realm` (cópia de `realm-petshop.json`; regerar ao alterá-lo).
+- **Ordem:** aplique `db-keycloak/` (e o secret) antes de `keycloak/`; como no compose, o import do realm só vale na primeira subida (banco vazio).
+
 ## URLs
 
 | O quê | URL |

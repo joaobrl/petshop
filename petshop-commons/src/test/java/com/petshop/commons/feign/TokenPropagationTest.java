@@ -3,6 +3,7 @@ package com.petshop.commons.feign;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,8 +23,12 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -225,6 +230,38 @@ class TokenPropagationTest {
         assertThatThrownBy(() -> withMockedManager().mintServiceToken())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("token de serviço");
+    }
+
+    @Test
+    @DisplayName("Deve pedir o token com client_secret_basic no token-uri informado quando usar clientCredentials")
+    void shouldRequestTokenWithClientSecretBasicAtTokenUriWhenUsingClientCredentials() throws Exception {
+        var authorizationHeader = new AtomicReference<String>();
+        var requestBody = new AtomicReference<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/token", exchange -> {
+            authorizationHeader.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            var response = "{\"access_token\":\"issued-token\",\"token_type\":\"Bearer\",\"expires_in\":300}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var tokenUri = "http://127.0.0.1:" + server.getAddress().getPort() + "/token";
+
+            var header = TokenPropagation.clientCredentials(tokenUri, "order-service", "s3cret").mintServiceToken();
+
+            var expectedBasic = "Basic " + Base64.getEncoder()
+                    .encodeToString("order-service:s3cret".getBytes(StandardCharsets.UTF_8));
+            assertThat(header).isEqualTo("Bearer issued-token");
+            assertThat(authorizationHeader.get()).isEqualTo(expectedBasic);
+            assertThat(requestBody.get()).contains("grant_type=client_credentials");
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import ch.qos.logback.classic.Level;
 import com.petshop.customermanagement.core.port.out.dto.IdentityUser;
 import com.petshop.customermanagement.support.LogCaptor;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -336,8 +337,41 @@ class StaffServiceTest {
         then(identityProviderPortOut).should().createUser(captor.capture(), org.mockito.ArgumentMatchers.isNull());
         assertThat(captor.getValue().userId()).isEqualTo(result.getId());
         assertThat(captor.getValue().role()).isEqualTo(Role.RECEPTIONIST);
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(2);
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
         then(identityProviderPortOut).should().sendSetPasswordEmail("kc-1");
-        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Deve enviar o e-mail de senha somente após o commit quando cadastrar funcionário")
+    void shouldSendSetPasswordEmailOnlyAfterCommitWhenCreatingStaff() {
+        var request = sampleRequest();
+        givenNewStaffCanBeCreated(request);
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        staffService.createStaff(request);
+
+        then(identityProviderPortOut).should(never()).sendSetPasswordEmail(any());
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        then(identityProviderPortOut).should().sendSetPasswordEmail("kc-1");
+    }
+
+    @Test
+    @DisplayName("Deve não enviar o e-mail de senha quando a transação sofrer rollback")
+    void shouldNotSendSetPasswordEmailWhenTransactionRollsBack() {
+        var request = sampleRequest();
+        givenNewStaffCanBeCreated(request);
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        staffService.createStaff(request);
+
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        then(identityProviderPortOut).should(never()).sendSetPasswordEmail(any());
     }
 
     @Test

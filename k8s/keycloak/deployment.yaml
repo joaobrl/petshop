@@ -15,7 +15,9 @@ spec:
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.4.0
-          args: ["start-dev", "--import-realm"]
+          # Modo produção (start): dados no Postgres do db-keycloak. TLS é terminado
+          # fora do pod (como nos demais serviços), por isso --http-enabled=true.
+          args: ["start", "--import-realm", "--http-enabled=true"]
           securityContext:
             runAsNonRoot: true
             # UID 1000 do usuário "keycloak" da imagem oficial: sem UID numérico o
@@ -29,6 +31,18 @@ spec:
             # KC_BOOTSTRAP_ADMIN_* e KEYCLOAK_CLIENT_SECRET_* (k8s/keycloak/secret.example.yaml).
             - secretRef:
                 name: keycloak-secret
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://db-keycloak-svc:5432/keycloak_db
+            - name: KC_DB_USERNAME
+              value: postgres
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-keycloak-secret
+                  key: POSTGRES_PASSWORD
           ports:
             - name: http
               containerPort: 8080
