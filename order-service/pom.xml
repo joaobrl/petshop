@@ -134,12 +134,23 @@
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
-		<!-- JWT próprio (substitui o Keycloak, inclusive o client_credentials
-		     que era usado pelas chamadas Feign de scheduler — ver
-		     FeignAuthConfig, agora assina localmente em vez de chamar um IdP). -->
+		<!-- Infraestrutura de segurança (filter chain). Validação do token e
+		     client_credentials do Feign: dependências abaixo (SDD-024). -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Resource Server (SDD-024 F2): valida o access token do Keycloak via JWKS. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+
+		<!-- Client Credentials (SDD-024 F4): token de servico do TokenPropagation. -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-client</artifactId>
 		</dependency>
 
 		<dependency>

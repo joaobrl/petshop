@@ -1,6 +1,7 @@
 package com.petshop.order_service.infrastructure.rest.customer.feign.adapter;
 
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.order_service.support.TestJwtService;
+import com.petshop.order_service.support.TestTokenPropagation;
 import com.petshop.order_service.infrastructure.rest.customer.feign.CustomerFeign;
 import com.petshop.order_service.infrastructure.rest.customer.feign.dto.CustomerInfoResponseDto;
 import com.petshop.commons.feign.TokenPropagation;
@@ -31,8 +32,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CustomerAdapterOutTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService JWT_SERVICE =
+            new TestJwtService();
 
     @Mock
     private CustomerFeign customerFeign;
@@ -41,7 +42,7 @@ class CustomerAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new CustomerAdapterOut(customerFeign, new TokenPropagation(JWT_SERVICE, "order-service"));
+        adapter = new CustomerAdapterOut(customerFeign, TestTokenPropagation.forService("order-service"));
     }
 
     @AfterEach
@@ -78,8 +79,7 @@ class CustomerAdapterOutTest {
     @Test
     void relaysTheAuthenticatedUserTokenFromSecurityContext() {
         var id = UUID.randomUUID();
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                "user", "user-token", AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
+        TestTokenPropagation.authenticateUser("user-token");
         when(customerFeign.getCustomerById(eq(id), anyString())).thenReturn(new CustomerInfoResponseDto(id, "Maria", "maria@mail.com"));
 
         adapter.findCustomerById(id, "Bearer ignorado");

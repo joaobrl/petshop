@@ -8,11 +8,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.product_registration.support.TestJwtService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -34,8 +35,8 @@ class RoleDeniedStatusTest {
     @ServiceConnection
     static MongoDBContainer mongo = new MongoDBContainer("mongo:6.0");
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @LocalServerPort
     private int port;
@@ -89,5 +90,42 @@ class RoleDeniedStatusTest {
         var response = send("DELETE", "/api/v1/products/delete/1", "token-invalido");
 
         assertThat(response.statusCode()).isEqualTo(401);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"reserve", "release", "confirm"})
+    @DisplayName("Deve liberar reserve, release e confirm quando o token de serviço tiver svc:products:stock-write")
+    void shouldAllowStockRoutesWhenServiceTokenHasStockWrite(String action) throws Exception {
+        var response = send("POST", "/api/v1/products/1/" + action, TEST_JWT_SERVICE.generateServiceToken("order-service"));
+
+        assertThat(response.statusCode()).isNotIn(401, 403);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"reserve", "release", "confirm"})
+    @DisplayName("Deve responder 403 em reserve, release e confirm quando o token de serviço tiver outra permissão svc")
+    void shouldReturn403OnStockRoutesWhenServiceTokenHasOtherPermission(String action) throws Exception {
+        var response = send("POST", "/api/v1/products/1/" + action, TEST_JWT_SERVICE.generateServiceToken("staff-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em rota de usuário quando o token for de serviço")
+    void shouldReturn403OnUserRouteWhenTokenIsServiceToken() throws Exception {
+        var response = send("POST", "/api/v1/products/register", TEST_JWT_SERVICE.generateServiceToken("order-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 401 quando o aud do token for de outro serviço")
+    void shouldReturn401WhenTokenAudienceIsFromAnotherService() throws Exception {
+        var userToken = TEST_JWT_SERVICE.generateTokenWithAudience("order-service", UUID.randomUUID(),
+                Role.ADMIN, AccountType.STAFF);
+        var serviceToken = TEST_JWT_SERVICE.generateServiceTokenWithAudience("order-service", "customer-management");
+
+        assertThat(send("DELETE", "/api/v1/products/delete/1", userToken).statusCode()).isEqualTo(401);
+        assertThat(send("POST", "/api/v1/products/1/reserve", serviceToken).statusCode()).isEqualTo(401);
     }
 }

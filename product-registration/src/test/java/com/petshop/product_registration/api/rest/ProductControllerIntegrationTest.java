@@ -8,7 +8,7 @@ import com.petshop.product_registration.infrastructure.persistence.mongo.sequenc
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.product_registration.support.TestJwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -64,8 +64,8 @@ class ProductControllerIntegrationTest {
     static MongoDBContainer mongo = new MongoDBContainer("mongo:6.0");
 
     // Mesmo segredo do src/test/resources/application.yml.
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @Autowired
     private MockMvc mockMvc;

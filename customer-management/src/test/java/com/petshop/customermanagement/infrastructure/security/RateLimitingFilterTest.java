@@ -33,7 +33,7 @@ class RateLimitingFilterTest {
 
     private static final String TRUSTED_PROXIES = "172.16.0.0/12";
     private static final String GATEWAY_IP = "172.18.0.5";
-    private static final String LOGIN = "/api/v1/auth/login";
+    private static final String LIMITED_PATH = "/api/v1/auth/resend-verification";
 
     @Mock
     private HttpServletRequest request;
@@ -54,7 +54,7 @@ class RateLimitingFilterTest {
 
     @Test
     void allowsPathsOutsideTheLimitedSetThroughUnconditionally() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/change-password");
+        when(request.getRequestURI()).thenReturn("/api/v1/customers/list/customers");
 
         for (int i = 0; i < 20; i++) {
             filter.doFilterInternal(request, response, filterChain);
@@ -65,8 +65,8 @@ class RateLimitingFilterTest {
     }
 
     @Test
-    void allowsUpToFiveAttemptsPerMinutePerIpOnLogin() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
+    void allowsUpToFiveAttemptsPerMinutePerIpOnLimitedPath() throws Exception {
+        when(request.getRequestURI()).thenReturn(LIMITED_PATH);
         when(request.getRemoteAddr()).thenReturn("10.0.0.1");
 
         for (int i = 0; i < 5; i++) {
@@ -79,7 +79,7 @@ class RateLimitingFilterTest {
 
     @Test
     void blocksTheSixthAttemptFromTheSameIpWithinTheWindow() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
+        when(request.getRequestURI()).thenReturn(LIMITED_PATH);
         when(request.getRemoteAddr()).thenReturn("10.0.0.2");
 
         for (int i = 0; i < 5; i++) {
@@ -109,23 +109,6 @@ class RateLimitingFilterTest {
     }
 
     @Test
-    @DisplayName("Deve contar o reenvio de verificação em janela separada do login para o mesmo IP")
-    void shouldTrackResendVerificationAndLoginIndependentlyForSameIp() throws Exception {
-        when(request.getRemoteAddr()).thenReturn("10.0.0.7");
-
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
-        for (int i = 0; i < 5; i++) {
-            filter.doFilterInternal(request, response, filterChain);
-        }
-
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/resend-verification");
-        filter.doFilterInternal(request, response, filterChain);
-
-        verify(filterChain, times(6)).doFilter(request, response);
-        verify(response, never()).setStatus(429);
-    }
-
-    @Test
     @DisplayName("Deve não limitar o endpoint de verificação de e-mail")
     void shouldNotLimitVerifyEmailEndpoint() throws Exception {
         when(request.getRequestURI()).thenReturn("/api/v1/auth/verify-email");
@@ -140,7 +123,7 @@ class RateLimitingFilterTest {
 
     @Test
     void tracksDifferentIpsIndependently() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
+        when(request.getRequestURI()).thenReturn(LIMITED_PATH);
 
         when(request.getRemoteAddr()).thenReturn("10.0.0.3");
         for (int i = 0; i < 5; i++) {
@@ -148,22 +131,6 @@ class RateLimitingFilterTest {
         }
 
         when(request.getRemoteAddr()).thenReturn("10.0.0.4");
-        filter.doFilterInternal(request, response, filterChain);
-
-        verify(filterChain, times(6)).doFilter(request, response);
-        verify(response, never()).setStatus(429);
-    }
-
-    @Test
-    void tracksLoginAndForgotPasswordIndependentlyForTheSameIp() throws Exception {
-        when(request.getRemoteAddr()).thenReturn("10.0.0.5");
-
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
-        for (int i = 0; i < 5; i++) {
-            filter.doFilterInternal(request, response, filterChain);
-        }
-
-        when(request.getRequestURI()).thenReturn("/api/v1/auth/forgot-password");
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain, times(6)).doFilter(request, response);
@@ -247,7 +214,7 @@ class RateLimitingFilterTest {
 
     private static MockHttpServletResponse attempt(RateLimitingFilter target, String remoteAddr,
                                                    String... xForwardedFor) throws Exception {
-        var request = new MockHttpServletRequest("POST", LOGIN);
+        var request = new MockHttpServletRequest("POST", LIMITED_PATH);
         request.setRemoteAddr(remoteAddr);
         for (var value : xForwardedFor) {
             request.addHeader(ClientIpResolver.X_FORWARDED_FOR, value);

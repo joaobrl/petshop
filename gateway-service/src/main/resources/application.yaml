@@ -84,11 +84,13 @@ management:
     redis:
       enabled: false
 
-# Mesmo segredo HS256 dos serviços. O gateway só usa para validar a
-# assinatura do Bearer e escolher a chave do rate limit (user:<sub>); não
-# autentica nem rejeita nada - sem ele, tudo é limitado por IP.
-jwt:
-  secret: ${JWT_SECRET:}
+# Keycloak (SDD-024). O gateway só valida o Bearer (assinatura via JWKS, iss e
+# exp) para escolher a chave do rate limit (user:<sub>); não autentica nem
+# rejeita nada - sem isso configurado, tudo é limitado por IP. JWKS pela rede
+# interna; iss público, fixado no Keycloak por KC_HOSTNAME.
+keycloak:
+  issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/petshop}
+  jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/petshop/protocol/openid-connect/certs}
 
 # Rate limiting por cliente (SDD-022), token bucket do RedisRateLimiter:
 # o balde guarda burst-capacity fichas, ganha replenish-rate fichas/s e cada
@@ -125,7 +127,7 @@ gateway:
       replenish-rate: ${RATE_LIMIT_REGISTRATION_REPLENISH_RATE:1}
       burst-capacity: ${RATE_LIMIT_REGISTRATION_BURST_CAPACITY:60}
       requested-tokens: ${RATE_LIMIT_REGISTRATION_REQUESTED_TOKENS:12}
-    # Demais requisições roteadas: por sub do JWT (assinatura válida), ou
+    # Demais requisições roteadas: por sub do JWT (validado via JWKS), ou
     # por IP se anônimo/token inválido/expirado. 10 req/s, burst 20.
     authenticated:
       replenish-rate: ${RATE_LIMIT_AUTHENTICATED_REPLENISH_RATE:10}

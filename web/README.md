@@ -45,25 +45,45 @@ portas individuais. Para outra base, defina `VITE_API_BASE_URL` (ver
    em cada um.
 
 3. **Dados iniciais**: o banco sobe vazio — sem produtos nem contas de staff
-   além do admin de bootstrap. Rode o script de seed (login como admin,
-   cadastra produtos e três contas de staff) depois que os containers
-   estiverem de pé:
+   além do admin de bootstrap. Rode o script de seed (entra no Keycloak como
+   admin, com o mesmo Authorization Code + PKCE do SPA, e cadastra produtos)
+   depois que os containers estiverem de pé; exige `BOOTSTRAP_ADMIN_PASSWORD`
+   definida (admin com senha):
 
    ```bash
    node scripts/seed-backend.mjs
    ```
 
-   As contas de staff criadas têm senha inicial = o próprio CPF (ver
-   `StaffService.createStaff`); o login exige troca de senha no primeiro
-   acesso (`mustChangePassword`), que a tela de login já trata.
+   As contas de staff de exemplo não são mais criadas pelo script: o
+   customer-management as cria (local + Keycloak, senha de dev conhecida)
+   quando roda com o profile `dev` — `SPRING_PROFILES_ACTIVE=dev` no `.env`
+   (desligado por padrão; ver "Seed de funcionários de desenvolvimento" em
+   `customer-management/README.md`). Clientes continuam pelo cadastro
+   público (`/cadastro`).
+
+4. **Keycloak**: login, "Manter conectado" (Remember Me), "Esqueci a senha" e
+   troca de senha são telas do Keycloak (SDD-024 F3). O app usa Authorization
+   Code + PKCE no client público `web` (`oidc-client-ts`, `src/services/oidc.ts`):
+   `/entrar` e `/interno/entrar` só redirecionam para o Keycloak, o retorno é
+   `/auth/callback` e a renovação silenciosa usa `/auth/silent`. Variáveis
+   (opcionais): `VITE_KEYCLOAK_URL` (padrão `http://localhost:8180`),
+   `VITE_KEYCLOAK_REALM` (`petshop`), `VITE_KEYCLOAK_CLIENT_ID` (`web`).
+   O access token fica **só em memória** (nunca em `localStorage`/`sessionStorage`);
+   é renovado pelo refresh token do Keycloak e, num 401, uma renovação
+   compartilhada é tentada antes do fluxo de sessão expirada (SDD-015).
+   Recarregar a página recupera a sessão pelo SSO do Keycloak (signin silencioso).
+   Só o `state`/`code_verifier` do redirect fica em `sessionStorage` durante a
+   ida e volta ao Keycloak. "Minha conta / alterar senha" abre o Account Console
+   (`/realms/petshop/account`); "Sair" é o `end_session` do Keycloak.
 
 ### Login para testar
 
-- **Cliente**: crie uma conta em `/cadastro`, ou use uma conta já criada.
+- **Cliente**: crie uma conta em `/cadastro` (a senha escolhida vai para o
+  Keycloak) e entre pela tela do Keycloak.
 - **Painel interno** (`/interno/entrar`): a conta admin de bootstrap
-  (`BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` no `.env`) ou uma das
-  contas de staff do seed (CPF como senha, troca obrigatória no primeiro
-  login).
+  (`BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` no `.env`), uma das
+  contas de staff do profile `dev` (senha `DEV_SEED_STAFF_PASSWORD`) ou um
+  funcionário criado em "Equipe" (define a senha pelo e-mail do Keycloak).
 
 ## Bug de backend corrigido durante a integração
 
@@ -106,25 +126,25 @@ src/
   types/         tipos espelhando os DTOs reais dos módulos Java
   mocks/         só avatarOptions.ts — mapa dos avatares de pet enviados pro design system (não é dado mockado)
   services/      fetch real, todo via gateway (URL base em src/services/config.ts)
-  context/       AuthContext (JWT real, decodificado no cliente), CartContext (carrinho real)
+  context/       AuthContext (login OIDC no Keycloak, token só em memória, claims decodificados no cliente), CartContext (carrinho real)
   components/
     ui/          Button, Badge, Card (classe .card), Field, Logo, PetAvatar, InitialsAvatar, PawBackground, Icon
     layout/      Header, Footer, StoreLayout, InternalLayout, RequireAuth, RequireStaff
     store/       ProductCard
   pages/
     store/       catálogo, produto, carrinho, checkout, confirmação
-    account/     login (com fluxo de troca de senha obrigatória), cadastro, meus pets, meus pedidos
+    account/     login (redireciona ao Keycloak), callback OIDC, cadastro, verificação de e-mail, meus pets, meus pedidos
     booking/     novo agendamento, meus agendamentos
-    internal/    login do painel, dashboard, agendamentos, pedidos (busca por id), equipe
+    internal/    login do painel (Keycloak), dashboard, agendamentos, pedidos (busca por id), equipe
 scripts/
-  seed-backend.mjs   popula produtos e contas de staff via API, depois do docker compose up
+  seed-backend.mjs   popula produtos via API (admin logado no Keycloak), depois do docker compose up
 ```
 
 ## O que não está coberto
 
 - Edição/remoção de pet (só cadastro de novo pet) — os endpoints existem no
   backend (`PATCH`/`DELETE /customers/{id}/pets/{petId}`), só não têm tela.
-- Recuperação de senha (o backend tem `POST /auth/forgot-password`, sem UI
-  aqui), paginação/filtro/busca no catálogo.
+- Paginação/filtro/busca no catálogo. (Recuperação de senha é a tela
+  "Esqueci a senha" do Keycloak.)
 - Fila de pedidos e atualização de status pela equipe — ver "Limitações
   conhecidas do backend" acima.

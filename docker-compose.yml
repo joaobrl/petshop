@@ -8,6 +8,14 @@ x-healthcheck-timing: &healthcheck-timing
   retries: 20
   start_period: 10s
 
+# Resource Server (SDD-024): cada serviço busca o JWKS pela rede interna
+# (keycloak:8080) e confere o iss público, fixado por KC_HOSTNAME no keycloak.
+x-keycloak-resource-server: &keycloak-resource-server
+  KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/petshop
+  KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/petshop/protocol/openid-connect/certs
+  # Token endpoint do Client Credentials dos serviços chamadores (F4).
+  KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/petshop/protocol/openid-connect/token
+
 services:
   db:
     image: postgres:14
@@ -24,6 +32,53 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       <<: *healthcheck-timing
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.0
+    container_name: petshop-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak_db
+      KC_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      # Health em /health/ready na porta de management (9000), não exposta no host.
+      KC_HEALTH_ENABLED: "true"
+      # Issuer fixo (http://localhost:8180/realms/petshop) para o navegador e para
+      # os containers, que buscam o JWKS por http://keycloak:8080 (rede interna).
+      KC_HOSTNAME: http://localhost:8180
+      # Segredos dos clients confidenciais, resolvidos via ${VAR} no realm-petshop.json.
+      KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN: ${KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN}
+      KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE: ${KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE}
+      KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE: ${KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE}
+      KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE: ${KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE}
+      # SMTP do realm (SDD-024 F3: e-mail de definir/redefinir senha), resolvido via ${...}
+      # no realm-petshop.json. Padrão: SMTP relay da Brevo (porta 587, STARTTLS).
+      KEYCLOAK_SMTP_HOST: ${KEYCLOAK_SMTP_HOST:-smtp-relay.brevo.com}
+      KEYCLOAK_SMTP_PORT: ${KEYCLOAK_SMTP_PORT:-587}
+      KEYCLOAK_SMTP_FROM: ${KEYCLOAK_SMTP_FROM:-}
+      KEYCLOAK_SMTP_USER: ${KEYCLOAK_SMTP_USER:-}
+      KEYCLOAK_SMTP_PASSWORD: ${KEYCLOAK_SMTP_PASSWORD:-}
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    # A imagem não tem curl: o check abre o socket da porta 9000 com bash.
+    # start_period maior porque o primeiro boot cria o schema e importa o realm.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      <<: *healthcheck-timing
+      start_period: 40s
+
   api-products:
     build:
       context: .
@@ -31,11 +86,13 @@ services:
     container_name: api-products
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/produtos_db
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: product-registration
     ports:
       - "8081:8080"
     depends_on:
+      keycloak:
+        condition: service_healthy
       mongo:
         condition: service_healthy
 
@@ -53,8 +110,16 @@ services:
       KAFKA_CUSTOMER_USERNAME: ${KAFKA_CUSTOMER_USERNAME}
       KAFKA_CUSTOMER_PASSWORD: ${KAFKA_CUSTOMER_PASSWORD}
       KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-customer-group}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: customer-management
+      # Admin API do Keycloak (SDD-024 F3): cadastro cria/mantém os usuários no realm.
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080
+      KEYCLOAK_CLIENT_ID: customer-management-admin
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT_ADMIN}
+      # Seed de funcionários de dev (DevStaffSeedRunner): desligado por padrão. Para ligar,
+      # defina SPRING_PROFILES_ACTIVE=dev no .env (também liga logs DEBUG de SQL/segurança).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      DEV_SEED_STAFF_PASSWORD: ${DEV_SEED_STAFF_PASSWORD:-Petshop@dev123}
       # SDD-020: base do link de verificação de e-mail (<APP_FRONTEND_URL>/verify-email?token=...).
       APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
       EMAIL_VERIFICATION_TOKEN_TTL: ${EMAIL_VERIFICATION_TOKEN_TTL:-24h}
@@ -68,6 +133,8 @@ services:
     ports:
       - "8082:8080"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       mongo:
@@ -87,11 +154,15 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EXTERNAL_API_CUSTOMER_MANAGEMENT_URL: http://api-customers:8080
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: staff-service
+      KEYCLOAK_CLIENT_ID: staff-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE}
     ports:
       - "8085:8085"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       api-customers:
@@ -111,14 +182,18 @@ services:
       KAFKA_BOOKING_USERNAME: ${KAFKA_BOOKING_USERNAME}
       KAFKA_BOOKING_PASSWORD: ${KAFKA_BOOKING_PASSWORD}
       EXTERNAL_API_STAFF_SERVICE_URL: http://api-staff:8085
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
       # Cache de horários compartilhado (SDD-023): mesmo Redis do rate limit do gateway.
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: booking-service
+      KEYCLOAK_CLIENT_ID: booking-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE}
     ports:
       - "8083:8083"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       kafka:
@@ -140,11 +215,15 @@ services:
       KAFKA_ORDER_PASSWORD: ${KAFKA_ORDER_PASSWORD}
       EXTERNAL_API_PRODUCT_SERVICE_URL: http://api-products:8080
       EXTERNAL_API_CUSTOMER_SERVICE_URL: http://api-customers:8080
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      <<: *keycloak-resource-server
+      KEYCLOAK_AUDIENCE: order-service
+      KEYCLOAK_CLIENT_ID: order-service
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET_ORDER_SERVICE}
     ports:
       - "8086:8086"
     depends_on:
+      keycloak:
+        condition: service_healthy
       db:
         condition: service_healthy
       kafka:
@@ -194,14 +273,17 @@ services:
       GATEWAY_BOOKING_URL: http://api-booking:8083
       GATEWAY_ORDER_URL: http://api-order:8086
       GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
-      # Rate limiting (SDD-022): baldes no Redis; JWT_SECRET só para validar
-      # a assinatura do Bearer e limitar por usuário (sub) em vez de IP.
+      # Rate limiting (SDD-022): baldes no Redis; o Bearer é validado via JWKS do
+      # Keycloak (SDD-024) só para limitar por usuário (sub) em vez de IP.
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_ISSUER_URI: http://localhost:8180/realms/petshop
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/petshop/protocol/openid-connect/certs
     ports:
       - "8080:8080"
     depends_on:
+      keycloak:
+        condition: service_healthy
       api-products:
         condition: service_started
       api-customers:

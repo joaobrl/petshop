@@ -20,7 +20,7 @@ import java.util.Map;
 /**
  * Publica no mesmo tópico "notification-commands" que o
  * notification-service já escuta (usado hoje pra emails transacionais de
- * booking/order) — reaproveitado aqui pro email de "esqueci minha senha".
+ * booking/order) — reaproveitado aqui pros e-mails de cadastro e de verificação de e-mail.
  * Nenhuma mudança necessária no notification-service.
  */
 @Slf4j
@@ -30,21 +30,10 @@ public class NotificationKafkaAdapterOut implements NotificationPortOut {
 
     // Precisam bater exatamente com o nome das constantes de TipoNotificacao
     // no notification-service.
-    private static final String TIPO_RESET_SENHA = "RESET_SENHA";
     private static final String TIPO_CADASTRO_CONFIRMADO = "CADASTRO_CONFIRMADO";
     private static final String TIPO_VERIFICACAO_EMAIL = "VERIFICACAO_EMAIL";
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    @Override
-    public void sendPasswordReset(String to, String name, String newPassword) {
-        var params = Map.<String, Object>of("name", name, "newPassword", newPassword);
-        var command = new SendEmailCommandDto(to, TIPO_RESET_SENHA, params);
-        var record = new ProducerRecord<String, Object>(
-                KafkaTopics.NOTIFICATION_COMMANDS, null, null, command, correlationIdHeaders());
-        kafkaTemplate.send(record);
-        log.info("Published password-reset email command");
-    }
 
     @Override
     public void sendRegistrationConfirmation(String to, String name) {

@@ -22,11 +22,18 @@ spec:
             runAsUser: 10001
             runAsGroup: 10001
             allowPrivilegeEscalation: false
+          # Resource Server (SDD-024): JWKS pela rede interna, iss público (KC_HOSTNAME
+          # de k8s/keycloak/configmap.yaml).
+          env:
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://localhost:30180/realms/petshop
+            - name: KEYCLOAK_JWK_SET_URI
+              value: http://keycloak-svc:8080/realms/petshop/protocol/openid-connect/certs
+            - name: KEYCLOAK_AUDIENCE
+              value: product-registration
           envFrom:
             - configMapRef:
                 name: api-produtos-config
-            - secretRef:
-                name: jwt-secret
           ports:
             - containerPort: 8080
           resources:

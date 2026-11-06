@@ -8,7 +8,7 @@ Microsserviço de agendamento de serviços (banho, tosa, consultas veterinárias
 - Spring Web, Spring Data JPA (PostgreSQL em produção, H2 em testes), Bean Validation, Spring Cache (`@EnableCaching` + `ConcurrentMapCacheManager` com cache granular por cargo e dia), Spring Security (infra apenas — validação de token feita pelo `petshop-commons`)
 - Spring Kafka (produtor)
 - MapStruct + Lombok
-- [`petshop-commons`](../petshop-commons) — JWT próprio e `BaseExceptionHandler`
+- [`petshop-commons`](../petshop-commons) — Resource Server do Keycloak (conversor de claims, `TokenPropagation`) e `BaseExceptionHandler`
 - Testcontainers (PostgreSQL) nos testes de integração
 - JaCoCo — gate de 90% de cobertura de instruções (100% de cobertura de branches nas classes de serviço e cache)
 
@@ -41,11 +41,11 @@ A checagem de "dono só acessa o próprio agendamento" é feita na camada de con
 
 ## Segurança
 
-JWT próprio via [`petshop-commons`](../petshop-commons) — booking-service apenas valida tokens (não emite). `/api/v1/bookings/available-slots` é público; todo o restante exige autenticação. 401 (não 403) em requisições sem token válido.
+Resource Server (SDD-024): valida o access token do Keycloak via JWKS (`iss`, `exp`, `aud=booking-service`) com a configuração do [`petshop-commons`](../petshop-commons); não emite token. `/api/v1/bookings/available-slots` é público; todo o restante exige usuário com papel (token de serviço recebe 403). 401 ProblemDetail em requisições sem token válido (inclusive token inválido em rota pública).
 
 ## Integração com outros serviços
 
-- **Feign → staff-service**: `CustomerManagementFeign` (`external.api.staff-service.url`) consulta `GET /api/v1/availability/general` e `GET /api/v1/availability/schedule` para checar disponibilidade e escala de funcionários antes de confirmar um agendamento. O token enviado é sempre um token interno de serviço (`TokenPropagation`).
+- **Feign → staff-service**: `CustomerManagementFeign` (`external.api.staff-service.url`) consulta `GET /api/v1/availability/general` e `GET /api/v1/availability/schedule` para checar disponibilidade e escala de funcionários antes de confirmar um agendamento. O `TokenPropagation` repassa o token do usuário da requisição; sem usuário, usa o token Client Credentials do client `booking-service` do Keycloak (permissão `svc:staff:availability-read`).
 - **Kafka (produtor apenas — sem `@KafkaListener`)**:
   - Tópico `booking-scheduled`, `booking-canceled`, `booking-completed` — eventos de histórico (consumidos pelo `customer-management` para popular o histórico de agendamentos)
   - Tópico `notification-commands` — comandos de e-mail (`{to, tipo, params}`, sem HTML — o `notification-service` resolve `tipo` pro template gerenciado no Brevo)
@@ -61,8 +61,11 @@ JWT próprio via [`petshop-commons`](../petshop-commons) — booking-service ape
 | `SPRING_KAFKA_BOOTSTRAP_SERVERS` | `localhost:9094` | Broker Kafka |
 | `KAFKA_BOOKING_USERNAME` / `PASSWORD` | — | Credenciais SASL/PLAIN do Kafka |
 | `EXTERNAL_API_STAFF_SERVICE_URL` | `http://localhost:8085` | URL do staff-service (Feign) |
-| `JWT_SECRET` | *(vazio)* | Segredo HS256 compartilhado (mín. 32 bytes) |
-| `JWT_EXPIRATION_MINUTES` | `60` | Validade do token |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/petshop` | `iss` esperado no token |
+| `KEYCLOAK_JWK_SET_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/certs` | JWKS (no compose, `http://keycloak:8080/...`) |
+| `KEYCLOAK_AUDIENCE` | `booking-service` | `aud` exigido no token |
+| `KEYCLOAK_TOKEN_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/token` | Token endpoint do Client Credentials |
+| `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` | `booking-service` / *(vazio)* | Client do Keycloak deste serviço (`KEYCLOAK_CLIENT_SECRET_BOOKING_SERVICE` do `.env`) |
 
 ## Executando localmente
 
@@ -88,7 +91,7 @@ docker compose up api-booking
 
 ## Kubernetes
 
-Manifests em [`k8s/api-booking/`](../k8s/api-booking): `deployment.yaml` (1 réplica, imagem local `api-booking:latest`, probes em `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` e `service.yaml` (`NodePort`, `30083` → 8083). Credenciais via secrets `db-booking-secret`, `api-booking-secret` (Kafka) e `jwt-secret` compartilhado. Banco dedicado em [`k8s/db-booking/`](../k8s/db-booking).
+Manifests em [`k8s/api-booking/`](../k8s/api-booking): `deployment.yaml` (1 réplica, imagem local `api-booking:latest`, probes em `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` e `service.yaml` (`NodePort`, `30083` → 8083). Credenciais via secrets `db-booking-secret`, `api-booking-secret` (Kafka) e o segredo do client em `keycloak-secret`. Banco dedicado em [`k8s/db-booking/`](../k8s/db-booking).
 
 ## Testes
 

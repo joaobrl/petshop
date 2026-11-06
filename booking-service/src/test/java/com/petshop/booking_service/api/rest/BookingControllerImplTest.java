@@ -8,7 +8,7 @@ import com.petshop.booking_service.core.port.in.dto.BookingUpdateDto;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
 import com.petshop.commons.security.jwt.AuthenticatedUser;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.booking_service.support.TestJwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,8 +35,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BookingControllerImplTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService JWT_SERVICE =
+            new TestJwtService();
 
     @Mock
     private BookingPortIn bookingPortIn;

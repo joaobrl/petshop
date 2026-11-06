@@ -22,7 +22,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import com.petshop.commons.exception.DependencyUnavailableException;
+import com.petshop.commons.security.Role;
+import com.petshop.customermanagement.core.port.out.dto.IdentityUser;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +50,7 @@ class CustomerServiceTest {
     private CustomerPortOut customerPortOut;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private IdentityProviderPortOut identityProviderPortOut;
 
     @Mock
     private NotificationPortOut notificationPortOut;
@@ -53,7 +62,7 @@ class CustomerServiceTest {
 
     @BeforeEach
     void setUp() {
-        customerService = new CustomerService(customerPortOut, passwordEncoder, notificationPortOut, emailVerificationPortIn);
+        customerService = new CustomerService(customerPortOut, identityProviderPortOut, notificationPortOut, emailVerificationPortIn);
     }
 
     private Customer sampleCustomer() {
@@ -69,7 +78,6 @@ class CustomerServiceTest {
         void savesNewCustomerWhenCpfDoesNotExist() {
             var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
             when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
-            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
             when(customerPortOut.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
             var result = customerService.registerCustomer(request);
@@ -77,8 +85,8 @@ class CustomerServiceTest {
             assertThat(result.getName()).isEqualTo("Maria");
             assertThat(result.getCpf()).isEqualTo("12345678900");
             assertThat(result.getEnabled()).isTrue();
-            assertThat(result.getPasswordHash()).isEqualTo("hashed-password");
-            assertThat(result.getMustChangePassword()).isFalse();
+            // A senha escolhida vai para o Keycloak (SDD-024 F3), não para o banco local.
+            verify(identityProviderPortOut).createUser(any(), org.mockito.ArgumentMatchers.eq("Senha123"));
             verify(customerPortOut).save(any(Customer.class));
             verify(notificationPortOut).sendRegistrationConfirmation("maria@mail.com", "Maria");
         }
@@ -89,7 +97,6 @@ class CustomerServiceTest {
             var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
             var saved = sampleCustomer();
             when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
-            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
             when(customerPortOut.save(any(Customer.class))).thenReturn(saved);
 
             var result = customerService.registerCustomer(request);
@@ -103,7 +110,6 @@ class CustomerServiceTest {
         void shouldSaveCustomerWithUnverifiedEmailWhenRegistering() {
             var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
             when(customerPortOut.findByCpf("12345678900")).thenReturn(Optional.empty());
-            when(passwordEncoder.encode("Senha123")).thenReturn("hashed-password");
             when(customerPortOut.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
             var result = customerService.registerCustomer(request);
@@ -295,6 +301,70 @@ class CustomerServiceTest {
 
             assertThatThrownBy(() -> customerService.deleteCustomer(id))
                     .isInstanceOf(NotFoundException.class);
+        }
+    }
+
+    @Nested
+    class ReactivateCustomer {
+
+        @Test
+        @DisplayName("Deve reativar o cliente, salvar e reabilitar no Keycloak quando ele existir")
+        void shouldReactivateCustomerWhenFound() {
+            var customer = sampleCustomer();
+            customer.setEnabled(false);
+            var id = customer.getId();
+            given(customerPortOut.findById(id)).willReturn(Optional.of(customer));
+            given(customerPortOut.save(customer)).willReturn(customer);
+
+            var result = customerService.reactivateCustomer(id);
+
+            assertThat(result).isSameAs(customer);
+            assertThat(result.getEnabled()).isTrue();
+            then(customerPortOut).should().save(customer);
+            then(identityProviderPortOut).should().setEnabled(id, true);
+        }
+
+        @Test
+        @DisplayName("Deve lançar NotFoundException sem salvar nem chamar o Keycloak quando o cliente não existir")
+        void shouldThrowNotFoundWhenCustomerMissing() {
+            var id = UUID.randomUUID();
+            given(customerPortOut.findById(id)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> customerService.reactivateCustomer(id))
+                    .isInstanceOf(NotFoundException.class);
+
+            then(customerPortOut).should(never()).save(any(Customer.class));
+            then(identityProviderPortOut).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("Deve manter o cliente ativo e repetir o fluxo quando ele já estiver ativo")
+        void shouldKeepCustomerEnabledWhenAlreadyActive() {
+            var customer = sampleCustomer();
+            customer.setEnabled(true);
+            var id = customer.getId();
+            given(customerPortOut.findById(id)).willReturn(Optional.of(customer));
+            given(customerPortOut.save(customer)).willReturn(customer);
+
+            var result = customerService.reactivateCustomer(id);
+
+            assertThat(result.getEnabled()).isTrue();
+            then(customerPortOut).should().save(customer);
+            then(identityProviderPortOut).should().setEnabled(id, true);
+        }
+
+        @Test
+        @DisplayName("Deve propagar a exceção quando o Keycloak falhar ao reabilitar o usuário")
+        void shouldPropagateExceptionWhenIdentityProviderFails() {
+            var customer = sampleCustomer();
+            customer.setEnabled(false);
+            var id = customer.getId();
+            given(customerPortOut.findById(id)).willReturn(Optional.of(customer));
+            given(customerPortOut.save(customer)).willReturn(customer);
+            willThrow(new IllegalStateException("keycloak")).given(identityProviderPortOut).setEnabled(id, true);
+
+            assertThatThrownBy(() -> customerService.reactivateCustomer(id))
+                    .isInstanceOf(IllegalStateException.class);
         }
     }
 
@@ -537,5 +607,114 @@ class CustomerServiceTest {
             assertThat(result.getContent()).isEmpty();
             verify(customerPortOut, never()).existsById(any());
         }
+    }
+
+    @AfterEach
+    void clearTransactionSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve criar o usuário no IdP com a senha e registrar a compensação quando cadastrar o cliente")
+    void shouldCreateIdentityUserWithPasswordAndRegisterCompensationWhenRegisteringCustomer() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.eq("Senha123")))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        var result = customerService.registerCustomer(request);
+
+        var captor = ArgumentCaptor.forClass(IdentityUser.class);
+        then(identityProviderPortOut).should().createUser(captor.capture(), org.mockito.ArgumentMatchers.eq("Senha123"));
+        assertThat(captor.getValue().userId()).isEqualTo(result.getId());
+        assertThat(captor.getValue().email()).isEqualTo("maria@mail.com");
+        assertThat(captor.getValue().role()).isEqualTo(Role.CUSTOMER);
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(2);
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        then(identityProviderPortOut).should().deleteUser("kc-1");
+    }
+
+    @Test
+    @DisplayName("Deve enviar o e-mail de boas-vindas somente após o commit quando cadastrar o cliente")
+    void shouldSendWelcomeEmailOnlyAfterCommitWhenRegisteringCustomer() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+
+        customerService.registerCustomer(request);
+
+        then(notificationPortOut).should(never()).sendRegistrationConfirmation(any(), any());
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        then(notificationPortOut).should().sendRegistrationConfirmation("maria@mail.com", "Maria");
+    }
+
+    @Test
+    @DisplayName("Deve não enviar o e-mail de boas-vindas quando a transação sofrer rollback")
+    void shouldNotSendWelcomeEmailWhenTransactionRollsBack() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+
+        customerService.registerCustomer(request);
+
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        then(notificationPortOut).should(never()).sendRegistrationConfirmation(any(), any());
+    }
+
+    @Test
+    @DisplayName("Deve propagar a exceção sem notificações nem compensação quando o IdP falhar no cadastro")
+    void shouldPropagateExceptionWithoutNotificationsOrCompensationWhenIdentityProviderFailsOnRegistration() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), any()))
+                .willThrow(new DependencyUnavailableException("keycloak", new IllegalStateException("fora")));
+        TransactionSynchronizationManager.initSynchronization();
+
+        assertThatThrownBy(() -> customerService.registerCustomer(request))
+                .isInstanceOf(DependencyUnavailableException.class);
+
+        then(customerPortOut).should().save(any(Customer.class));
+        then(notificationPortOut).shouldHaveNoInteractions();
+        then(emailVerificationPortIn).shouldHaveNoInteractions();
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve sincronizar o usuário no IdP com os dados salvos quando atualizar o cliente")
+    void shouldSyncIdentityUserWithSavedDataWhenUpdatingCustomer() {
+        var customer = sampleCustomer();
+        var dto = new CustomerUpdateDto("Novo Nome", "novo@mail.com", "11000000000");
+        given(customerPortOut.findById(customer.getId())).willReturn(Optional.of(customer));
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+
+        customerService.updateCustomer(customer.getId(), dto);
+
+        var captor = ArgumentCaptor.forClass(IdentityUser.class);
+        then(identityProviderPortOut).should().updateUser(captor.capture());
+        assertThat(captor.getValue().userId()).isEqualTo(customer.getId());
+        assertThat(captor.getValue().name()).isEqualTo("Novo Nome");
+        assertThat(captor.getValue().email()).isEqualTo("novo@mail.com");
+        assertThat(captor.getValue().phone()).isEqualTo("11000000000");
+    }
+
+    @Test
+    @DisplayName("Deve desabilitar o usuário no IdP quando desativar o cliente")
+    void shouldDisableIdentityUserWhenDeletingCustomer() {
+        var customer = sampleCustomer();
+        given(customerPortOut.findById(customer.getId())).willReturn(Optional.of(customer));
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+
+        customerService.deleteCustomer(customer.getId());
+
+        then(identityProviderPortOut).should().setEnabled(customer.getId(), false);
     }
 }

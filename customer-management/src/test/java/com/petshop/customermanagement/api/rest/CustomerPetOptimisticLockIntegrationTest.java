@@ -2,7 +2,7 @@ package com.petshop.customermanagement.api.rest;
 
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.customermanagement.support.TestJwtService;
 import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.domain.enums.PetType;
 import com.petshop.customermanagement.core.domain.enums.SizeCategory;
@@ -74,8 +74,8 @@ class CustomerPetOptimisticLockIntegrationTest {
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     }
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @Autowired
     private MockMvc mockMvc;
@@ -196,8 +196,8 @@ class CustomerPetOptimisticLockIntegrationTest {
     void customerWithoutVersionColumnGetsZeroAndFirstEditBumpsToOne() {
         var legacyId = UUID.randomUUID();
         jdbc.execute("alter table customers drop column version");
-        jdbc.update("insert into customers (id, name, cpf, email, phone, enabled, must_change_password) "
-                + "values (?, 'Legado', '86288366757', 'legado@mail.com', '11999999999', true, false)", legacyId);
+        jdbc.update("insert into customers (id, name, cpf, email, phone, enabled) "
+                + "values (?, 'Legado', '86288366757', 'legado@mail.com', '11999999999', true)", legacyId);
 
         // buildSessionFactory com hbm2ddl.auto=update roda o mesmo caminho do ddl-auto=update
         schemaMetadata().buildSessionFactory().close();

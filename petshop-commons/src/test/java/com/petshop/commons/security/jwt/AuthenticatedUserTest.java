@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -108,25 +109,110 @@ class AuthenticatedUserTest {
 
     private static Map<String, Object> claims(Object emailVerified) {
         var claims = new HashMap<String, Object>();
-        claims.put("sub", UUID.randomUUID().toString());
+        claims.put("user_id", UUID.randomUUID().toString());
         claims.put("email", "x@mail.com");
-        claims.put("role", Role.CUSTOMER.name());
+        claims.put("realm_access", Map.of("roles", List.of(Role.CUSTOMER.name())));
         claims.put("type", AccountType.CUSTOMER.name());
         claims.put("email_verified", emailVerified);
         return claims;
     }
 
     @Test
-    void supportsNullNameCpfPhoneForServiceAccounts() {
+    @DisplayName("Deve devolver lista vazia em realmRoles quando não houver realm_access")
+    void shouldReturnEmptyRealmRolesWhenRealmAccessIsAbsent() {
+        assertThat(AuthenticatedUser.realmRoles(Map.of("user_id", "x"))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve devolver lista vazia em realmRoles quando roles não for uma lista")
+    void shouldReturnEmptyRealmRolesWhenRolesIsNotACollection() {
+        var claims = Map.<String, Object>of("realm_access", Map.of("roles", "ADMIN"));
+
+        assertThat(AuthenticatedUser.realmRoles(claims)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve devolver lista vazia em realmRoles quando realm_access não for um mapa")
+    void shouldReturnEmptyRealmRolesWhenRealmAccessIsNotAMap() {
+        var claims = Map.<String, Object>of("realm_access", "ADMIN");
+
+        assertThat(AuthenticatedUser.realmRoles(claims)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve ignorar em realmRoles os itens que não forem texto")
+    void shouldIgnoreNonTextItemsInRealmRoles() {
+        var claims = Map.<String, Object>of("realm_access", Map.of("roles", List.of("ADMIN", 7, "svc:a")));
+
+        assertThat(AuthenticatedUser.realmRoles(claims)).containsExactly("ADMIN", "svc:a");
+    }
+
+    @Test
+    @DisplayName("Deve deixar o papel nulo quando nenhum papel de realm_access for conhecido")
+    void shouldLeaveRoleNullWhenNoRealmRoleIsKnown() {
+        var claims = claims(false);
+        claims.put("realm_access", Map.of("roles", List.of("offline_access")));
+
+        var user = AuthenticatedUser.fromClaims(claims);
+
+        assertThat(user.role()).isNull();
+    }
+
+    @Test
+    @DisplayName("Deve escolher o primeiro papel na ordem do enum quando houver vários papéis conhecidos")
+    void shouldPickFirstRoleInEnumOrderWhenSeveralRolesAreKnown() {
+        var claims = claims(false);
+        claims.put("realm_access", Map.of("roles", List.of("CUSTOMER", "ADMIN")));
+
+        var user = AuthenticatedUser.fromClaims(claims);
+
+        assertThat(user.role()).isEqualTo(Role.ADMIN);
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando as claims não tiverem user_id")
+    void shouldThrowWhenUserIdClaimIsMissing() {
+        var claims = claims(false);
+        claims.remove("user_id");
+
+        assertThatThrownBy(() -> AuthenticatedUser.fromClaims(claims))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Claims 'user_id' e 'type' são obrigatórios.");
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando as claims não tiverem type")
+    void shouldThrowWhenTypeClaimIsMissing() {
+        var claims = claims(false);
+        claims.remove("type");
+
+        assertThatThrownBy(() -> AuthenticatedUser.fromClaims(claims))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Claims 'user_id' e 'type' são obrigatórios.");
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando uma claim de texto não for texto")
+    void shouldThrowWhenTextClaimIsNotText() {
+        var claims = claims(false);
+        claims.put("email", 123);
+
+        assertThatThrownBy(() -> AuthenticatedUser.fromClaims(claims))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Claim 'email' não é texto.");
+    }
+
+    @Test
+    void supportsNullNameCpfPhone() {
         var id = UUID.randomUUID();
 
-        var user = new AuthenticatedUser(id, "order-service@internal", null, null, null,
-                Role.SERVICE, AccountType.SERVICE);
+        var user = new AuthenticatedUser(id, "maria@mail.com", null, null, null,
+                Role.CUSTOMER, AccountType.CUSTOMER);
 
         assertThat(user.name()).isNull();
         assertThat(user.cpf()).isNull();
         assertThat(user.phone()).isNull();
-        assertThat(user.role()).isEqualTo(Role.SERVICE);
-        assertThat(user.type()).isEqualTo(AccountType.SERVICE);
+        assertThat(user.role()).isEqualTo(Role.CUSTOMER);
+        assertThat(user.type()).isEqualTo(AccountType.CUSTOMER);
     }
 }

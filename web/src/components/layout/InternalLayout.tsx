@@ -1,7 +1,8 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { Logo } from "../ui/Logo";
 import { useAuth } from "../../context/AuthContext";
 import { ROLE_LABEL } from "../../types/staff";
+import { ACCOUNT_CONSOLE_URL } from "../../services/oidc";
 
 const linkStyle = ({ isActive }: { isActive: boolean }) => ({
   display: "block",
@@ -17,7 +18,6 @@ const linkStyle = ({ isActive }: { isActive: boolean }) => ({
 
 export function InternalLayout() {
   const { role, logout } = useAuth();
-  const navigate = useNavigate();
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", minHeight: "100%" }}>
@@ -50,13 +50,11 @@ export function InternalLayout() {
           <span className="caption" style={{ color: "var(--ink-muted)" }}>
             Logado como {role ? ROLE_LABEL[role] : ""}
           </span>
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={() => {
-              logout();
-              navigate("/");
-            }}
-          >
+          {/* Dados, senha e sessões: Account Console do Keycloak (SDD-024 F3). */}
+          <a href={ACCOUNT_CONSOLE_URL} className="caption">
+            Minha conta / alterar senha
+          </a>
+          <button className="btn btn-outline btn-sm" onClick={() => void logout()}>
             Sair
           </button>
         </div>

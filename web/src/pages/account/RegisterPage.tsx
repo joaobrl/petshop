@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import * as authService from "../../services/authService";
 import { ApiError } from "../../services/http";
@@ -8,7 +8,6 @@ import { Button } from "../../components/ui/Button";
 
 export function RegisterPage() {
   const { login } = useAuth();
-  const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", cpf: "", email: "", phone: "", password: "", confirmPassword: "" });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -22,8 +21,9 @@ export function RegisterPage() {
         ...form,
         cpf: form.cpf.replace(/\D/g, ""),
       });
-      await login(form.email, form.password);
-      navigate("/minha-conta/pets");
+      // Sem auto-login por senha (SDD-024 F3): segue para o login do Keycloak, com o
+      // e-mail preenchido.
+      await login({ next: "/minha-conta/pets", loginHint: form.email });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Não foi possível criar a conta.");
     } finally {

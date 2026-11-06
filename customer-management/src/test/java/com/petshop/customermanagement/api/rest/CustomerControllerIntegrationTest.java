@@ -3,7 +3,7 @@ package com.petshop.customermanagement.api.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.customermanagement.support.TestJwtService;
 import com.petshop.customermanagement.core.domain.Customer;
 import com.petshop.customermanagement.core.domain.Pet;
 import com.petshop.customermanagement.core.domain.enums.PetType;
@@ -56,8 +56,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CustomerControllerIntegrationTest {
 
     // Mesmo segredo do src/test/resources/application.yaml.
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @Autowired
     private MockMvc mockMvc;

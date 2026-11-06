@@ -150,23 +150,5 @@ class ResponseDtoTest {
         assertThat(dto.getRole()).isEqualTo(Role.RECEPTIONIST);
     }
 
-    @Test
-    void loginResponseDtoSecondaryConstructorDefaultsTokenTypeToBearer() {
-        var dto = new LoginResponseDto("token-value", 3600L, Role.CUSTOMER, AccountType.CUSTOMER, true);
 
-        assertThat(dto.accessToken()).isEqualTo("token-value");
-        assertThat(dto.tokenType()).isEqualTo("Bearer");
-        assertThat(dto.expiresIn()).isEqualTo(3600L);
-        assertThat(dto.role()).isEqualTo(Role.CUSTOMER);
-        assertThat(dto.type()).isEqualTo(AccountType.CUSTOMER);
-        assertThat(dto.mustChangePassword()).isTrue();
-    }
-
-    @Test
-    void loginResponseDtoCanonicalConstructorAllowsCustomTokenType() {
-        var dto = new LoginResponseDto("token-value", "Custom", 60L, Role.ADMIN, AccountType.STAFF, false);
-
-        assertThat(dto.tokenType()).isEqualTo("Custom");
-        assertThat(dto.mustChangePassword()).isFalse();
-    }
 }

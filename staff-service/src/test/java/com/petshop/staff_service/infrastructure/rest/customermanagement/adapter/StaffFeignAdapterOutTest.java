@@ -2,7 +2,8 @@ package com.petshop.staff_service.infrastructure.rest.customermanagement.adapter
 
 import com.petshop.commons.dto.PageResponse;
 import com.petshop.commons.security.Role;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.staff_service.support.TestJwtService;
+import com.petshop.staff_service.support.TestTokenPropagation;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.dto.StaffRegistryResponseDto;
 import com.petshop.staff_service.infrastructure.rest.customermanagement.feign.StaffRegistryFeign;
 import com.petshop.commons.feign.TokenPropagation;
@@ -24,8 +25,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class StaffFeignAdapterOutTest {
 
-    private static final JwtService JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService JWT_SERVICE =
+            new TestJwtService();
 
     @Mock
     private StaffRegistryFeign staffRegistryFeign;
@@ -34,7 +35,7 @@ class StaffFeignAdapterOutTest {
 
     @BeforeEach
     void setUp() {
-        adapter = new StaffFeignAdapterOut(staffRegistryFeign, new TokenPropagation(JWT_SERVICE, "staff-service"));
+        adapter = new StaffFeignAdapterOut(staffRegistryFeign, TestTokenPropagation.forService("staff-service"));
     }
 
     @Test
@@ -71,8 +72,7 @@ class StaffFeignAdapterOutTest {
 
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(staffRegistryFeign).findAll(eq(0), eq(500), captor.capture());
-        var parsed = JWT_SERVICE.parse(captor.getValue().substring("Bearer ".length()));
-        assertThat(parsed.type().name()).isEqualTo("SERVICE");
+        assertThat(captor.getValue()).isEqualTo("Bearer " + TestTokenPropagation.serviceToken("staff-service"));
     }
 
     @Test

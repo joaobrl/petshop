@@ -35,8 +35,6 @@ class StaffTest {
             assertThat(staff.getPhone()).isEqualTo("11999999999");
             assertThat(staff.getRole()).isEqualTo(Role.RECEPTIONIST);
             assertThat(staff.getEnabled()).isTrue();
-            assertThat(staff.getMustChangePassword()).isTrue();
-            assertThat(staff.getPasswordHash()).isNull();
         }
 
         @Test
@@ -64,8 +62,6 @@ class StaffTest {
             assertThat(staff.getPhone()).isEqualTo("11888888888");
             assertThat(staff.getEnabled()).isTrue();
             assertThat(staff.getRole()).isEqualTo(Role.ADMIN);
-            assertThat(staff.getPasswordHash()).isNull();
-            assertThat(staff.getMustChangePassword()).isNull();
         }
     }
 

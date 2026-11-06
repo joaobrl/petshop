@@ -2,7 +2,7 @@ package com.petshop.staff_service.infrastructure.security;
 
 import com.petshop.commons.security.Role;
 import com.petshop.commons.security.jwt.AccountType;
-import com.petshop.commons.security.jwt.JwtService;
+import com.petshop.staff_service.support.TestJwtService;
 import com.petshop.staff_service.core.domain.AvailabilityResult;
 import com.petshop.staff_service.core.port.in.AvailabilityPortIn;
 import com.petshop.staff_service.core.port.in.WeekendAllocationPortIn;
@@ -33,8 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class StaffSecurityIntegrationTest {
 
-    private static final JwtService TEST_JWT_SERVICE =
-            new JwtService("test-secret-key-for-jwt-signing-min-32-bytes-long", Duration.ofMinutes(60));
+    private static final TestJwtService TEST_JWT_SERVICE =
+            new TestJwtService();
 
     @Autowired
     private MockMvc mockMvc;

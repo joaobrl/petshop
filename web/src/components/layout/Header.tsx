@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
+import { ACCOUNT_CONSOLE_URL } from "../../services/oidc";
 import { Logo } from "../ui/Logo";
 import { CartIcon } from "../ui/Icon";
 import { useCart } from "../../context/CartContext";
@@ -15,7 +16,6 @@ const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
 export function Header() {
   const { totalItems } = useCart();
   const { isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
 
   return (
     <header
@@ -64,15 +64,15 @@ export function Header() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
           {isAuthenticated ? (
-            <button
-              className="btn btn-outline btn-sm"
-              onClick={() => {
-                logout();
-                navigate("/");
-              }}
-            >
-              Sair
-            </button>
+            <>
+              {/* Dados, senha e sessões: Account Console do Keycloak (SDD-024 F3). */}
+              <a href={ACCOUNT_CONSOLE_URL} style={navLinkStyle({ isActive: false })}>
+                Minha conta / alterar senha
+              </a>
+              <button className="btn btn-outline btn-sm" onClick={() => void logout()}>
+                Sair
+              </button>
+            </>
           ) : (
             <NavLink to="/entrar" className="btn btn-outline btn-sm" style={{ textDecoration: "none" }}>
               Entrar

@@ -54,13 +54,13 @@ Não existe front-end neste repositório: o sistema é consumido via API REST
 | Serviço | Responsabilidade | Porta | Banco |
 |---|---|---|---|
 | `gateway-service` | API Gateway (Spring Cloud Gateway) — ponto único de entrada para o frontend, roteia por path e centraliza CORS | `8080` | — |
-| `customer-management` | Identidade: clientes, pets, funcionários, login/JWT, histórico | `8082` | PostgreSQL + MongoDB |
+| `customer-management` | Identidade: clientes, pets, funcionários (usuários no Keycloak), histórico | `8082` | PostgreSQL + MongoDB |
 | `product-registration` | Catálogo e controle de estoque | `8081` | MongoDB |
 | `staff-service` | Disponibilidade e escala de funcionários | `8085` | PostgreSQL |
 | `booking-service` | Agendamento de serviços | `8083` | PostgreSQL |
 | `order-service` | Carrinho, checkout, pagamento simulado | `8086` | PostgreSQL |
 | `notification-service` | Envio de e-mail (Brevo, templates gerenciados no Brevo) | `8084` | — |
-| `petshop-commons` | Biblioteca compartilhada (JWT, tratamento de erro) | — (JAR) | — |
+| `petshop-commons` | Biblioteca compartilhada (validação de token via JWKS, tratamento de erro) | — (JAR) | — |
 
 ### 2.2 Diagrama de componentes
 
@@ -74,7 +74,7 @@ graph TB
     GW --> OS
 
     subgraph Identidade
-        CM["customer-management<br/>(emite o JWT)"]
+        CM["customer-management<br/>(cria usuários no Keycloak)"]
     end
     subgraph Catálogo
         PR["product-registration"]
@@ -105,67 +105,78 @@ graph TB
 ```
 
 Todos os serviços (exceto `notification-service`, que não expõe recurso
-protegido) validam o mesmo JWT via `petshop-commons`; só o
-`customer-management` o emite. Chamadas síncronas usam **OpenFeign** (sem
+protegido) validam o access token emitido pelo Keycloak (realm `petshop`) via
+`petshop-commons`; nenhum serviço assina token. Chamadas síncronas usam **OpenFeign** (sem
 service discovery — URL estática por variável de ambiente); eventos
 assíncronos usam **Kafka** (`SASL_PLAINTEXT`, um usuário por
 serviço produtor/consumidor).
 
 `gateway-service` fica na frente dos 5 serviços REST (não do
 `notification-service`, que não tem API), mas não participa dessa validação
-de JWT — é puro roteamento por path, cada serviço continua validando o
+de token — é puro roteamento por path, cada serviço continua validando o
 próprio token exatamente como antes. Ver [3.8](#38-gateway-service).
 
 ### 2.3 Modelo de autenticação
 
-Não há Keycloak/OAuth2 (uma fase anterior do projeto usava, mas foi
-substituída). O esquema é um JWT próprio, assinado com HMAC-SHA256
-(`io.jsonwebtoken`), implementado em `petshop-commons`:
+O **Keycloak** (realm `petshop`, ver [`infra/keycloak/README.md`](../infra/keycloak/README.md))
+emite os tokens e guarda as credenciais. Nenhum serviço tem material para
+assinar token nem guarda senha; todos são Resource Servers, com a validação
+implementada em `petshop-commons`:
 
-- **`JwtService.generateToken`** — emite o token de usuário, com claims
-  `email`, `name`, `cpf`, `phone`, `role`, `type`. Só o
-  `customer-management` chama este método (via `AuthService`).
-- **`JwtService.generateServiceToken`** — emite um token de
-  serviço-a-serviço (`Role.SERVICE`, `AccountType.SERVICE`) assinado
-  localmente com o mesmo segredo, sem round-trip de rede.
+- **Validação (JWKS)** — `KeycloakResourceServerConfig` / `KeycloakJwtDecoders`:
+  o `JwtDecoder` busca a chave pública no JWKS do Keycloak (em cache,
+  rebuscado em `kid` novo) e valida assinatura RS256, `exp`, `iss` e `aud`
+  (cada serviço exige o próprio id em `keycloak.audience`). Propriedades:
+  `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_JWK_SET_URI` e `KEYCLOAK_AUDIENCE`. Token
+  ausente/inválido → 401; a rota que exige papel/permissão que o token não
+  tem → 403.
+- **Login do web** — Authorization Code + PKCE no client público `web`; as
+  telas de login, "Esqueci a senha" e troca de senha são do Keycloak.
+- **Chamadas serviço-a-serviço** — Client Credentials: `booking-service`,
+  `order-service` e `staff-service` têm cada um um client confidencial no
+  realm e pedem o token ao Keycloak (`KEYCLOAK_TOKEN_URI`,
+  `KEYCLOAK_CLIENT_ID`/`KEYCLOAK_CLIENT_SECRET`). O token de serviço só
+  carrega authorities `svc:<destino>:<ação>` (nunca `ROLE_*`) e o `aud` do
+  serviço de destino; o destino libera a rota com `hasAuthority`.
 - **Envio do token nas chamadas Feign é declarativo**: todo método Feign
   declara `@RequestHeader("Authorization") String authorization`
   explicitamente (nada de header injetado por trás dos panos). Quem resolve
-  o valor é um `TokenPropagation` (`@Component`) próprio de cada serviço
-  chamador, usado em dois padrões distintos:
-  - **Relay-com-fallback** (`TokenPropagation.resolveAuthorizationHeader`,
-    ex.: `order-service` → `CustomerFeign.getCustomerById`): repassa o
+  o valor é o `TokenPropagation` (`petshop-commons`), em dois padrões:
+  - **Relay-com-fallback** (`resolveAuthorizationHeader`, ex.:
+    `order-service` → `CustomerFeign.getCustomerById`): repassa o
     `Authorization` recebido pelo controller, se houver; sem token (ex.:
-    chamada disparada por um `@Scheduled`, sem requisição HTTP em curso),
-    assina um token de serviço local.
-  - **Sempre serviço** (`TokenPropagation.mintServiceToken`): nunca repassa
-    o token de quem originou o pedido, mesmo havendo um. Usado sempre que a
-    rota de destino é puramente interna —
-    `staff-service/StaffRegistryFeign` ao consultar `GET /staff/all` no
-    `customer-management` (rota com `.hasAnyRole("ADMIN", "SERVICE")`, pois
-    também tem uso direto legítimo pelo front de admin);
-    `booking-service/CustomerManagementFeign` ao consultar
-    `/api/v1/availability/**` no `staff-service`; e
-    `order-service/ProductFeign` nas rotas `reserve`/`release`/`confirm` do
-    `product-registration` — essas duas últimas travadas com
-    `.hasRole("SERVICE")` puro no `SecurityConfig` do serviço receptor, já
-    que não têm nenhum uso direto legítimo por um cliente ou funcionário. Em
-    todos os casos, um cliente com token válido não consegue chamar essas
-    rotas diretamente, mesmo conhecendo a URL.
-- **`JwtAuthenticationFilter`** — filtro `OncePerRequestFilter` presente em
-  todo serviço: extrai o header `Authorization: Bearer <token>`, valida a
-  assinatura e povoa o `SecurityContext` com um `AuthenticatedUser`. Token
-  ausente/inválido não interrompe a requisição aqui — só deixa o contexto
-  vazio, e cada `SecurityConfig` decide se a rota exige autenticação.
+    chamada disparada por um `@Scheduled`), usa o token Client Credentials
+    do próprio serviço.
+  - **Sempre serviço** (`mintServiceToken`): nunca repassa o token de quem
+    originou o pedido. Usado nas rotas puramente internas.
+
+  Permissões de serviço (detalhe em
+  [`infra/keycloak/README.md`](../infra/keycloak/README.md#permissões-de-serviço-fase-4)):
+
+  | Chamador | Rota no destino | Permissão |
+  |---|---|---|
+  | `booking-service` | `staff-service` `GET /api/v1/availability/general` e `/schedule` | `svc:staff:availability-read` |
+  | `order-service` | `customer-management` `GET /api/v1/customers/find/customer/{id}` | `svc:customers:customer-read` |
+  | `order-service` | `product-registration` `POST /api/v1/products/{id}/reserve`, `/release`, `/confirm` | `svc:products:stock-write` |
+  | `staff-service` | `customer-management` `GET /api/v1/staff/all` | `svc:customers:staff-read` |
+
+  Em todos os casos, um cliente com token válido não consegue chamar as
+  rotas só-internas diretamente, e o token de serviço recebe 403 em
+  qualquer rota de usuário.
+- **Usuário autenticado** — `KeycloakJwtAuthenticationConverter` transforma o
+  `Jwt` em um `AuthenticatedUser` (id = claim `user_id`, e-mail, nome, cpf,
+  telefone, papel, tipo de conta) com authority `ROLE_<papel>` de
+  `realm_access.roles`. Sem `user_id` (Client Credentials) o principal é um
+  `ServiceAccount`.
 
 Papéis de negócio (`Role`): `ADMIN`, `RECEPTIONIST`, `GROOMER`,
-`VETERINARIAN`, `CUSTOMER`, `SERVICE`. Tipo de conta (`AccountType`):
-`CUSTOMER`, `STAFF`, `SERVICE` — usado para diferenciar "é um cliente" de
-"é um funcionário" mesmo quando o papel de negócio seria compatível.
+`VETERINARIAN`, `CUSTOMER` (o antigo `SERVICE` foi substituído pelas
+permissões `svc:*`). Tipo de conta (`AccountType`): `CUSTOMER`, `STAFF`,
+`SERVICE` — usado para diferenciar "é um cliente" de "é um funcionário"
+mesmo quando o papel de negócio seria compatível.
 
-O segredo (`JWT_SECRET`, mínimo 32 bytes) precisa ser **idêntico** em todos
-os serviços — é a única coisa que amarra a confiança entre eles; não há
-troca de chave pública nem introspecção remota de token.
+A confiança entre os serviços vem da chave pública do Keycloak (JWKS): não há
+segredo compartilhado entre eles, e a rotação de chave não exige restart.
 
 ---
 
@@ -179,8 +190,9 @@ Não é um serviço — é um JAR consumido por todos os demais módulos Maven
 automaticamente — ver [6](#6-como-rodar-localmente)).
 
 **Principais classes:**
-- `JwtService` / `JwtAuthenticationFilter` / `AuthenticatedUser` — descritos
-  acima.
+- `KeycloakResourceServerConfig` / `KeycloakJwtDecoders` /
+  `KeycloakJwtAuthenticationConverter` / `AuthenticatedUser` /
+  `ServicePermissions` / `PetshopAuthorization` — descritos acima.
 - `Role`, `AccountType` — enums de domínio compartilhados.
 - `BaseExceptionHandler` — classe abstrata estendida pelo
   `@RestControllerAdvice` de cada serviço. Centraliza a tradução de
@@ -209,7 +221,8 @@ automaticamente — ver [6](#6-como-rodar-localmente)).
 ### 3.2 `customer-management`
 
 Serviço central de identidade. Dono dos dados de cliente, pet e
-funcionário; único serviço que emite JWT; mantém o histórico consultável
+funcionário; cria e mantém os usuários no Keycloak pela Admin API (não guarda
+senha nem emite token); mantém o histórico consultável
 (read model) de agendamentos e compras.
 
 **Persistência:** PostgreSQL (`clientes_db`) para clientes/pets/staff via
@@ -217,15 +230,18 @@ JPA; MongoDB (`customer_history_db`) para o histórico, alimentado por
 eventos Kafka — não por escrita direta de outro serviço.
 
 **Principais classes:**
-- `AuthService` — login, esqueci-senha, troca de senha. Ver
-  [4.1](#41-login) e [4.2](#42-recuperação-de-senha).
+- `KeycloakAdminAdapterOut` (porta `IdentityProviderPortOut`) — cria,
+  atualiza e desabilita usuários no Keycloak (client
+  `customer-management-admin`). Login, "esqueci a senha" e troca de senha
+  não existem mais aqui: são do Keycloak. Ver [4.1](#41-login) e
+  [4.2](#42-recuperação-de-senha).
 - `CustomerService` — CRUD de cliente e pets. Ver [4.3](#43-cadastro-de-cliente).
 - `StaffService` — CRUD de funcionário (só `ADMIN`; é o registro que o
   `staff-service` consulta via Feign para calcular disponibilidade).
   `GET /staff/all` lista só os habilitados (`enabled=true` — desligados
   não somem do banco, só param de aparecer na listagem, mesmo soft-delete
-  de `deleteStaff`) e aceita role `ADMIN` **ou** `SERVICE` — essa segunda
-  role é quem o `staff-service` usa de verdade (ver [2.3](#23-modelo-de-autenticação)),
+  de `deleteStaff`) e aceita role `ADMIN` **ou** a permissão
+  `svc:customers:staff-read` — essa segunda é quem o `staff-service` usa de verdade (ver [2.3](#23-modelo-de-autenticação)),
   já que um `CUSTOMER` agendando um serviço nunca tem `ADMIN`. `GET /staff/{id}/find` e
   `GET /customers/find/customer/{id}` aceitam **id ou CPF** no mesmo
   parâmetro: tenta interpretar como UUID e buscar por id primeiro, se não
@@ -283,9 +299,11 @@ eventos Kafka — não por escrita direta de outro serviço.
   [3.7](#37-notification-service)) tem proteção equivalente, com backoff
   exponencial.
 - `BootstrapAdminRunner` — `ApplicationRunner` que roda no start: se a
-  tabela de staff estiver vazia, cria um `ADMIN` inicial com senha aleatória
-  de 20 caracteres (ou `BOOTSTRAP_ADMIN_PASSWORD`, se configurada), logada
-  **uma única vez** e com `mustChangePassword=true`.
+  tabela de staff estiver vazia, cria o `ADMIN` inicial local e, a cada
+  start (idempotente), garante que ele existe no Keycloak. Com
+  `BOOTSTRAP_ADMIN_PASSWORD` essa é a credencial (não temporária); vazia, o
+  usuário nasce sem senha e o Keycloak envia o e-mail para definir a senha.
+  Não existe senha provisória gerada.
 
 **Fluxo de dados típico (histórico de agendamento):**
 
@@ -324,7 +342,7 @@ de verdade (Spring Data não cria índice a partir de `@Indexed` sozinho).
   zero). `reserve`/`release`/`confirmSale` são métodos do próprio domínio,
   não da service.
 - `GET /list` e `GET /find/{id}` aceitam token **opcional**: o
-  `JwtAuthenticationFilter` (petshop-commons) roda em toda requisição e
+  Resource Server (petshop-commons) roda em toda requisição e
   popula o `AuthenticatedUser` sempre que vem um Bearer válido, mesmo em
   endpoint `permitAll()`. O `ProductController` só inclui
   `stock`/`reservedStock`/`availableStock`/`reservedPercentage` no
@@ -374,9 +392,10 @@ partir do Feign.
   token de serviço (nunca repassa o token de quem originou a chamada) — ver
   o padrão "sempre serviço" em [2.3](#23-modelo-de-autenticação).
 - `/api/v1/availability/**` (consultado pelo `booking-service`) exige
-  `hasRole("SERVICE")` no `SecurityConfig` — não é alcançável diretamente
-  por um `CUSTOMER`/`STAFF` autenticado, só via a chamada Feign interna do
-  `booking-service`, que sempre envia um token de serviço.
+  `hasAuthority("svc:staff:availability-read")` no `SecurityConfig` — não é
+  alcançável diretamente por um `CUSTOMER`/`STAFF` autenticado, só via a
+  chamada Feign interna do `booking-service`, que sempre envia o token
+  Client Credentials dele.
 
 **Pendência:** `AvailabilityService.checkGeneralAvailability`
 (`GET /api/v1/availability/general`) não tem nenhum chamador real hoje — o
@@ -426,7 +445,7 @@ padrão de dev) via JPA.
 - `CustomerManagementFeign` (o nome é histórico — na prática aponta para o
   `staff-service`, ver `external.api.staff-service.url`) — consulta
   `/api/v1/availability/general` e `/schedule`, ambas travadas com
-  `hasRole("SERVICE")` no `staff-service`. `TokenPropagation` aqui segue o
+  `svc:staff:availability-read` no `staff-service`. `TokenPropagation` aqui segue o
   padrão "sempre serviço" ([2.3](#23-modelo-de-autenticação)): nunca
   repassa o token de quem chamou, mesmo havendo uma requisição HTTP em
   andamento — essas rotas só existem pra consumo interno.
@@ -467,8 +486,8 @@ checkout, pagamento simulado, retirada e histórico — coordenando
 - `ProductFeign` / `ProductStockAdapterOut` — `find/{id}` (leitura pública,
   repassa o token de quem chamou via `TokenPropagation.resolveAuthorizationHeader`)
   e `{id}/reserve`, `{id}/release`, `{id}/confirm` (rotas internas do
-  `product-registration`, travadas com `hasRole("SERVICE")` — sempre
-  chamadas com um token de serviço novo via
+  `product-registration`, travadas com `svc:products:stock-write` — sempre
+  chamadas com o token Client Credentials do `order-service` via
   `TokenPropagation.mintServiceToken`, nunca o token do cliente).
 - `CustomerFeign` / `CustomerAdapterOut` — `find/customer/{id}` no
   `customer-management`, endpoint de uso duplo (cliente vendo o próprio
@@ -507,8 +526,8 @@ uma constante de `TipoNotificacao`; só o `notification-service` sabe o
 `templateId` correspondente): `order-service` (pedido aguardando
 pagamento, pagamento confirmado, nota emitida, janela de retirada, pedido
 pronto, carrinho abandonado), `booking-service` (agendamento
-criado/concluído/cancelado) e `customer-management` (recuperação de
-senha).
+criado/concluído/cancelado) e `customer-management` (boas-vindas e
+verificação de e-mail; o e-mail de senha é do Keycloak).
 
 ### 3.8 `gateway-service`
 
@@ -519,8 +538,9 @@ conhecer 5 URLs base diferentes e nenhum serviço tinha `CorsConfigurationSource
 configurada (bloqueador real para qualquer chamada vinda de um browser).
 
 **Sem persistência, sem `petshop-commons`** — não tem lógica de domínio,
-não valida JWT (cada serviço continua validando o próprio token, como
-antes do gateway existir).
+não autentica ninguém (cada serviço continua validando o próprio token, como
+antes do gateway existir; o gateway só lê o `sub` do Bearer, validado pelo
+JWKS, para a chave do rate limiting).
 
 **Roteamento:** por `Path` predicate, sem `StripPrefix`/`RewritePath` —
 nenhum dos 6 serviços colide em prefixo (`/api/v1/<recurso>`), então o path
@@ -543,10 +563,8 @@ mais de CORS próprio, porque o browser passa a falar só com o gateway.
 `allowCredentials: false` (Bearer token no header `Authorization`, não
 cookie de sessão).
 
-**Fora do escopo deste módulo, de propósito:** validação de JWT
-centralizada (ligado à pendência maior de autenticação —
-`docs/pendencias/seguranca-autenticacao.md`), rate limiting (hoje só existe
-em login/forgot-password, no `customer-management`) e service discovery
+**Fora do escopo deste módulo, de propósito:** validação de token
+centralizada (cada serviço valida o seu) e service discovery
 (URLs downstream continuam estáticas por variável de ambiente, mesmo
 padrão das chamadas Feign entre os outros serviços).
 
@@ -556,94 +574,81 @@ padrão das chamadas Feign entre os outros serviços).
 
 ### 4.1 Login
 
-`POST /api/v1/auth/login` em `customer-management`, `AuthService.login`.
+O login é do Keycloak (SDD-024): o web usa Authorization Code + PKCE no
+client público `web` do realm `petshop`. Não existe mais
+`POST /api/v1/auth/login` nem emissão de token no `customer-management`.
 
 ```mermaid
 sequenceDiagram
-    participant C as Cliente HTTP
-    participant Auth as AuthService
-    participant CustDb as CustomerPortOut
-    participant StaffDb as StaffPortOut
-    participant Jwt as JwtService
+    participant U as Usuário (browser)
+    participant W as web (SPA)
+    participant KC as Keycloak
+    participant GW as gateway-service
+    participant S as Serviço (Resource Server)
 
-    C->>Auth: POST /auth/login {email, password}
-    Auth->>CustDb: findByEmail(email)
-    alt encontrado como Customer
-        Auth->>Auth: checkPassword (BCrypt)
-        Auth->>Jwt: generateToken(..., Role.CUSTOMER, AccountType.CUSTOMER)
-        Jwt-->>Auth: JWT
-        Auth-->>C: 200 {token, expiresIn, role, mustChangePassword}
-    else não encontrado
-        Auth->>StaffDb: findByEmail(email)
-        alt encontrado como Staff
-            Auth->>Auth: checkPassword (BCrypt)
-            Auth->>Jwt: generateToken(..., staff.role, AccountType.STAFF)
-            Jwt-->>Auth: JWT
-            Auth-->>C: 200 {token, expiresIn, role, mustChangePassword}
-        else não encontrado em nenhuma tabela
-            Auth-->>C: 401 BadCredentialsException
-        end
-    end
+    U->>W: abre /entrar
+    W->>KC: /auth?response_type=code&code_challenge (PKCE S256)
+    KC->>U: tela de login (usuário = e-mail)
+    U->>KC: e-mail + senha
+    KC-->>W: redirect /auth/callback?code=...
+    W->>KC: troca code + code_verifier por tokens
+    KC-->>W: access token (5 min) + refresh token
+    W->>GW: GET /api/v1/... Authorization: Bearer <access token>
+    GW->>S: repassa a requisição
+    S->>KC: JWKS (em cache)
+    S->>S: valida assinatura, iss, exp e aud
+    S-->>W: 200 (ou 401/403)
 ```
 
-**Caminho feliz:** e-mail existe em `customer` ou `staff` (nunca nos dois —
-constraints `unique` separadas) e a senha bate (`PasswordEncoder.matches`,
-BCrypt). Resposta 200 com `LoginResponseDto{token, expiresIn, role,
-accountType, mustChangePassword}`.
+**Caminho feliz:** o access token dura 5 min e o refresh token é rotacionado
+(`revokeRefreshToken=true`); o web renova antes de expirar e, num 401, tenta
+uma renovação. A sessão (SSO) é deslizante: com "Lembrar de mim" 30 dias de
+inatividade (máx. 90), sem ele 1 dia.
 
-**Reativação automática (só Customer):** `checkPassword` não olha
-`enabled` em nenhum dos dois casos — um Customer ou Staff desativado
-consegue logar normalmente se a senha ainda bate. A diferença é o que
-acontece **depois**: pro Customer, login bem-sucedido com `enabled=false`
-(desativado via `DELETE /customers/delete/customer/{id}`, soft-delete)
-reativa a conta automaticamente (`reactivateIfDisabled`, `enabled=true`
-persistido antes de emitir o token) — não precisa de nenhuma ação do
-ADMIN, só logar de novo com a senha que já tinha. Staff não tem esse
-efeito colateral no login; a reativação lá é sempre manual, pelo ADMIN
-(`PATCH /staff/{id}/reactivate`, ver [3.2](#32-customer-management)).
+**Reativação (cliente):** cliente desativado
+(`DELETE /customers/delete/customer/{id}`, soft-delete, usuário desabilitado
+no Keycloak) é reativado pelo `ADMIN` em
+`PATCH /customers/reactivate/customer/{id}`, que também reabilita o usuário
+no Keycloak. Funcionário: `PATCH /staff/{id}/reactivate` (ver
+[3.2](#32-customer-management)). Usuário desabilitado não consegue logar.
 
 **Erros:**
-- E-mail não encontrado em nenhuma tabela, ou senha errada →
-  `BadCredentialsException("Invalid email or password.")` → **401**, via
-  `BaseExceptionHandler`. A mensagem é sempre a mesma nos dois casos — não
-  revela se o e-mail existe.
-- Corpo inválido (e-mail vazio, sem `@`, etc.) → `MethodArgumentNotValidException`
-  → **400** com lista de campos inválidos.
+- Senha errada ou usuário inexistente: tratado na tela do Keycloak (o
+  serviço nunca vê a credencial).
+- Token ausente, inválido, expirado ou com `aud` que não é o do serviço →
+  **401** (`ProblemDetailAuthenticationEntryPoint`).
+- Token válido sem o papel/permissão da rota → **403**.
 
 ### 4.2 Recuperação de senha
 
-`POST /api/v1/auth/forgot-password`, `AuthService.forgotPassword`.
+Não há mais `POST /api/v1/auth/forgot-password`: "Esqueci a senha" é a
+tela de login do Keycloak (`resetPasswordAllowed=true`), que envia o e-mail
+pelo SMTP do realm (`KEYCLOAK_SMTP_*`, padrão Brevo); a troca de senha é o
+Account Console (`/realms/petshop/account`). Não há senha provisória.
 
-**Caminho feliz:** cliente informa `email` **e** `cpf`; se os dois batem
-com um registro (`customer` ou `staff`), `AuthService` gera uma senha
-aleatória de 10 caracteres (sem `0/O/1/l/I`, para não confundir na
-digitação), grava o hash, marca `mustChangePassword=true` e publica em
-`notification-commands` (via `NotificationPortOut.sendPasswordReset`) um
-comando `{to, tipo: "RESET_SENHA", params: {name, newPassword}}` — o
-`notification-service` resolve o template Brevo e envia o e-mail com a
-nova senha. Resposta **sempre 200**, com corpo vazio.
-
-**Comportamento deliberado em caso de "erro":** se `email`+`cpf` não batem
-com nada, o método simplesmente não faz nada — nenhuma exceção, nenhum
-efeito colateral — e o controller ainda responde **200**. Isso é
-intencional: impede que um atacante descubra, por tentativa e erro, se um
-e-mail está cadastrado no sistema (enumeração de usuários).
+**Funcionário novo:** `POST /staff/create` cria o usuário no Keycloak sem
+senha e o Keycloak envia o e-mail de ação `UPDATE_PASSWORD` para ele definir
+a senha. Falha de SMTP não desfaz o cadastro (o funcionário pode usar
+"Esqueci a senha"). O mesmo vale para o `ADMIN` de bootstrap sem
+`BOOTSTRAP_ADMIN_PASSWORD`.
 
 ### 4.3 Cadastro de cliente
 
 `POST /api/v1/customers/register/customer`, `CustomerService.registerCustomer`.
 
-**Caminho feliz:** CPF ainda não cadastrado → cria `Customer` com a senha
-escolhida pelo próprio cliente no cadastro (`password`/`confirmPassword`
-no `CustomerRequestDto`, hash via `PasswordEncoder`, nunca texto puro) —
-`mustChangePassword=false`, já que a senha não é provisória. Diferente do
-`Staff` (criado pelo `ADMIN`), que continua nascendo com senha = hash do
-CPF e troca obrigatória no primeiro login (ver `StaffService`). Depois de
-salvar, publica em `notification-commands` (via
-`NotificationPortOut.sendRegistrationConfirmation`) um comando
-`{to, tipo: "CADASTRO_CONFIRMADO", params: {name}}` — e-mail de boas-vindas
-via Brevo, mesmo mecanismo assíncrono do reset de senha ([4.8](#48-envio-de-notificação-por-e-mail)).
-Responde 201 com o cliente criado.
+**Caminho feliz:** CPF ainda não cadastrado → cria `Customer` localmente e o
+usuário no Keycloak (papel `CUSTOMER`, username = e-mail, `emailVerified=false`)
+com a senha escolhida pelo próprio cliente no cadastro
+(`password`/`confirmPassword` no `CustomerRequestDto`); a senha vai direto
+ao Keycloak, nunca é gravada neste serviço, e não é provisória. O usuário é
+criado dentro da transação local: falha no Keycloak desfaz o cadastro, e
+e-mail já usado no Keycloak → 409. Diferente do `Staff` (criado pelo `ADMIN`),
+que nasce sem senha e recebe o e-mail do Keycloak para defini-la (ver
+[4.2](#42-recuperação-de-senha)). Depois de salvar, publica em
+`notification-commands` (via `NotificationPortOut.sendRegistrationConfirmation`)
+um comando `{to, tipo: "CADASTRO_CONFIRMADO", params: {name}}` — e-mail de
+boas-vindas via Brevo, mesmo mecanismo assíncrono das demais notificações
+([4.8](#48-envio-de-notificação-por-e-mail)). Responde 201 com o cliente criado.
 
 **Validação do `CustomerRequestDto`:** `password` exige mínimo de 6
 caracteres; `confirmPassword` é validado contra `password` via
@@ -867,8 +872,10 @@ Variáveis comuns a (quase) todos os serviços:
 
 | Variável | Descrição |
 |---|---|
-| `JWT_SECRET` | Segredo HS256 compartilhado — **precisa ser idêntico** em todos os serviços. Mínimo 32 bytes; sem valor, `JwtService` lança `IllegalStateException` no boot. |
-| `JWT_EXPIRATION_MINUTES` | Validade do token (padrão `60`) |
+| `KEYCLOAK_ISSUER_URI` | `iss` esperado no token (ex.: `http://localhost:8180/realms/petshop`) |
+| `KEYCLOAK_JWK_SET_URI` | JWKS do Keycloak (no compose, `http://keycloak:8080/realms/petshop/protocol/openid-connect/certs`) |
+| `KEYCLOAK_AUDIENCE` | `aud` exigido no token (o id do próprio serviço) |
+| `KEYCLOAK_TOKEN_URI` / `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` | Só quem chama outro serviço (`booking-service`, `order-service`, `staff-service`) e a Admin API do `customer-management`: Client Credentials do client do serviço |
 | `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | Conexão PostgreSQL (todos exceto `notification-service`) |
 | `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Broker Kafka (`customer-management`, `booking-service`, `order-service`, `notification-service`) |
 
@@ -903,8 +910,6 @@ A lista completa e detalhada por serviço está no README de cada módulo
    ```env
    POSTGRES_USER=postgres
    POSTGRES_PASSWORD=postgres
-   JWT_SECRET=uma-chave-de-pelo-menos-32-bytes-aqui
-   JWT_EXPIRATION_MINUTES=15
    KAFKA_BOOKING_USERNAME=booking
    KAFKA_BOOKING_PASSWORD=booking123
    KAFKA_ORDER_USERNAME=order
@@ -925,6 +930,14 @@ A lista completa e detalhada por serviço está no README de cada módulo
    BREVO_TEMPLATE_CART_REMINDER=9
    BREVO_TEMPLATE_PASSWORD_RESET=10
    ```
+
+   Acrescente as variáveis do Keycloak (modelo em `.env.example`):
+   `KC_BOOTSTRAP_ADMIN_USERNAME`/`KC_BOOTSTRAP_ADMIN_PASSWORD`, os
+   `KEYCLOAK_CLIENT_SECRET_*` (`CUSTOMER_MANAGEMENT_ADMIN`, `BOOKING_SERVICE`,
+   `ORDER_SERVICE`, `STAFF_SERVICE`) e o SMTP dos e-mails de senha
+   (`KEYCLOAK_SMTP_HOST`/`PORT`/`FROM`/`USER`/`PASSWORD`). O compose sobe o
+   `keycloak` (database `keycloak_db` no Postgres `db`) antes dos serviços;
+   ver [`infra/keycloak/README.md`](../infra/keycloak/README.md).
 
 2. Suba tudo:
 
@@ -999,11 +1012,10 @@ verify`. Só validação, sem etapa de deploy.
 **Testando manualmente um fluxo completo** (exemplo: agendar um banho):
 
 ```bash
-# 1. Login como o admin de bootstrap (senha impressa no log do
-#    customer-management no primeiro start)
-curl -X POST http://localhost:8082/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@petshop.local","password":"<senha-do-log>"}'
+# 1. Obtenha um access token do admin de bootstrap (exige
+#    BOOTSTRAP_ADMIN_PASSWORD no .env): faça login no web e copie o
+#    access_token da sessão (o client `web` é Authorization Code + PKCE,
+#    sem password grant). Detalhes em infra/keycloak/README.md
 
 # 2. Com o token, criar um agendamento (petId precisa existir antes,
 #    via /api/v1/customers/register/*/pet)

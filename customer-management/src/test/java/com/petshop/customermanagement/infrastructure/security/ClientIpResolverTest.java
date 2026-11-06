@@ -104,7 +104,7 @@ class ClientIpResolverTest {
     }
 
     private static MockHttpServletRequest request(String remoteAddr, String... xForwardedFor) {
-        var request = new MockHttpServletRequest("POST", "/api/v1/auth/login");
+        var request = new MockHttpServletRequest("POST", "/api/v1/auth/resend-verification");
         request.setRemoteAddr(remoteAddr);
         Arrays.stream(xForwardedFor).forEach(value -> request.addHeader(ClientIpResolver.X_FORWARDED_FOR, value));
         return request;

@@ -36,6 +36,9 @@ public interface CustomerController {
     @DeleteMapping("/delete/customer/{id}")
     ResponseEntity<CustomerResponseDto> deleteCustomer(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedUser user);
 
+    @PatchMapping("/reactivate/customer/{id}")
+    ResponseEntity<CustomerResponseDto> reactivateCustomer(@PathVariable UUID id);
+
     @PatchMapping("register/{customerId}/pet")
     ResponseEntity<CustomerResponseDto> addPetToCustomer(@PathVariable UUID customerId, @RequestBody @Valid List<PetRequestDto> pets, @AuthenticationPrincipal AuthenticatedUser user);
 

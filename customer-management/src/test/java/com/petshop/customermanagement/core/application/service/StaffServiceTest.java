@@ -15,7 +15,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import ch.qos.logback.classic.Level;
+import com.petshop.customermanagement.core.port.out.dto.IdentityUser;
+import com.petshop.customermanagement.support.LogCaptor;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,13 +44,13 @@ class StaffServiceTest {
     @Mock
     private StaffPortOut staffPortOut;
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private IdentityProviderPortOut identityProviderPortOut;
 
     private StaffService staffService;
 
     @BeforeEach
     void setUp() {
-        staffService = new StaffService(staffPortOut, passwordEncoder);
+        staffService = new StaffService(staffPortOut, identityProviderPortOut);
     }
 
     private StaffRequestDto sampleRequest() {
@@ -61,19 +71,19 @@ class StaffServiceTest {
     class CreateStaff {
 
         @Test
-        void savesStaffWithHashedCpfAsInitialPassword() {
+        void savesStaffWithoutPasswordAndSendsSetPasswordEmail() {
             var request = sampleRequest();
             when(staffPortOut.findByCpf(request.getCpf())).thenReturn(Optional.empty());
             when(staffPortOut.findByEmail(request.getEmail())).thenReturn(Optional.empty());
-            when(passwordEncoder.encode(request.getCpf())).thenReturn("hashed-cpf");
             when(staffPortOut.save(any(Staff.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             var result = staffService.createStaff(request);
 
             assertThat(result.getName()).isEqualTo("João");
             assertThat(result.getCpf()).isEqualTo("12345678900");
-            assertThat(result.getPasswordHash()).isEqualTo("hashed-cpf");
-            assertThat(result.getMustChangePassword()).isTrue();
+            // Sem senha provisória (SDD-024 F3): Keycloak sem credencial + e-mail UPDATE_PASSWORD.
+            verify(identityProviderPortOut).createUser(any(), org.mockito.ArgumentMatchers.isNull());
+            verify(identityProviderPortOut).sendSetPasswordEmail(any());
             assertThat(result.getEnabled()).isTrue();
 
             var captor = ArgumentCaptor.forClass(Staff.class);
@@ -297,5 +307,133 @@ class StaffServiceTest {
 
             verify(staffPortOut, never()).save(any());
         }
+    }
+
+    @AfterEach
+    void clearTransactionSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clear();
+        }
+    }
+
+    private void givenNewStaffCanBeCreated(StaffRequestDto request) {
+        given(staffPortOut.findByCpf(request.getCpf())).willReturn(Optional.empty());
+        given(staffPortOut.findByEmail(request.getEmail())).willReturn(Optional.empty());
+        given(staffPortOut.save(any(Staff.class))).willAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    @Test
+    @DisplayName("Deve criar o usuário no IdP sem senha e enviar o e-mail de senha quando cadastrar funcionário")
+    void shouldCreateIdentityUserWithoutPasswordAndSendSetPasswordEmailWhenCreatingStaff() {
+        var request = sampleRequest();
+        givenNewStaffCanBeCreated(request);
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        var result = staffService.createStaff(request);
+
+        var captor = ArgumentCaptor.forClass(IdentityUser.class);
+        then(identityProviderPortOut).should().createUser(captor.capture(), org.mockito.ArgumentMatchers.isNull());
+        assertThat(captor.getValue().userId()).isEqualTo(result.getId());
+        assertThat(captor.getValue().role()).isEqualTo(Role.RECEPTIONIST);
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(2);
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        then(identityProviderPortOut).should().sendSetPasswordEmail("kc-1");
+    }
+
+    @Test
+    @DisplayName("Deve enviar o e-mail de senha somente após o commit quando cadastrar funcionário")
+    void shouldSendSetPasswordEmailOnlyAfterCommitWhenCreatingStaff() {
+        var request = sampleRequest();
+        givenNewStaffCanBeCreated(request);
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        staffService.createStaff(request);
+
+        then(identityProviderPortOut).should(never()).sendSetPasswordEmail(any());
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        then(identityProviderPortOut).should().sendSetPasswordEmail("kc-1");
+    }
+
+    @Test
+    @DisplayName("Deve não enviar o e-mail de senha quando a transação sofrer rollback")
+    void shouldNotSendSetPasswordEmailWhenTransactionRollsBack() {
+        var request = sampleRequest();
+        givenNewStaffCanBeCreated(request);
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        staffService.createStaff(request);
+
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        then(identityProviderPortOut).should(never()).sendSetPasswordEmail(any());
+    }
+
+    @Test
+    @DisplayName("Deve manter o cadastro e apenas logar aviso quando o envio do e-mail de senha falhar")
+    void shouldKeepStaffAndOnlyLogWarningWhenSetPasswordEmailFails() {
+        var request = sampleRequest();
+        givenNewStaffCanBeCreated(request);
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn("kc-1");
+        willThrow(new IllegalStateException("smtp fora")).given(identityProviderPortOut).sendSetPasswordEmail("kc-1");
+
+        try (var logs = LogCaptor.of(StaffService.class)) {
+            var result = staffService.createStaff(request);
+
+            assertThat(result.getEnabled()).isTrue();
+            assertThat(logs.has(Level.WARN, "Set-password email not sent")).isTrue();
+        }
+        then(staffPortOut).should().save(any(Staff.class));
+    }
+
+    @Test
+    @DisplayName("Deve sincronizar o usuário no IdP com os dados salvos quando atualizar o funcionário")
+    void shouldSyncIdentityUserWithSavedDataWhenUpdatingStaff() {
+        var id = UUID.randomUUID();
+        given(staffPortOut.findById(id)).willReturn(Optional.of(sampleStaff(id)));
+        given(staffPortOut.save(any(Staff.class))).willAnswer(invocation -> invocation.getArgument(0));
+        var request = new StaffRequestDto();
+        request.setName("João Atualizado");
+        request.setRole(Role.ADMIN);
+
+        staffService.updateStaff(id, request);
+
+        var captor = ArgumentCaptor.forClass(IdentityUser.class);
+        then(identityProviderPortOut).should().updateUser(captor.capture());
+        assertThat(captor.getValue().userId()).isEqualTo(id);
+        assertThat(captor.getValue().name()).isEqualTo("João Atualizado");
+        assertThat(captor.getValue().role()).isEqualTo(Role.ADMIN);
+    }
+
+    @Test
+    @DisplayName("Deve desabilitar o usuário no IdP quando desativar o funcionário")
+    void shouldDisableIdentityUserWhenDeletingStaff() {
+        var id = UUID.randomUUID();
+        given(staffPortOut.findById(id)).willReturn(Optional.of(sampleStaff(id)));
+        given(staffPortOut.save(any(Staff.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        staffService.deleteStaff(id);
+
+        then(identityProviderPortOut).should().setEnabled(id, false);
+    }
+
+    @Test
+    @DisplayName("Deve reabilitar o usuário no IdP quando reativar o funcionário")
+    void shouldEnableIdentityUserWhenReactivatingStaff() {
+        var id = UUID.randomUUID();
+        var staff = sampleStaff(id);
+        staff.setEnabled(false);
+        given(staffPortOut.findById(id)).willReturn(Optional.of(staff));
+        given(staffPortOut.save(any(Staff.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        staffService.reactivateStaff(id);
+
+        then(identityProviderPortOut).should().setEnabled(id, true);
     }
 }

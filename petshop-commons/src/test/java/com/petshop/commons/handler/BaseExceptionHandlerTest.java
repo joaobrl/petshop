@@ -17,6 +17,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpInputMessage;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class BaseExceptionHandlerTest {
 
@@ -130,7 +132,8 @@ class BaseExceptionHandlerTest {
 
     @Test
     void handlesMessageNotReadable() {
-        var ex = new HttpMessageNotReadableException("JSON parse error: Cannot deserialize value of type `java.time.LocalDateTime`");
+        var ex = new HttpMessageNotReadableException("JSON parse error: Cannot deserialize value of type `java.time.LocalDateTime`",
+                mock(HttpInputMessage.class));
 
         var problem = handler.handleMessageNotReadable(ex);
 
@@ -264,7 +267,7 @@ class BaseExceptionHandlerTest {
 
     @Test
     void handlesNoResourceFoundWithoutEchoingPath() {
-        var ex = new NoResourceFoundException(HttpMethod.GET, "api/v1/<script>");
+        var ex = new NoResourceFoundException(HttpMethod.GET, "/api/v1/<script>", "api/v1/<script>");
 
         var problem = handler.handleNoRoute(ex);
 

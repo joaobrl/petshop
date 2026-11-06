@@ -6,9 +6,9 @@ Microsserviço de disponibilidade e escala de funcionários do WebCommerce/PetSh
 
 - Java 21, Spring Boot 4.0.3, Spring Cloud 2025.1.2 (`spring-cloud-starter-openfeign` + `-loadbalancer`, sem Eureka/Consul — URL estática por variável de ambiente)
 - Spring Web, Spring Data JPA (PostgreSQL — usado só para a escala de fim de semana), Bean Validation, Actuator
-- Spring Security — infraestrutura apenas; validação de JWT feita pelo `petshop-commons`
+- Spring Security — Resource Server (valida o access token do Keycloak via JWKS) e `spring-security-oauth2-client` (Client Credentials do Feign)
 - MapStruct + Lombok
-- [`petshop-commons`](../petshop-commons) — JWT próprio e `BaseExceptionHandler`
+- [`petshop-commons`](../petshop-commons) — configuração do Resource Server, `TokenPropagation` e `BaseExceptionHandler`
 - Testcontainers (PostgreSQL) nos testes de integração
 - JaCoCo — gate de 90% de cobertura de instruções
 
@@ -40,11 +40,11 @@ Toda data/hora trafegada (query params e JSON) é **ISO-8601 sem offset**, sempr
 
 ## Segurança
 
-JWT próprio via [`petshop-commons`](../petshop-commons) — este serviço só valida tokens. `/api/v1/availability/**` exige apenas autenticação; `/api/v1/weekend-allocation/**` exige role `ADMIN`. 401 (em vez de 403 default) em token ausente/inválido.
+Resource Server (SDD-024): valida o access token do Keycloak via JWKS (`iss`, `exp`, `aud=staff-service`). `GET /api/v1/availability/**` aceita usuário ou o token de serviço do booking-service com `svc:staff:availability-read`; `/api/v1/weekend-allocation/**` exige role `ADMIN`; o resto exige usuário com papel. 401 ProblemDetail em token ausente/inválido.
 
 ## Integração com outros serviços
 
-- **Feign → customer-management**: `StaffRegistryFeign` chama `GET /api/v1/staff/all` (`external.api.customer-management.url`) para obter o registro de funcionários. O token da requisição original é repassado via `FeignTokenRelayConfig`.
+- **Feign → customer-management**: `StaffRegistryFeign` chama `GET /api/v1/staff/all` (`external.api.customer-management.url`) para obter o registro de funcionários. Sempre com o token Client Credentials do client `staff-service` do Keycloak (`TokenPropagation.mintServiceToken`, permissão `svc:customers:staff-read`).
 - **Consumido por**: [`booking-service`](../booking-service), que chama `GET /api/v1/availability/general` e `/schedule` antes de confirmar um agendamento.
 
 ## Configuração (`application.yaml`)
@@ -56,8 +56,11 @@ JWT próprio via [`petshop-commons`](../petshop-commons) — este serviço só v
 | `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | `postgres` / `postgres` | Credenciais do banco |
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | `update` | Estratégia de DDL |
 | `EXTERNAL_API_CUSTOMER_MANAGEMENT_URL` | `http://localhost:8082` | URL do customer-management (Feign) |
-| `JWT_SECRET` | *(vazio)* | Segredo HS256 compartilhado (deve ser igual ao do customer-management) |
-| `JWT_EXPIRATION_MINUTES` | `60` | Validade do token |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8180/realms/petshop` | `iss` esperado no token |
+| `KEYCLOAK_JWK_SET_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/certs` | JWKS (no compose, `http://keycloak:8080/...`) |
+| `KEYCLOAK_AUDIENCE` | `staff-service` | `aud` exigido no token |
+| `KEYCLOAK_TOKEN_URI` | `http://localhost:8180/realms/petshop/protocol/openid-connect/token` | Token endpoint do Client Credentials |
+| `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` | `staff-service` / *(vazio)* | Client do Keycloak deste serviço (`KEYCLOAK_CLIENT_SECRET_STAFF_SERVICE` do `.env`) |
 | `STAFF_GROOMER_SATURDAY_COUNT` | `2` | Número de tosadores escalados por sábado |
 
 ## Executando localmente
@@ -84,7 +87,7 @@ docker compose up api-staff
 
 ## Kubernetes
 
-Manifests em [`k8s/api-staff/`](../k8s/api-staff): `deployment.yaml` (1 réplica, `api-staff:latest`, probes `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` e `service.yaml` (`NodePort`, `30085` → 8085). Segredos: `db-staff-secret` e `jwt-secret` compartilhado. Banco dedicado em [`k8s/db-staff/`](../k8s/db-staff).
+Manifests em [`k8s/api-staff/`](../k8s/api-staff): `deployment.yaml` (1 réplica, `api-staff:latest`, probes `/actuator/health/{liveness,readiness}`, requests `256Mi`/`200m`, limits `512Mi`/`500m`), `configmap.yaml` e `service.yaml` (`NodePort`, `30085` → 8085). Segredos: `db-staff-secret` e o segredo do client em `keycloak-secret`. Banco dedicado em [`k8s/db-staff/`](../k8s/db-staff).
 
 > O `configmap.yaml` atual não define `EXTERNAL_API_CUSTOMER_MANAGEMENT_URL`, então em k8s o serviço cairia no valor padrão (`http://localhost:8082`) — ajuste antes de um deploy real.
 
