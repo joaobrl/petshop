@@ -81,4 +81,23 @@ class RoleDeniedStatusTest {
 
         assertThat(response.statusCode()).isEqualTo(401);
     }
+
+    @Test
+    @DisplayName("Deve responder 403 em rota de usuário quando o token for de serviço")
+    void shouldReturn403OnUserRouteWhenTokenIsServiceToken() throws Exception {
+        var response = send("GET", "/api/v1/bookings/list", TEST_JWT_SERVICE.generateServiceToken("order-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 401 quando o aud do token for de outro serviço")
+    void shouldReturn401WhenTokenAudienceIsFromAnotherService() throws Exception {
+        var userToken = TEST_JWT_SERVICE.generateTokenWithAudience("order-service", UUID.randomUUID(),
+                Role.ADMIN, AccountType.STAFF);
+        var serviceToken = TEST_JWT_SERVICE.generateServiceTokenWithAudience("order-service", "customer-management");
+
+        assertThat(send("GET", "/api/v1/bookings/list", userToken).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/v1/bookings/list", serviceToken).statusCode()).isEqualTo(401);
+    }
 }

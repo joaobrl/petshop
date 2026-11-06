@@ -69,6 +69,26 @@ public class TestJwtService {
                 .build());
     }
 
+    /** Token de usuário cujo {@code aud} traz só o serviço dado (para testar recusa por audience). */
+    public String generateTokenWithAudience(String audience, UUID userId, Role role, AccountType type) {
+        return sign(baseClaims("web")
+                .audience(audience)
+                .subject(UUID.randomUUID().toString())
+                .claim("user_id", userId.toString())
+                .claim("type", type.name())
+                .claim("realm_access", Map.of("roles", List.of(role.name())))
+                .build());
+    }
+
+    /** Token de service account cujo {@code aud} traz só o serviço dado, com as permissões do client no realm. */
+    public String generateServiceTokenWithAudience(String clientId, String audience) {
+        return sign(baseClaims(clientId)
+                .audience(audience)
+                .subject(UUID.nameUUIDFromBytes(clientId.getBytes()).toString())
+                .claim("realm_access", Map.of("roles", SERVICE_PERMISSIONS.getOrDefault(clientId, List.of())))
+                .build());
+    }
+
     private static JWTClaimsSet.Builder baseClaims(String azp) {
         Instant now = Instant.now();
         return new JWTClaimsSet.Builder()

@@ -6,6 +6,13 @@ import com.petshop.commons.security.jwt.AuthenticatedUser;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import com.petshop.commons.security.oauth2.ServiceAccount;
+import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -19,8 +26,18 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
+@ExtendWith(MockitoExtension.class)
 class TokenPropagationTest {
+
+    @Mock
+    private OAuth2AuthorizedClientManager manager;
+    @Mock
+    private OAuth2AuthorizedClient authorizedClient;
 
     // Token que o Keycloak (simulado) devolve no client_credentials (SDD-024 F4).
     private static final String SERVICE_HEADER = "Bearer service-token";
@@ -112,5 +129,112 @@ class TokenPropagationTest {
         var header = tokenPropagation.resolveAuthorizationHeader();
 
         assertThat(header).isEqualTo(SERVICE_HEADER);
+    }
+
+    private TokenPropagation withMockedManager() {
+        return new TokenPropagation(manager, "keycloak");
+    }
+
+    private void givenServiceTokenFromManager(String value) {
+        var accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, value,
+                Instant.now(), Instant.now().plusSeconds(300));
+        given(authorizedClient.getAccessToken()).willReturn(accessToken);
+        given(manager.authorize(any(OAuth2AuthorizeRequest.class))).willReturn(authorizedClient);
+    }
+
+    @Test
+    @DisplayName("Deve repassar o token bruto sem consultar o manager quando o principal for AuthenticatedUser")
+    void shouldRelayRawTokenWithoutCallingManagerWhenPrincipalIsAuthenticatedUser() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                USER, "relayed-token", AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
+
+        var header = withMockedManager().resolveAuthorizationHeader();
+
+        assertThat(header).isEqualTo("Bearer relayed-token");
+        then(manager).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Deve usar token de serviço quando o principal for ServiceAccount")
+    void shouldUseServiceTokenWhenPrincipalIsServiceAccount() {
+        givenServiceTokenFromManager("minted-token");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new ServiceAccount("order-service"), "incoming-service-token",
+                AuthorityUtils.createAuthorityList("svc:customers:customer-read")));
+
+        var header = withMockedManager().resolveAuthorizationHeader();
+
+        assertThat(header).isEqualTo("Bearer minted-token");
+        then(manager).should().authorize(any(OAuth2AuthorizeRequest.class));
+    }
+
+    @Test
+    @DisplayName("Deve usar token de serviço quando o principal não for AuthenticatedUser")
+    void shouldUseServiceTokenWhenPrincipalIsNotAuthenticatedUser() {
+        givenServiceTokenFromManager("minted-token");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "texto", "some-token", AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
+
+        var header = withMockedManager().resolveAuthorizationHeader();
+
+        assertThat(header).isEqualTo("Bearer minted-token");
+    }
+
+    @Test
+    @DisplayName("Deve usar token de serviço quando a autenticação for anônima")
+    void shouldUseServiceTokenWhenAuthenticationIsAnonymous() {
+        givenServiceTokenFromManager("minted-token");
+        SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken(
+                "key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
+
+        var header = withMockedManager().resolveAuthorizationHeader();
+
+        assertThat(header).isEqualTo("Bearer minted-token");
+    }
+
+    @Test
+    @DisplayName("Deve usar token de serviço quando a credencial do usuário estiver em branco")
+    void shouldUseServiceTokenWhenUserCredentialIsBlank() {
+        givenServiceTokenFromManager("minted-token");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                USER, " ", AuthorityUtils.createAuthorityList("ROLE_CUSTOMER")));
+
+        var header = withMockedManager().resolveAuthorizationHeader();
+
+        assertThat(header).isEqualTo("Bearer minted-token");
+    }
+
+    @Test
+    @DisplayName("Deve pedir o token ao manager com o registrationId keycloak ao gerar token de serviço")
+    void shouldAuthorizeWithKeycloakRegistrationIdWhenMintingServiceToken() {
+        givenServiceTokenFromManager("minted-token");
+        var captor = ArgumentCaptor.forClass(OAuth2AuthorizeRequest.class);
+
+        withMockedManager().mintServiceToken();
+
+        then(manager).should().authorize(captor.capture());
+        assertThat(captor.getValue().getClientRegistrationId()).isEqualTo("keycloak");
+        assertThat(captor.getValue().getPrincipal().getName()).isEqualTo("keycloak");
+    }
+
+    @Test
+    @DisplayName("Deve lançar IllegalStateException quando o manager devolver null")
+    void shouldThrowIllegalStateWhenManagerReturnsNull() {
+        given(manager.authorize(any(OAuth2AuthorizeRequest.class))).willReturn(null);
+
+        assertThatThrownBy(() -> withMockedManager().mintServiceToken())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("token de serviço");
+    }
+
+    @Test
+    @DisplayName("Deve lançar IllegalStateException quando o access token do client for nulo")
+    void shouldThrowIllegalStateWhenAccessTokenIsNull() {
+        given(authorizedClient.getAccessToken()).willReturn(null);
+        given(manager.authorize(any(OAuth2AuthorizeRequest.class))).willReturn(authorizedClient);
+
+        assertThatThrownBy(() -> withMockedManager().mintServiceToken())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("token de serviço");
     }
 }

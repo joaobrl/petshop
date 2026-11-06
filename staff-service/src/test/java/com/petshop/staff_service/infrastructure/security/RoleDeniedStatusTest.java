@@ -87,4 +87,50 @@ class RoleDeniedStatusTest {
 
         assertThat(response.statusCode()).isEqualTo(401);
     }
+
+    private static final String AVAILABILITY_GENERAL = "/api/v1/availability/general?dateTime=2026-08-10T09:00:00&role=GROOMER";
+
+    @Test
+    @DisplayName("Deve liberar availability/general quando o token de serviço tiver svc:staff:availability-read")
+    void shouldAllowAvailabilityGeneralWhenServiceTokenHasAvailabilityRead() throws Exception {
+        var response = send("GET", AVAILABILITY_GENERAL, TEST_JWT_SERVICE.generateServiceToken("booking-service"));
+
+        assertThat(response.statusCode()).isNotIn(401, 403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em availability/general quando o token de serviço tiver outra permissão svc")
+    void shouldReturn403OnAvailabilityGeneralWhenServiceTokenHasOtherPermission() throws Exception {
+        var response = send("GET", AVAILABILITY_GENERAL, TEST_JWT_SERVICE.generateServiceToken("order-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em weekend-allocation/generate quando o token for de serviço")
+    void shouldReturn403OnWeekendAllocationGenerateWhenTokenIsServiceToken() throws Exception {
+        var response = send("POST", "/api/v1/weekend-allocation/generate",
+                TEST_JWT_SERVICE.generateServiceToken("booking-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em rota de usuário quando o token for de serviço")
+    void shouldReturn403OnUserRouteWhenTokenIsServiceToken() throws Exception {
+        var response = send("GET", "/api/v1/staff-schedule", TEST_JWT_SERVICE.generateServiceToken("booking-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 401 quando o aud do token for de outro serviço")
+    void shouldReturn401WhenTokenAudienceIsFromAnotherService() throws Exception {
+        var userToken = TEST_JWT_SERVICE.generateTokenWithAudience("order-service", UUID.randomUUID(),
+                Role.ADMIN, AccountType.STAFF);
+        var serviceToken = TEST_JWT_SERVICE.generateServiceTokenWithAudience("booking-service", "order-service");
+
+        assertThat(send("GET", "/api/v1/weekend-allocation", userToken).statusCode()).isEqualTo(401);
+        assertThat(send("GET", AVAILABILITY_GENERAL, serviceToken).statusCode()).isEqualTo(401);
+    }
 }
