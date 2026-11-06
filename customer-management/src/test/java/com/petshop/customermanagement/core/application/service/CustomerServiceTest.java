@@ -23,6 +23,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import com.petshop.commons.exception.DependencyUnavailableException;
+import com.petshop.commons.security.Role;
+import com.petshop.customermanagement.core.port.out.dto.IdentityUser;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -534,5 +542,84 @@ class CustomerServiceTest {
             assertThat(result.getContent()).isEmpty();
             verify(customerPortOut, never()).existsById(any());
         }
+    }
+
+    @AfterEach
+    void clearTransactionSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve criar o usuário no IdP com a senha e registrar a compensação quando cadastrar o cliente")
+    void shouldCreateIdentityUserWithPasswordAndRegisterCompensationWhenRegisteringCustomer() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), org.mockito.ArgumentMatchers.eq("Senha123")))
+                .willReturn("kc-1");
+        TransactionSynchronizationManager.initSynchronization();
+
+        var result = customerService.registerCustomer(request);
+
+        var captor = ArgumentCaptor.forClass(IdentityUser.class);
+        then(identityProviderPortOut).should().createUser(captor.capture(), org.mockito.ArgumentMatchers.eq("Senha123"));
+        assertThat(captor.getValue().userId()).isEqualTo(result.getId());
+        assertThat(captor.getValue().email()).isEqualTo("maria@mail.com");
+        assertThat(captor.getValue().role()).isEqualTo(Role.CUSTOMER);
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        then(identityProviderPortOut).should().deleteUser("kc-1");
+    }
+
+    @Test
+    @DisplayName("Deve propagar a exceção sem notificações nem compensação quando o IdP falhar no cadastro")
+    void shouldPropagateExceptionWithoutNotificationsOrCompensationWhenIdentityProviderFailsOnRegistration() {
+        var request = new CustomerRequestDto("Maria", "12345678900", "maria@mail.com", "11999999999", "Senha123", "Senha123");
+        given(customerPortOut.findByCpf("12345678900")).willReturn(Optional.empty());
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+        given(identityProviderPortOut.createUser(any(IdentityUser.class), any()))
+                .willThrow(new DependencyUnavailableException("keycloak", new IllegalStateException("fora")));
+        TransactionSynchronizationManager.initSynchronization();
+
+        assertThatThrownBy(() -> customerService.registerCustomer(request))
+                .isInstanceOf(DependencyUnavailableException.class);
+
+        then(customerPortOut).should().save(any(Customer.class));
+        then(notificationPortOut).shouldHaveNoInteractions();
+        then(emailVerificationPortIn).shouldHaveNoInteractions();
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve sincronizar o usuário no IdP com os dados salvos quando atualizar o cliente")
+    void shouldSyncIdentityUserWithSavedDataWhenUpdatingCustomer() {
+        var customer = sampleCustomer();
+        var dto = new CustomerUpdateDto("Novo Nome", "novo@mail.com", "11000000000");
+        given(customerPortOut.findById(customer.getId())).willReturn(Optional.of(customer));
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+
+        customerService.updateCustomer(customer.getId(), dto);
+
+        var captor = ArgumentCaptor.forClass(IdentityUser.class);
+        then(identityProviderPortOut).should().updateUser(captor.capture());
+        assertThat(captor.getValue().userId()).isEqualTo(customer.getId());
+        assertThat(captor.getValue().name()).isEqualTo("Novo Nome");
+        assertThat(captor.getValue().email()).isEqualTo("novo@mail.com");
+        assertThat(captor.getValue().phone()).isEqualTo("11000000000");
+    }
+
+    @Test
+    @DisplayName("Deve desabilitar o usuário no IdP quando desativar o cliente")
+    void shouldDisableIdentityUserWhenDeletingCustomer() {
+        var customer = sampleCustomer();
+        given(customerPortOut.findById(customer.getId())).willReturn(Optional.of(customer));
+        given(customerPortOut.save(any(Customer.class))).willAnswer(inv -> inv.getArgument(0));
+
+        customerService.deleteCustomer(customer.getId());
+
+        then(identityProviderPortOut).should().setEnabled(customer.getId(), false);
     }
 }

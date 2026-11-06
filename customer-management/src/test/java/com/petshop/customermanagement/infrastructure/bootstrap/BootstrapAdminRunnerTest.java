@@ -3,6 +3,12 @@ package com.petshop.customermanagement.infrastructure.bootstrap;
 import com.petshop.commons.security.Role;
 import com.petshop.customermanagement.core.domain.Staff;
 import com.petshop.customermanagement.core.port.out.StaffPortOut;
+import ch.qos.logback.classic.Level;
+import com.petshop.commons.exception.DependencyUnavailableException;
+import com.petshop.customermanagement.support.LogCaptor;
+import org.junit.jupiter.api.DisplayName;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -104,5 +110,101 @@ class BootstrapAdminRunnerTest {
         var ids = captor.getAllValues().stream().map(Staff::getId).toList();
 
         assertThat(ids.get(0)).isNotEqualTo(ids.get(1));
+    }
+
+    @Test
+    @DisplayName("Deve criar o admin local e garantir no IdP com senha vazia quando não houver funcionários")
+    void shouldCreateLocalAdminAndEnsureInIdentityProviderWhenNoStaffExists() {
+        given(staffPortOut.findAll()).willReturn(List.of());
+        given(staffPortOut.save(any(Staff.class))).willAnswer(inv -> inv.getArgument(0));
+
+        runner.run(null);
+
+        var captor = ArgumentCaptor.forClass(Staff.class);
+        then(staffPortOut).should().save(captor.capture());
+        then(staffIdentityProvisioner).should().ensure(captor.getValue(), "");
+    }
+
+    @Test
+    @DisplayName("Deve não criar admin local nem garantir no IdP quando já houver funcionários e o e-mail não for do bootstrap")
+    void shouldNotCreateLocalAdminNorEnsureInIdentityProviderWhenStaffExistAndEmailIsNotBootstrap() {
+        given(staffPortOut.findAll()).willReturn(List.of(new Staff()));
+
+        runner.run(null);
+
+        then(staffPortOut).should(never()).save(any());
+        then(staffIdentityProvisioner).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Deve garantir no IdP o admin existente sem criar outro local quando o e-mail do bootstrap já existir")
+    void shouldEnsureExistingAdminInIdentityProviderWithoutCreatingLocalOneWhenBootstrapEmailExists() {
+        var existing = new Staff(java.util.UUID.randomUUID(), NAME, CPF, EMAIL, PHONE, true, Role.ADMIN);
+        given(staffPortOut.findByEmail(EMAIL)).willReturn(java.util.Optional.of(existing));
+
+        runner.run(null);
+
+        then(staffPortOut).should(never()).save(any());
+        then(staffPortOut).should(never()).findAll();
+        then(staffIdentityProvisioner).should().ensure(existing, "");
+    }
+
+    @Test
+    @DisplayName("Deve logar aviso de senha configurada quando o IdP criar o admin com senha")
+    void shouldLogConfiguredPasswordWarningWhenIdentityProviderCreatesAdminWithPassword() {
+        ReflectionTestUtils.setField(runner, "configuredPassword", "S3nhaF0rte!");
+        given(staffPortOut.findAll()).willReturn(List.of());
+        given(staffPortOut.save(any(Staff.class))).willAnswer(inv -> inv.getArgument(0));
+        given(staffIdentityProvisioner.ensure(any(Staff.class), org.mockito.ArgumentMatchers.eq("S3nhaF0rte!")))
+                .willReturn(true);
+
+        try (var logs = LogCaptor.of(BootstrapAdminRunner.class)) {
+            runner.run(null);
+
+            assertThat(logs.has(Level.WARN, "senha = BOOTSTRAP_ADMIN_PASSWORD")).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve logar aviso de e-mail para definir senha quando o IdP criar o admin sem senha")
+    void shouldLogSetPasswordEmailWarningWhenIdentityProviderCreatesAdminWithoutPassword() {
+        given(staffPortOut.findAll()).willReturn(List.of());
+        given(staffPortOut.save(any(Staff.class))).willAnswer(inv -> inv.getArgument(0));
+        given(staffIdentityProvisioner.ensure(any(Staff.class), org.mockito.ArgumentMatchers.eq(""))).willReturn(true);
+
+        try (var logs = LogCaptor.of(BootstrapAdminRunner.class)) {
+            runner.run(null);
+
+            assertThat(logs.has(Level.WARN, "sem senha")).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve não logar criação no IdP quando o admin já existir no IdP")
+    void shouldNotLogIdentityProviderCreationWhenAdminAlreadyExistsInIdentityProvider() {
+        given(staffPortOut.findAll()).willReturn(List.of());
+        given(staffPortOut.save(any(Staff.class))).willAnswer(inv -> inv.getArgument(0));
+        given(staffIdentityProvisioner.ensure(any(Staff.class), org.mockito.ArgumentMatchers.eq(""))).willReturn(false);
+
+        try (var logs = LogCaptor.of(BootstrapAdminRunner.class)) {
+            runner.run(null);
+
+            assertThat(logs.has(Level.WARN, "ADMIN inicial criado no Keycloak")).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve logar erro e não lançar exceção quando o IdP estiver fora")
+    void shouldLogErrorAndNotThrowWhenIdentityProviderIsDown() {
+        given(staffPortOut.findAll()).willReturn(List.of());
+        given(staffPortOut.save(any(Staff.class))).willAnswer(inv -> inv.getArgument(0));
+        given(staffIdentityProvisioner.ensure(any(Staff.class), any()))
+                .willThrow(new DependencyUnavailableException("keycloak", new IllegalStateException("fora")));
+
+        try (var logs = LogCaptor.of(BootstrapAdminRunner.class)) {
+            org.assertj.core.api.Assertions.assertThatCode(() -> runner.run(null)).doesNotThrowAnyException();
+
+            assertThat(logs.has(Level.ERROR, "ADMIN inicial não garantido no Keycloak")).isTrue();
+        }
     }
 }

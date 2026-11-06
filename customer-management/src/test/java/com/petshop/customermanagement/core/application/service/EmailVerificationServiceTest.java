@@ -7,6 +7,10 @@ import com.petshop.customermanagement.core.port.out.CustomerPortOut;
 import com.petshop.customermanagement.core.port.out.EmailVerificationTokenPortOut;
 import com.petshop.customermanagement.core.port.out.IdentityProviderPortOut;
 import com.petshop.customermanagement.core.port.out.NotificationPortOut;
+import com.petshop.commons.exception.DependencyUnavailableException;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -351,5 +355,34 @@ class EmailVerificationServiceTest {
 
             verifyNoInteractions(tokenPortOut, notificationPortOut);
         }
+    }
+
+    @Test
+    @DisplayName("Deve marcar o e-mail como verificado no IdP quando a verificação for concluída")
+    void shouldMarkEmailVerifiedInIdentityProviderWhenVerificationSucceeds() throws Exception {
+        var customer = unverifiedCustomer();
+        var token = storedToken(customer.getId(), Instant.now().plus(Duration.ofHours(1)), null);
+        given(tokenPortOut.findByTokenHash(sha256Hex(RAW_TOKEN))).willReturn(Optional.of(token));
+        given(tokenPortOut.markUsed(eq(token.getId()), any(Instant.class))).willReturn(true);
+        given(customerPortOut.findById(customer.getId())).willReturn(Optional.of(customer));
+
+        service.verifyEmail(RAW_TOKEN);
+
+        then(identityProviderPortOut).should().markEmailVerified(customer.getId());
+    }
+
+    @Test
+    @DisplayName("Deve propagar a exceção quando o IdP falhar ao marcar o e-mail como verificado")
+    void shouldPropagateExceptionWhenIdentityProviderFailsToMarkEmailVerified() throws Exception {
+        var customer = unverifiedCustomer();
+        var token = storedToken(customer.getId(), Instant.now().plus(Duration.ofHours(1)), null);
+        given(tokenPortOut.findByTokenHash(sha256Hex(RAW_TOKEN))).willReturn(Optional.of(token));
+        given(tokenPortOut.markUsed(eq(token.getId()), any(Instant.class))).willReturn(true);
+        given(customerPortOut.findById(customer.getId())).willReturn(Optional.of(customer));
+        willThrow(new DependencyUnavailableException("keycloak", new IllegalStateException("fora")))
+                .given(identityProviderPortOut).markEmailVerified(customer.getId());
+
+        assertThatThrownBy(() -> service.verifyEmail(RAW_TOKEN))
+                .isInstanceOf(DependencyUnavailableException.class);
     }
 }
