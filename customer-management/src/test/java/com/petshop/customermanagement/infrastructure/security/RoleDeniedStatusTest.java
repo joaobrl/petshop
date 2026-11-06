@@ -136,4 +136,62 @@ class RoleDeniedStatusTest {
         assertThat(getPath("/api/v1/customers/list/customers", userToken).statusCode()).isEqualTo(401);
         assertThat(getPath("/api/v1/staff/all", serviceToken).statusCode()).isEqualTo(401);
     }
+
+    private HttpResponse<String> patchPath(String path, String token) throws Exception {
+        var builder = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .method("PATCH", HttpRequest.BodyPublishers.noBody());
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String tokenFor(UUID userId, Role role, AccountType type) {
+        return TEST_JWT_SERVICE.generateToken(userId, "user@mail.com", "User", "12345678900", "11999999999", role, type);
+    }
+
+    @Test
+    @DisplayName("Deve liberar reactivate/customer quando o token for de ADMIN")
+    void shouldAllowReactivateCustomerWhenTokenIsAdmin() throws Exception {
+        var response = patchPath("/api/v1/customers/reactivate/customer/" + UUID.randomUUID(), adminToken());
+
+        assertThat(response.statusCode()).isNotIn(401, 403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em reactivate/customer quando o token for de RECEPTIONIST")
+    void shouldReturn403OnReactivateCustomerWhenTokenIsReceptionist() throws Exception {
+        var token = tokenFor(UUID.randomUUID(), Role.RECEPTIONIST, AccountType.STAFF);
+
+        var response = patchPath("/api/v1/customers/reactivate/customer/" + UUID.randomUUID(), token);
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em reactivate/customer quando o token for de CUSTOMER com o próprio id")
+    void shouldReturn403OnReactivateCustomerWhenCustomerUsesOwnId() throws Exception {
+        var id = UUID.randomUUID();
+
+        var response = patchPath("/api/v1/customers/reactivate/customer/" + id, tokenFor(id, Role.CUSTOMER, AccountType.CUSTOMER));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 403 em reactivate/customer quando o token for de serviço")
+    void shouldReturn403OnReactivateCustomerWhenTokenIsServiceToken() throws Exception {
+        var response = patchPath("/api/v1/customers/reactivate/customer/" + UUID.randomUUID(),
+                TEST_JWT_SERVICE.generateServiceToken("order-service"));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("Deve responder 401 em reactivate/customer quando não houver token")
+    void shouldReturn401OnReactivateCustomerWhenNoToken() throws Exception {
+        var response = patchPath("/api/v1/customers/reactivate/customer/" + UUID.randomUUID(), null);
+
+        assertThat(response.statusCode()).isEqualTo(401);
+    }
 }

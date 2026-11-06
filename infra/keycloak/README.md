@@ -104,6 +104,7 @@ a resposta é **403**. Num serviço que não está no `aud` do token, a resposta
   funcionário criado pelo admin nasce sem senha e recebe o e-mail de ação `UPDATE_PASSWORD`.
 - "Esqueci a senha" na tela de login (`resetPasswordAllowed=true`); "Minha conta / alterar
   senha" no Account Console (`/realms/petshop/account`).
+- Nome e e-mail só mudam pela API do customer-management (que sincroniza com o Keycloak); o Account Console fica para senha e sessões.
 - Access token: 5 min. Refresh token com rotação (`revokeRefreshToken=true`, `refreshTokenMaxReuse=0`).
 - Sessão (SSO), deslizante pela inatividade:
 

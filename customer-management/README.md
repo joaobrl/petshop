@@ -37,6 +37,7 @@ Login, "esqueci a senha" e troca de senha não existem mais aqui (SDD-024 F3): s
 | `GET` | `/find/customer/{id}` | Autenticado (dono ou staff) | Busca cliente por id **ou CPF** — tenta como UUID primeiro, cai pra CPF se não achar |
 | `PATCH` | `/update/customer/{id}` | Autenticado | Atualiza cliente |
 | `DELETE` | `/delete/customer/{id}` | Autenticado | Desativa o cliente (soft-delete) e desabilita o usuário no Keycloak |
+| `PATCH` | `/reactivate/customer/{id}` | `ADMIN` | Reativa o cliente (`enabled=true`, `200` com o cliente) e reabilita o usuário no Keycloak; idempotente se já estiver ativo; `404` se não existir; falha no Keycloak desfaz a reativação local |
 | `PATCH` | `/register/{customerId}/pet` | Autenticado | Adiciona pet(s) ao cliente |
 | `GET` | `/list/pets` | `ADMIN`/`RECEPTIONIST` | Lista pets paginados (filtro opcional por header `typePets`, aplicado antes da paginação) — ver [Paginação de pets](#paginação-de-pets) |
 | `GET` | `/{customerId}/pets` | Autenticado (dono ou staff) | Lista pets paginados de um cliente; `404` se o cliente não existir — ver [Paginação de pets](#paginação-de-pets) |
@@ -72,7 +73,7 @@ Resource Server (SDD-024): valida o access token do Keycloak via JWKS (`iss`, `e
 
 - **Cadastro de cliente**: credencial = senha escolhida (`temporary=false`), `emailVerified=false`. O usuário é criado no Keycloak dentro da transação local: falha no Keycloak desfaz o cadastro local; falha no commit depois de criar no Keycloak remove o usuário de lá (compensação). E-mail já usado no Keycloak → 409.
 - **Funcionário** (`POST /staff/create`): sem senha; o Keycloak envia o e-mail de ação `UPDATE_PASSWORD` (SMTP do realm). Falha de SMTP não desfaz o cadastro (o funcionário pode usar "Esqueci a senha" no login).
-- **Atualização** de cliente/funcionário sincroniza nome, e-mail, telefone e papel; **desativação** desabilita o usuário e encerra as sessões (CA4); **reativação** de funcionário reabilita.
+- **Atualização** de cliente/funcionário sincroniza nome, e-mail, telefone e papel; **desativação** desabilita o usuário e encerra as sessões (CA4); **reativação** de funcionário e de cliente reabilita.
 - **Verificação de e-mail** (SDD-020): ao confirmar, `emailVerified=true` no Keycloak.
 
 ### Admin de bootstrap

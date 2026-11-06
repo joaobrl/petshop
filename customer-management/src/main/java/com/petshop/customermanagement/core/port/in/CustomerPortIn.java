@@ -34,6 +34,8 @@ public interface CustomerPortIn {
 
     Customer deleteCustomer(UUID id);
 
+    Customer reactivateCustomer(UUID id);
+
     Page<Pet> listPets(PetType type, Pageable pageable);
 
     Page<Pet> listPetsOfCustomer(UUID customerId, Pageable pageable);

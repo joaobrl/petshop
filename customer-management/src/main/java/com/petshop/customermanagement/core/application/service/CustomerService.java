@@ -121,6 +121,18 @@ public class CustomerService implements CustomerPortIn {
     }
 
     @Override
+    @Transactional
+    public Customer reactivateCustomer(UUID id) {
+        var customer = findCustomer(id);
+        customer.setEnabled(true);
+        var saved = customerPortOut.save(customer);
+        // Falha no Keycloak propaga e desfaz a reativação local (mesmo comportamento da desativação).
+        identityProviderPortOut.setEnabled(id, true);
+        log.info("Customer with ID {} reactivated.", id);
+        return saved;
+    }
+
+    @Override
     public Page<Pet> listPets(PetType type, Pageable pageable) {
         return customerPortOut.findPets(type, pageable);
     }

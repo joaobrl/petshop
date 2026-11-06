@@ -69,6 +69,11 @@ public class CustomerControllerImpl implements CustomerController{
     }
 
     @Override
+    public ResponseEntity<CustomerResponseDto> reactivateCustomer(UUID id) {
+        return ResponseEntity.ok(new CustomerResponseDto(portIn.reactivateCustomer(id)));
+    }
+
+    @Override
     public ResponseEntity<CustomerResponseDto> addPetToCustomer(UUID customerId, List<PetRequestDto> pets, AuthenticatedUser user) {
         customerIdentityResolver.requireOwnershipIfCustomer(customerId, user);
 

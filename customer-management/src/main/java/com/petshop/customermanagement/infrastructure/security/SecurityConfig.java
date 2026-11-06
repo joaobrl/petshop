@@ -85,6 +85,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/customers/find/customer/**").access(PetshopAuthorization.anyUser())
                         .requestMatchers("/api/v1/customers/update/customer/**").access(PetshopAuthorization.anyUser())
                         .requestMatchers("/api/v1/customers/delete/customer/**").access(PetshopAuthorization.anyUser())
+                        .requestMatchers("/api/v1/customers/reactivate/customer/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/customers/register/*/pet").access(PetshopAuthorization.anyUser())
                         .requestMatchers("/api/v1/customers/*/pets/**").access(PetshopAuthorization.anyUser())
                         .requestMatchers("/api/v1/history/bookings").hasAnyRole("ADMIN", "RECEPTIONIST")

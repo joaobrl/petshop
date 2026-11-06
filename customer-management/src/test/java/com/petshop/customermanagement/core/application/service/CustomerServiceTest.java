@@ -31,6 +31,7 @@ import com.petshop.commons.security.Role;
 import com.petshop.customermanagement.core.port.out.dto.IdentityUser;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -300,6 +301,70 @@ class CustomerServiceTest {
 
             assertThatThrownBy(() -> customerService.deleteCustomer(id))
                     .isInstanceOf(NotFoundException.class);
+        }
+    }
+
+    @Nested
+    class ReactivateCustomer {
+
+        @Test
+        @DisplayName("Deve reativar o cliente, salvar e reabilitar no Keycloak quando ele existir")
+        void shouldReactivateCustomerWhenFound() {
+            var customer = sampleCustomer();
+            customer.setEnabled(false);
+            var id = customer.getId();
+            given(customerPortOut.findById(id)).willReturn(Optional.of(customer));
+            given(customerPortOut.save(customer)).willReturn(customer);
+
+            var result = customerService.reactivateCustomer(id);
+
+            assertThat(result).isSameAs(customer);
+            assertThat(result.getEnabled()).isTrue();
+            then(customerPortOut).should().save(customer);
+            then(identityProviderPortOut).should().setEnabled(id, true);
+        }
+
+        @Test
+        @DisplayName("Deve lançar NotFoundException sem salvar nem chamar o Keycloak quando o cliente não existir")
+        void shouldThrowNotFoundWhenCustomerMissing() {
+            var id = UUID.randomUUID();
+            given(customerPortOut.findById(id)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> customerService.reactivateCustomer(id))
+                    .isInstanceOf(NotFoundException.class);
+
+            then(customerPortOut).should(never()).save(any(Customer.class));
+            then(identityProviderPortOut).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("Deve manter o cliente ativo e repetir o fluxo quando ele já estiver ativo")
+        void shouldKeepCustomerEnabledWhenAlreadyActive() {
+            var customer = sampleCustomer();
+            customer.setEnabled(true);
+            var id = customer.getId();
+            given(customerPortOut.findById(id)).willReturn(Optional.of(customer));
+            given(customerPortOut.save(customer)).willReturn(customer);
+
+            var result = customerService.reactivateCustomer(id);
+
+            assertThat(result.getEnabled()).isTrue();
+            then(customerPortOut).should().save(customer);
+            then(identityProviderPortOut).should().setEnabled(id, true);
+        }
+
+        @Test
+        @DisplayName("Deve propagar a exceção quando o Keycloak falhar ao reabilitar o usuário")
+        void shouldPropagateExceptionWhenIdentityProviderFails() {
+            var customer = sampleCustomer();
+            customer.setEnabled(false);
+            var id = customer.getId();
+            given(customerPortOut.findById(id)).willReturn(Optional.of(customer));
+            given(customerPortOut.save(customer)).willReturn(customer);
+            willThrow(new IllegalStateException("keycloak")).given(identityProviderPortOut).setEnabled(id, true);
+
+            assertThatThrownBy(() -> customerService.reactivateCustomer(id))
+                    .isInstanceOf(IllegalStateException.class);
         }
     }
 
