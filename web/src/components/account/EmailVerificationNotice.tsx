@@ -29,33 +29,16 @@ export function EmailVerificationNotice() {
   }
 
   return (
-    <div
-      role="status"
-      style={{
-        background: "var(--warning-tint)",
-        color: "var(--ink)",
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <div
-        className="container"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "var(--space-3)",
-          padding: "var(--space-3) var(--space-6)",
-        }}
-      >
-        <p className="caption" style={{ margin: 0 }}>
+    <div className="verify-strip" role="status">
+      <div className="container verify-strip-inner">
+        <p>
           {status === "sent"
             ? `Enviamos um novo link de confirmação para ${user?.email}.`
             : "Confirme seu e-mail para fechar pedidos e agendamentos. Verifique sua caixa de entrada."}
-          {error && <span style={{ color: "var(--danger)", marginLeft: "var(--space-2)" }}>{error}</span>}
+          {error && <span className="verify-strip-error"> {error}</span>}
         </p>
         {status !== "sent" && (
-          <Button variant="outline" size="sm" type="button" onClick={handleResend} disabled={status === "sending"}>
+          <Button variant="outline" size="sm" onClick={handleResend} disabled={status === "sending"}>
             {status === "sending" ? "Enviando…" : "Reenviar e-mail"}
           </Button>
         )}

@@ -1,34 +1,79 @@
+/*
+ * Design tokens — "lojinha de bairro".
+ * The palette starts from the logo (caramel paw + navy W) and borrows the
+ * rest from things you find inside a petshop: kraft paper tags, bath water,
+ * a pink snout, the grass outside.
+ */
 :root {
-  --surface: #fbf3e6;
-  --surface-raised: #fffbf3;
-  --ink: #052032;
-  --ink-muted: #51606b;
-  --border: #ede0cb;
+  /* paper */
+  --surface: #fff7ea;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f8ecd6;
+  --kraft: #ecdcbd;
+  --kraft-deep: #cdb284;
+  --border: #eadcc2;
+  --border-strong: #d5c3a1;
 
+  /* ink */
+  --ink: #0b2233;
+  --ink-muted: #52616c;
+  --ink-soft: #8493a0;
+
+  /* brand */
   --primary: #f5993a;
-  --primary-tint: #fde7ce;
+  --primary-deep: #d9761b;
+  --primary-ink: #9c4d09; /* caramel that is still readable as small text */
+  --primary-tint: #fde5c6;
   --secondary: #0e3c56;
   --secondary-tint: #dce7ec;
 
-  --success: #1f6f6b;
-  --success-tint: #dceeea;
-  --warning: #a5730a;
-  --warning-tint: #f2e4c4;
-  --danger: #b23a2e;
-  --danger-tint: #f5dcd8;
+  /* shop colours */
+  --snout: #f2ad9b;
+  --snout-tint: #fce5dd;
+  --grass: #2f6f57;
+  --grass-tint: #dcebdc;
+  --bath: #7dbccf;
+  --bath-tint: #dff0f5;
 
+  /* status */
+  --success: #1f6f5b;
+  --success-tint: #dcefe6;
+  --warning: #8f6207;
+  --warning-tint: #f8e7bd;
+  --danger: #b23a2e;
+  --danger-tint: #f8dcd7;
+
+  /* spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
 
-  --radius-sm: 8px;
-  --radius-md: 16px;
+  /* shape — slightly uneven corners, as if cut by hand */
+  --radius-sm: 12px;
+  --radius-md: 18px;
   --radius-lg: 28px;
   --radius-full: 999px;
+  --radius-card: 22px 28px 20px 26px;
+  --radius-tile: 16px 20px 14px 18px;
 
-  --font-display: "Fredoka", system-ui, sans-serif;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --shadow-sm: 0 1px 0 rgba(11, 34, 51, 0.04), 0 6px 16px -8px rgba(11, 34, 51, 0.18);
+  --shadow-md: 0 2px 0 rgba(11, 34, 51, 0.04), 0 18px 32px -16px rgba(11, 34, 51, 0.28);
+  --shadow-photo: 0 1px 2px rgba(11, 34, 51, 0.12), 0 14px 24px -12px rgba(11, 34, 51, 0.35);
+
+  /* type */
+  --font-display: "Young Serif", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-hand: "Shantell Sans", "Segoe Print", "Comic Sans MS", cursive;
+  --font-mono: "Courier Prime", ui-monospace, "Courier New", monospace;
+
+  --container: 1240px;
+  --gutter: clamp(16px, 4vw, 40px);
+  --header-h: 68px;
 }

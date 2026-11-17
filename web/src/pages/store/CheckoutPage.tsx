@@ -1,13 +1,19 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import * as orderService from "../../services/orderService";
 import { ApiError } from "../../services/http";
 import { Button } from "../../components/ui/Button";
-import { SelectField } from "../../components/ui/Field";
+import { EmptyState, Notice, PageHeader } from "../../components/ui/Feedback";
+import { PinIcon } from "../../components/ui/Icon";
 import { formatCurrency } from "../../utils/format";
 
+const PAYMENT_OPTIONS = [
+  { value: "PIX", label: "Pix", sub: "Na hora, pelo celular" },
+  { value: "CARTAO", label: "Cartão", sub: "Crédito ou débito" },
+  { value: "DINHEIRO", label: "Dinheiro", sub: "Paga na retirada" },
+];
 
 export function CheckoutPage() {
   const { cart, refresh } = useCart();
@@ -27,7 +33,16 @@ export function CheckoutPage() {
   );
 
   if (!cart || items.length === 0) {
-    return <p className="body">Nenhum item selecionado — volte ao carrinho para escolher o que comprar.</p>;
+    return (
+      <div className="container page">
+        <EmptyState title="Nenhum item selecionado" note="o balcão está esperando">
+          <p className="muted">Volte ao carrinho para escolher o que comprar.</p>
+          <Link to="/carrinho" className="btn btn-primary">
+            Ir para o carrinho
+          </Link>
+        </EmptyState>
+      </div>
+    );
   }
 
   const total = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -37,7 +52,10 @@ export function CheckoutPage() {
     setPlacing(true);
     setErrors([]);
     try {
-      const order = await orderService.checkout(user.id, items.map((item) => item.productId));
+      const order = await orderService.checkout(
+        user.id,
+        items.map((item) => item.productId),
+      );
       orderService.trackOrderId(order.id);
       await refresh();
       navigate(`/pedido/${order.id}`);
@@ -50,62 +68,83 @@ export function CheckoutPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)", maxWidth: 520 }}>
-      <h1 className="title">Checkout</h1>
+    <div className="container page">
+      <PageHeader eyebrow="último passo" title="Fechar o pedido" />
 
-      <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <span className="label" style={{ color: "var(--ink-muted)" }}>
-          Retirada
-        </span>
-        <p className="body" style={{ margin: 0 }}>
-          {user?.name} — retirada na loja, Rua das Patinhas, 123
-        </p>
-      </div>
-
-      <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        <span className="label" style={{ color: "var(--ink-muted)" }}>
-          Resumo do pedido
-        </span>
-        {items.map((item) => (
-          <div key={item.productId} style={{ display: "flex", justifyContent: "space-between" }}>
-            <span className="body">
-              {item.quantity}× {item.productName}
+      <div className="split">
+        <div className="stack" style={{ "--gap": "var(--space-8)" } as React.CSSProperties}>
+          <section className="card pickup">
+            <span className="pickup-pin">
+              <PinIcon size={26} />
             </span>
-            <span className="body">{formatCurrency(item.subtotal)}</span>
-          </div>
-        ))}
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-2)", display: "flex", justifyContent: "space-between" }}>
-          <span className="heading">Total</span>
-          <span className="heading">{formatCurrency(total)}</span>
+            <div>
+              <h2 className="heading">Retirada no balcão</h2>
+              <p className="muted" style={{ marginTop: 4 }}>
+                {user?.name} retira na loja — Rua das Patinhas, 123. Avisamos por e-mail quando estiver pronto.
+              </p>
+            </div>
+          </section>
+
+          <fieldset className="fieldset">
+            <legend>Como você prefere pagar?</legend>
+            <div className="choices" style={{ "--choice-min": "170px" } as React.CSSProperties}>
+              {PAYMENT_OPTIONS.map((option) => (
+                <label key={option.value} className="choice choice-col">
+                  <input
+                    type="radio"
+                    name="payment"
+                    value={option.value}
+                    checked={paymentMethod === option.value}
+                    onChange={() => setPaymentMethod(option.value)}
+                  />
+                  <span className="choice-title">{option.label}</span>
+                  <span className="choice-sub">{option.sub}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ marginTop: "var(--space-4)" }}>
+              <Notice tone="muted">
+                Pagamento simulado — o checkout real não recebe forma de pagamento; o pedido só fica em "aguardando
+                pagamento". O estoque fica reservado por 30 minutos; os itens não selecionados continuam no carrinho.
+              </Notice>
+            </div>
+          </fieldset>
+
+          {errors.length > 0 && (
+            <Notice tone="danger">
+              <ul>
+                {errors.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
         </div>
+
+        <aside className="split-aside receipt-wrap" aria-label="Resumo do pedido">
+          <div className="receipt">
+            <div className="receipt-head">
+              <strong>Resumo do pedido</strong>
+              {user?.name}
+            </div>
+            {items.map((item) => (
+              <div key={item.productId} className="receipt-line">
+                <span>
+                  {item.quantity}x {item.productName}
+                </span>
+                <span>{formatCurrency(item.subtotal)}</span>
+              </div>
+            ))}
+            <div className="receipt-line receipt-total">
+              <span>Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
+            <Button variant="primary" size="lg" block disabled={placing} onClick={handleConfirm}>
+              {placing ? "Confirmando…" : "Confirmar pedido"}
+            </Button>
+          </div>
+        </aside>
       </div>
-
-      <SelectField
-        label="Forma de pagamento (simulado)"
-        value={paymentMethod}
-        onChange={(e) => setPaymentMethod(e.target.value)}
-      >
-        <option value="PIX">Pix</option>
-        <option value="CARTAO">Cartão</option>
-        <option value="DINHEIRO">Dinheiro na retirada</option>
-      </SelectField>
-
-      {errors.length > 0 && (
-        <ul className="body" style={{ color: "var(--danger)", margin: 0, paddingLeft: "var(--space-4)" }}>
-          {errors.map((message) => (
-            <li key={message}>{message}</li>
-          ))}
-        </ul>
-      )}
-
-      <Button variant="primary" disabled={placing} onClick={handleConfirm}>
-        {placing ? "Confirmando…" : "Confirmar pedido"}
-      </Button>
-      <p className="caption" style={{ color: "var(--ink-muted)" }}>
-        Pagamento simulado — o checkout real não recebe forma de pagamento; o pedido só fica em
-        "aguardando pagamento". O estoque fica reservado por 30 minutos; os itens não selecionados
-        continuam no carrinho.
-      </p>
     </div>
   );
 }

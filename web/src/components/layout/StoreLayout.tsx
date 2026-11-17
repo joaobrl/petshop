@@ -5,10 +5,11 @@ import { EmailVerificationNotice } from "../account/EmailVerificationNotice";
 
 export function StoreLayout() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
+    <div className="store">
+      <div className="awning" aria-hidden="true" />
       <Header />
       <EmailVerificationNotice />
-      <main className="container" style={{ flex: 1, padding: "var(--space-8) var(--space-6)" }}>
+      <main className="store-main">
         <Outlet />
       </main>
       <Footer />

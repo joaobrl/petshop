@@ -5,8 +5,16 @@ import { ApiError } from "../../services/http";
 import { PetAvatar } from "../../components/ui/PetAvatar";
 import { Button } from "../../components/ui/Button";
 import { TextField, SelectField } from "../../components/ui/Field";
+import { EmptyState, Loading, Notice, PageHeader } from "../../components/ui/Feedback";
+import { PlusIcon } from "../../components/ui/Icon";
 import { AVATAR_OPTIONS } from "../../mocks/avatarOptions";
 import type { Customer, PetType, SizeCategory } from "../../types/customer";
+
+const SIZE_LABEL: Record<SizeCategory, string> = {
+  SMALL: "Pequeno",
+  MEDIUM: "Médio",
+  LARGE: "Grande",
+};
 
 export function MyPetsPage() {
   const { user } = useAuth();
@@ -57,107 +65,131 @@ export function MyPetsPage() {
     }
   }
 
-  if (!customer) return <p className="body">Carregando…</p>;
+  if (!customer) {
+    return (
+      <div className="container page">
+        <Loading>Chamando a turma…</Loading>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)", maxWidth: 560 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="title">Meus pets</h1>
-        <Button variant="outline" size="sm" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "Cancelar" : "Adicionar pet"}
-        </Button>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        {customer.pets.map((pet) => {
-          const avatar = AVATAR_OPTIONS.find((a) => a.label === pet.petBreed);
-          return (
-            <div key={pet.id} className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-              <PetAvatar name={pet.petName} petType={pet.petType} avatarUrl={avatar?.url} size={56} />
-              <div>
-                <p className="body-strong" style={{ margin: 0 }}>
-                  {pet.petName}
-                </p>
-                <p className="caption" style={{ margin: "4px 0 0", color: "var(--ink-muted)" }}>
-                  {pet.petBreed} · {pet.weightInKg}kg
-                  {pet.petHealthIssues ? ` · ${pet.petHealthIssues}` : ""}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-        {customer.pets.length === 0 && <p className="body">Nenhum pet cadastrado ainda.</p>}
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <span className="heading">Novo pet</span>
-
-          <div>
-            <span className="label" style={{ color: "var(--ink-muted)" }}>
-              Escolha o avatar
-            </span>
-            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginTop: "var(--space-2)" }}>
-              {AVATAR_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setAvatarId(option.id)}
-                  title={option.label}
-                  style={{
-                    padding: 0,
-                    border: "none",
-                    background: "none",
-                    cursor: "pointer",
-                    borderRadius: "var(--radius-full)",
-                    outline: avatarId === option.id ? "3px solid var(--secondary)" : "none",
-                    outlineOffset: 2,
-                  }}
-                >
-                  <img
-                    src={option.url}
-                    alt={option.label}
-                    style={{ width: 48, height: 48, borderRadius: "var(--radius-full)", objectFit: "cover" }}
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <TextField label="Nome do pet" value={name} onChange={(e) => setName(e.target.value)} required />
-
-          <SelectField label="Porte" value={size} onChange={(e) => setSize(e.target.value as SizeCategory)}>
-            <option value="SMALL">Pequeno</option>
-            <option value="MEDIUM">Médio</option>
-            <option value="LARGE">Grande</option>
-          </SelectField>
-
-          <TextField
-            label="Peso (kg)"
-            type="number"
-            step="0.1"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-          />
-
-          <TextField
-            label="Observações de saúde"
-            value={healthIssues}
-            onChange={(e) => setHealthIssues(e.target.value)}
-            hint="Alergias, restrições ou cuidados especiais — opcional."
-          />
-
-          {error && (
-            <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-              {error}
-            </p>
+    <div className="container page">
+      <PageHeader eyebrow="a turma lá de casa" title="Meus pets">
+        <Button variant={showForm ? "outline" : "primary"} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? (
+            "Cancelar"
+          ) : (
+            <>
+              <PlusIcon size={18} />
+              Adicionar pet
+            </>
           )}
+        </Button>
+      </PageHeader>
 
-          <Button variant="primary" type="submit" disabled={saving}>
-            {saving ? "Salvando…" : "Salvar pet"}
-          </Button>
-        </form>
-      )}
+      <div className="stack" style={{ "--gap": "var(--space-8)" } as React.CSSProperties}>
+        {showForm && (
+          <form onSubmit={handleSubmit} className="card form" style={{ maxWidth: 720 }}>
+            <h2 className="heading">Novo pet</h2>
+
+            <fieldset className="fieldset">
+              <legend className="field-label" style={{ fontFamily: "var(--font-sans)", fontSize: "0.9rem" }}>
+                Com quem ele se parece?
+              </legend>
+              <div className="avatar-picker">
+                {AVATAR_OPTIONS.map((option) => (
+                  <label key={option.id} className="avatar-option">
+                    <input
+                      type="radio"
+                      name="avatar"
+                      value={option.id}
+                      checked={avatarId === option.id}
+                      onChange={() => setAvatarId(option.id)}
+                    />
+                    <img src={option.url} alt="" width={56} height={56} loading="lazy" />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <TextField label="Nome do pet" value={name} onChange={(e) => setName(e.target.value)} required />
+
+            <div className="field-row">
+              <SelectField label="Porte" value={size} onChange={(e) => setSize(e.target.value as SizeCategory)}>
+                <option value="SMALL">Pequeno</option>
+                <option value="MEDIUM">Médio</option>
+                <option value="LARGE">Grande</option>
+              </SelectField>
+
+              <TextField
+                label="Peso (kg)"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+              />
+            </div>
+
+            <TextField
+              label="Observações de saúde"
+              value={healthIssues}
+              onChange={(e) => setHealthIssues(e.target.value)}
+              hint="Alergias, restrições ou cuidados especiais — opcional."
+            />
+
+            {error && <Notice tone="danger">{error}</Notice>}
+
+            <div>
+              <Button variant="primary" type="submit" disabled={saving}>
+                {saving ? "Salvando…" : "Salvar pet"}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {customer.pets.length === 0 ? (
+          !showForm && (
+            <EmptyState title="Nenhum pet cadastrado ainda" note="quem vai ser o primeiro?">
+              <Button variant="primary" onClick={() => setShowForm(true)}>
+                Cadastrar meu pet
+              </Button>
+            </EmptyState>
+          )
+        ) : (
+          <ul className="pet-grid">
+            {customer.pets.map((pet) => {
+              const avatar = AVATAR_OPTIONS.find((a) => a.label === pet.petBreed);
+              return (
+                <li key={pet.id} className="pet-card">
+                  <PetAvatar name={pet.petName} petType={pet.petType} avatarUrl={avatar?.url} size={76} />
+                  <div style={{ minWidth: 0 }}>
+                    <p className="pet-card-name">{pet.petName}</p>
+                    <dl>
+                      <div>
+                        <dt>Raça</dt>
+                        <dd>{pet.petBreed}</dd>
+                      </div>
+                      <div>
+                        <dt>Porte</dt>
+                        <dd>{SIZE_LABEL[pet.petSize] ?? pet.petSize}</dd>
+                      </div>
+                      <div>
+                        <dt>Peso</dt>
+                        <dd>{pet.weightInKg} kg</dd>
+                      </div>
+                    </dl>
+                    {pet.petHealthIssues && <p className="pet-card-note">obs.: {pet.petHealthIssues}</p>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

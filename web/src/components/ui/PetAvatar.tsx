@@ -12,17 +12,5 @@ interface PetAvatarProps {
 
 export function PetAvatar({ name, petType, avatarUrl, size = 72 }: PetAvatarProps) {
   const src = avatarUrl ?? FALLBACK_BY_TYPE[petType];
-  return (
-    <img
-      src={src}
-      alt={name}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "var(--radius-full)",
-        objectFit: "cover",
-        boxShadow: "0 0 0 3px var(--surface-raised), 0 0 0 4px var(--border)",
-      }}
-    />
-  );
+  return <img className="pet-avatar" src={src} alt={name} width={size} height={size} loading="lazy" />;
 }

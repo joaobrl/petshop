@@ -1,65 +1,58 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { Logo } from "../ui/Logo";
+import { Link, NavLink, Outlet } from "react-router-dom";
+import { Brand } from "../ui/Logo";
+import { CalendarIcon, CartIcon, HomeIcon, LogoutIcon, UsersIcon } from "../ui/Icon";
 import { useAuth } from "../../context/AuthContext";
 import { ROLE_LABEL } from "../../types/staff";
 import { ACCOUNT_CONSOLE_URL } from "../../services/oidc";
 
-const linkStyle = ({ isActive }: { isActive: boolean }) => ({
-  display: "block",
-  padding: "var(--space-2) var(--space-3)",
-  borderRadius: "var(--radius-sm)",
-  textDecoration: "none",
-  fontFamily: "var(--font-sans)",
-  fontWeight: 600,
-  fontSize: 14,
-  color: isActive ? "var(--ink)" : "var(--ink-muted)",
-  background: isActive ? "var(--secondary-tint)" : "transparent",
-});
-
 export function InternalLayout() {
-  const { role, logout } = useAuth();
+  const { role, user, logout } = useAuth();
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", minHeight: "100%" }}>
-      <aside
-        style={{
-          background: "var(--surface-raised)",
-          borderRight: "1px solid var(--border)",
-          padding: "var(--space-6) var(--space-4)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-6)",
-        }}
-      >
-        <Logo height={32} />
-        <nav style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
-          <NavLink to="/interno" style={linkStyle} end>
+    <div className="internal">
+      <aside className="internal-side">
+        <Link to="/interno" aria-label="Painel interno" style={{ textDecoration: "none" }}>
+          <Brand light />
+        </Link>
+        <nav className="internal-nav" aria-label="Painel interno">
+          <NavLink to="/interno" className="internal-link" end>
+            <HomeIcon size={20} />
             Painel
           </NavLink>
-          <NavLink to="/interno/pedidos" style={linkStyle}>
+          <NavLink to="/interno/pedidos" className="internal-link">
+            <CartIcon size={20} />
             Pedidos
           </NavLink>
-          <NavLink to="/interno/agendamentos" style={linkStyle}>
+          <NavLink to="/interno/agendamentos" className="internal-link">
+            <CalendarIcon size={20} />
             Agendamentos
           </NavLink>
-          <NavLink to="/interno/equipe" style={linkStyle}>
+          <NavLink to="/interno/equipe" className="internal-link">
+            <UsersIcon size={20} />
             Equipe
           </NavLink>
         </nav>
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <span className="caption" style={{ color: "var(--ink-muted)" }}>
-            Logado como {role ? ROLE_LABEL[role] : ""}
+        <div className="internal-user">
+          <span className="internal-user-text">
+            <strong>{user?.name ?? "Equipe"}</strong>
+            {role ? ROLE_LABEL[role] : ""}
+            {/* Dados, senha e sessões: Account Console do Keycloak (SDD-024 F3). */}
+            <a href={ACCOUNT_CONSOLE_URL} className="internal-account">
+              Minha conta / alterar senha
+            </a>
           </span>
-          {/* Dados, senha e sessões: Account Console do Keycloak (SDD-024 F3). */}
-          <a href={ACCOUNT_CONSOLE_URL} className="caption">
-            Minha conta / alterar senha
-          </a>
-          <button className="btn btn-outline btn-sm" onClick={() => void logout()}>
-            Sair
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Sair"
+            title="Sair"
+            onClick={() => void logout()}
+          >
+            <LogoutIcon />
           </button>
         </div>
       </aside>
-      <main style={{ padding: "var(--space-8) var(--space-6)" }}>
+      <main className="internal-main">
         <Outlet />
       </main>
     </div>

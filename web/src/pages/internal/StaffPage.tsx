@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import * as staffService from "../../services/staffService";
 import { ApiError } from "../../services/http";
 import { ROLE_LABEL } from "../../types/staff";
@@ -6,6 +7,8 @@ import type { Staff, WeekendAllocation } from "../../types/staff";
 import { InitialsAvatar } from "../../components/ui/InitialsAvatar";
 import { TextField } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
+import { Loading, Notice, PageHeader } from "../../components/ui/Feedback";
+import { formatDate } from "../../utils/date";
 
 export function StaffPage() {
   const [staff, setStaff] = useState<Staff[] | null>(null);
@@ -17,16 +20,19 @@ export function StaffPage() {
   const [loadingAllocation, setLoadingAllocation] = useState(false);
 
   useEffect(() => {
-    staffService.listStaff().then(setStaff).catch((err) => {
-      // customer-management restricts GET /staff/all to ADMIN (or the
-      // internal SERVICE token) — any other role gets a 401/403 here, with
-      // no ProblemDetail body to read a message from.
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        setStaffError("Só uma conta de administrador pode ver a lista de equipe.");
-        return;
-      }
-      setStaffError(err instanceof ApiError ? err.message : "Não foi possível carregar a equipe.");
-    });
+    staffService
+      .listStaff()
+      .then(setStaff)
+      .catch((err) => {
+        // customer-management restricts GET /staff/all to ADMIN (or the
+        // internal SERVICE token) — any other role gets a 401/403 here, with
+        // no ProblemDetail body to read a message from.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          setStaffError("Só uma conta de administrador pode ver a lista de equipe.");
+          return;
+        }
+        setStaffError(err instanceof ApiError ? err.message : "Não foi possível carregar a equipe.");
+      });
   }, []);
 
   async function handleCheckAllocation(e: React.FormEvent) {
@@ -47,40 +53,32 @@ export function StaffPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-      <div>
-        <h1 className="title" style={{ marginBottom: "var(--space-4)" }}>
-          Equipe
-        </h1>
-        {staffError && (
-          <p className="body" style={{ color: "var(--danger)" }}>
-            {staffError}
-          </p>
+    <div className="stack" style={{ "--gap": "var(--space-10)" } as CSSProperties}>
+      <section>
+        <PageHeader eyebrow="quem cuida da casa" title="Equipe" />
+        {staffError && <Notice tone="danger">{staffError}</Notice>}
+        {staff === null && !staffError && <Loading>Chamando a equipe…</Loading>}
+        {staff && (
+          <ul className="list">
+            {staff.map((person) => (
+              <li key={person.id} className="list-row">
+                <InitialsAvatar name={person.name} size={48} />
+                <div className="list-row-main">
+                  <p className="list-row-title">{person.name}</p>
+                  <p className="list-row-sub">
+                    {ROLE_LABEL[person.role]} · {person.email}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
-        {staff === null && !staffError && <p className="body">Carregando…</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          {staff?.map((person) => (
-            <div key={person.id} className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-              <InitialsAvatar name={person.name} size={40} />
-              <div>
-                <p className="body-strong" style={{ margin: 0 }}>
-                  {person.name}
-                </p>
-                <p className="caption" style={{ margin: "4px 0 0", color: "var(--ink-muted)" }}>
-                  {ROLE_LABEL[person.role]} · {person.email}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
 
-      <div>
-        <h2 className="heading" style={{ marginBottom: "var(--space-4)" }}>
-          Escala de sábado/domingo
-        </h2>
-        <form onSubmit={handleCheckAllocation} style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end", marginBottom: "var(--space-4)" }}>
-          <div style={{ flex: 1, maxWidth: 220 }}>
+      <section className="stack">
+        <h2 className="heading">Escala de sábado/domingo</h2>
+        <form onSubmit={handleCheckAllocation} className="row row-wrap" style={{ alignItems: "flex-end" }}>
+          <div style={{ flex: "0 1 220px" }}>
             <TextField label="Data" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <Button variant="outline" type="submit" disabled={loadingAllocation}>
@@ -88,25 +86,22 @@ export function StaffPage() {
           </Button>
         </form>
 
-        {allocationError && (
-          <p className="body" style={{ color: "var(--danger)" }}>
-            {allocationError}
-          </p>
+        {allocationError && <Notice tone="danger">{allocationError}</Notice>}
+        {allocations?.length === 0 && <Notice tone="muted">Nenhuma escala para essa data.</Notice>}
+        {allocations && allocations.length > 0 && (
+          <ul className="list">
+            {allocations.map((allocation) => (
+              <li key={allocation.staffId + allocation.allocationDate} className="list-row">
+                <InitialsAvatar name={allocation.staffName} size={40} />
+                <div className="list-row-main">
+                  <p className="list-row-title">{allocation.staffName}</p>
+                </div>
+                <span className="mono body-strong">{formatDate(`${allocation.allocationDate}T00:00:00`)}</span>
+              </li>
+            ))}
+          </ul>
         )}
-        {allocations?.length === 0 && <p className="body">Nenhuma escala para essa data.</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {allocations?.map((allocation) => (
-            <div
-              key={allocation.staffId + allocation.allocationDate}
-              className="card"
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-            >
-              <span className="body">{allocation.allocationDate}</span>
-              <span className="body-strong">{allocation.staffName}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

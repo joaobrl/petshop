@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Product } from "../../types/product";
-import { Button } from "../ui/Button";
 import { StockBadge } from "./StockBadge";
+import { ProductArt } from "./ProductArt";
+import { CheckIcon, PlusIcon } from "../ui/Icon";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { ApiError } from "../../services/http";
@@ -13,7 +14,15 @@ export function ProductCard({ product }: { product: Product }) {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The "added" tick is a brief confirmation, then the button is a plus again.
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, [added]);
 
   async function handleAdd() {
     if (!isAuthenticated) {
@@ -24,6 +33,7 @@ export function ProductCard({ product }: { product: Product }) {
     setError(null);
     try {
       await addItem(product.id, 1);
+      setAdded(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Não foi possível adicionar ao carrinho.");
     } finally {
@@ -32,52 +42,36 @@ export function ProductCard({ product }: { product: Product }) {
   }
 
   return (
-    <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-      <Link to={`/produtos/${product.id}`} style={{ textDecoration: "none" }}>
-        <div
-          style={{
-            background: "var(--primary-tint)",
-            borderRadius: "var(--radius-sm)",
-            height: 140,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--ink-muted)",
-          }}
-          className="caption"
-        >
-          foto do produto
-        </div>
+    <article className="product-card">
+      <Link to={`/produtos/${product.id}`} className="product-art-link" tabIndex={-1} aria-hidden="true">
+        <ProductArt name={product.name} seed={product.id} out={!product.inStock} />
       </Link>
-      <div>
-        <Link to={`/produtos/${product.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-          <h3
-            className="heading"
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
+      <div className="product-body">
+        <h3 className="product-name">
+          <Link to={`/produtos/${product.id}`}>{product.name}</Link>
+        </h3>
+        <div>
+          <StockBadge stockRange={product.stockRange} />
+        </div>
+        <div className="product-foot">
+          <span className="price-tag">{formatCurrency(product.price)}</span>
+          <button
+            type="button"
+            className={added ? "add-btn is-done" : "add-btn"}
+            disabled={adding || !product.inStock}
+            onClick={handleAdd}
+            aria-label={added ? `${product.name} adicionado ao carrinho` : `Adicionar ${product.name} ao carrinho`}
+            title={product.inStock ? "Adicionar ao carrinho" : "Sem estoque"}
           >
-            {product.name}
-          </h3>
-        </Link>
+            {added ? <CheckIcon size={20} /> : <PlusIcon size={20} />}
+          </button>
+        </div>
+        {error && (
+          <p className="product-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
-      <p className="body-strong">
-        {formatCurrency(product.price)}
-      </p>
-      <div>
-        <StockBadge stockRange={product.stockRange} />
-      </div>
-      <Button variant="primary" disabled={adding || !product.inStock} onClick={handleAdd}>
-        {adding ? "Adicionando…" : "Adicionar ao carrinho"}
-      </Button>
-      {error && (
-        <p className="caption" style={{ color: "var(--danger)", margin: 0 }}>
-          {error}
-        </p>
-      )}
-    </div>
+    </article>
   );
 }

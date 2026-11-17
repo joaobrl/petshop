@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
 import { Button } from "../../components/ui/Button";
-import { PawBackground } from "../../components/ui/PawBackground";
+import { EmptyState, Loading, Notice, PageHeader } from "../../components/ui/Feedback";
+import { PlusIcon, TrashIcon } from "../../components/ui/Icon";
+import { ProductArt } from "../../components/store/ProductArt";
 import { formatCurrency } from "../../utils/format";
-
 
 export function CartPage() {
   const { cart, loading, addItem, removeItem } = useCart();
@@ -15,33 +16,35 @@ export function CartPage() {
 
   if (!loading && (!cart || cart.items.length === 0)) {
     return (
-      <PawBackground tint="var(--secondary-tint)">
-        <div style={{ padding: "var(--space-8) var(--space-6)", maxWidth: 320 }}>
-          <p className="heading" style={{ margin: 0 }}>
-            Seu carrinho está vazio
-          </p>
-          <p className="body" style={{ margin: "var(--space-2) 0 0", color: "var(--ink-muted)" }}>
-            Que tal dar uma olhada nos produtos para o seu pet?
-          </p>
+      <div className="container page">
+        <EmptyState title="Seu carrinho está vazio" note="nem um biscoitinho ainda…">
+          <p className="muted">Que tal dar uma olhada nos produtos para o seu pet?</p>
           {cart && cart.removedItems.length > 0 && (
-            <p className="caption" style={{ margin: "var(--space-2) 0 0", color: "var(--ink-muted)" }}>
+            <Notice tone="warning">
               {cart.removedItems.join(", ")} saiu do carrinho porque não está mais à venda.
-            </p>
+            </Notice>
           )}
-          <Link to="/" className="btn btn-primary" style={{ marginTop: "var(--space-4)", textDecoration: "none" }}>
-            Ver catálogo
+          <Link to="/" className="btn btn-primary">
+            Ver a prateleira
           </Link>
-        </div>
-      </PawBackground>
+        </EmptyState>
+      </div>
     );
   }
 
-  if (!cart) return <p className="body">Carregando…</p>;
+  if (!cart) {
+    return (
+      <div className="container page">
+        <Loading>Abrindo o carrinho…</Loading>
+      </div>
+    );
+  }
 
   const selectedItems = cart.items.filter(
     (item) => item.availability !== "UNAVAILABLE" && !unchecked.has(item.productId),
   );
   const selectedTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const partial = selectedItems.length !== cart.items.length;
 
   function toggle(productId: number) {
     setUnchecked((current) => {
@@ -53,95 +56,120 @@ export function CartPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)", maxWidth: 640 }}>
-      <h1 className="title">Carrinho</h1>
+    <div className="container page">
+      <PageHeader eyebrow="quase lá" title="Seu carrinho" />
 
-      {cart.removedItems.length > 0 && (
-        <p className="caption" style={{ margin: 0, color: "var(--ink-muted)" }}>
-          {cart.removedItems.join(", ")} saiu do carrinho porque não está mais à venda.
-        </p>
-      )}
+      <div className="split">
+        <div className="stack">
+          {cart.removedItems.length > 0 && (
+            <Notice tone="warning">
+              {cart.removedItems.join(", ")} saiu do carrinho porque não está mais à venda.
+            </Notice>
+          )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        {cart.items.map((item) => {
-          const unavailable = item.availability === "UNAVAILABLE";
-          const checked = !unavailable && !unchecked.has(item.productId);
-          return (
-            <div key={item.productId} className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-4)",
-                  opacity: unavailable ? 0.5 : 1,
-                  filter: unavailable ? "grayscale(1)" : undefined,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={unavailable}
-                  onChange={() => toggle(item.productId)}
-                  aria-label={`Comprar ${item.productName}`}
-                />
-                <div style={{ flex: 1 }}>
-                  <p className="body-strong" style={{ margin: 0 }}>
-                    {item.productName}
-                  </p>
-                  <p className="caption" style={{ margin: "4px 0 0", color: "var(--ink-muted)" }}>
-                    {formatCurrency(item.unitPrice)} cada · {item.quantity} {item.quantity === 1 ? "unidade" : "unidades"}
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" disabled={unavailable} onClick={() => addItem(item.productId, 1)}>
-                  +1
-                </Button>
-                <p className="body-strong" style={{ width: 90, textAlign: "right", margin: 0 }}>
-                  {formatCurrency(item.subtotal)}
-                </p>
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={() => removeItem(item.productId)}
-                  aria-label="Remover item"
-                >
-                  Remover
-                </button>
-              </div>
-              {item.availability === "LOW" && (
-                <p className="caption" style={{ margin: 0, color: "var(--warning)" }}>
-                  Poucas unidades
-                </p>
-              )}
-              {unavailable && (
-                <p className="caption" style={{ margin: 0, color: "var(--danger)" }}>
-                  Item indisponível
-                </p>
-              )}
+          <ul className="list">
+            {cart.items.map((item) => {
+              const unavailable = item.availability === "UNAVAILABLE";
+              const checked = !unavailable && !unchecked.has(item.productId);
+              return (
+                <li key={item.productId} className={unavailable ? "cart-item is-unavailable" : "cart-item"}>
+                  <input
+                    type="checkbox"
+                    className="check-box"
+                    checked={checked}
+                    disabled={unavailable}
+                    onChange={() => toggle(item.productId)}
+                    aria-label={`Comprar ${item.productName}`}
+                  />
+                  <Link to={`/produtos/${item.productId}`} className="cart-art" tabIndex={-1} aria-hidden="true">
+                    <ProductArt name={item.productName} seed={item.productId} />
+                  </Link>
+                  <div className="cart-info">
+                    <p className="list-row-title">{item.productName}</p>
+                    <p className="list-row-sub">
+                      {formatCurrency(item.unitPrice)} cada · {item.quantity}{" "}
+                      {item.quantity === 1 ? "unidade" : "unidades"}
+                    </p>
+                    {item.availability === "LOW" && (
+                      <p className="cart-flag" style={{ color: "var(--warning)" }}>
+                        Poucas unidades
+                      </p>
+                    )}
+                    {unavailable && (
+                      <p className="cart-flag" style={{ color: "var(--danger)" }}>
+                        Item indisponível
+                      </p>
+                    )}
+                  </div>
+                  <div className="cart-foot">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={unavailable}
+                      onClick={() => addItem(item.productId, 1)}
+                      aria-label={`Adicionar mais uma unidade de ${item.productName}`}
+                    >
+                      <PlusIcon size={16} />1
+                    </Button>
+                    <span className="body-strong mono">{formatCurrency(item.subtotal)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn-danger"
+                    onClick={() => removeItem(item.productId)}
+                    aria-label={`Remover ${item.productName}`}
+                    title="Remover"
+                  >
+                    <TrashIcon size={20} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div>
+            <Button variant="ghost" onClick={() => navigate("/")}>
+              Continuar comprando
+            </Button>
+          </div>
+        </div>
+
+        <aside className="split-aside receipt-wrap" aria-label="Resumo">
+          <div className="receipt">
+            <div className="receipt-head">
+              <strong>WebCommerce PetShop</strong>
+              Rua das Patinhas, 123
             </div>
-          );
-        })}
-      </div>
-
-      <div
-        className="card"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-      >
-        <span className="heading">
-          Total {selectedItems.length !== cart.items.length && <span className="caption">(itens selecionados)</span>}
-        </span>
-        <span className="title">{formatCurrency(selectedTotal)}</span>
-      </div>
-
-      <div style={{ display: "flex", gap: "var(--space-3)" }}>
-        <Button variant="outline" onClick={() => navigate("/")}>
-          Continuar comprando
-        </Button>
-        <Button
-          variant="primary"
-          disabled={selectedItems.length === 0}
-          onClick={() => navigate("/checkout", { state: { productIds: selectedItems.map((item) => item.productId) } })}
-        >
-          Finalizar compra
-        </Button>
+            {selectedItems.length === 0 ? (
+              <p className="receipt-note">Marque ao menos um item para comprar agora.</p>
+            ) : (
+              selectedItems.map((item) => (
+                <div key={item.productId} className="receipt-line">
+                  <span>
+                    {item.quantity}x {item.productName}
+                  </span>
+                  <span>{formatCurrency(item.subtotal)}</span>
+                </div>
+              ))
+            )}
+            <div className="receipt-line receipt-total">
+              <span>Total</span>
+              <span>{formatCurrency(selectedTotal)}</span>
+            </div>
+            {partial && <p className="receipt-note">Somando só os itens marcados. O resto fica guardado no carrinho.</p>}
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              disabled={selectedItems.length === 0}
+              onClick={() =>
+                navigate("/checkout", { state: { productIds: selectedItems.map((item) => item.productId) } })
+              }
+            >
+              Finalizar compra
+            </Button>
+          </div>
+        </aside>
       </div>
     </div>
   );
