@@ -86,3 +86,31 @@ export function formatDate(value: Date | string | null | undefined): string {
   const formatter = resolved.wallClock ? wallClockDateFormatter : zonedDateFormatter;
   return formatter.format(resolved.date);
 }
+
+const SHORT_MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+export interface DateParts {
+  day: string; // "05"
+  month: string; // "ago"
+  time: string; // "09:30"
+}
+
+// Pieces for the agenda "calendar leaf"; null when the value is not a valid date.
+export function dateParts(value: Date | string | null | undefined): DateParts | null {
+  const resolved = resolve(value);
+  if (!resolved) return null;
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: resolved.wallClock ? "UTC" : TIME_ZONE,
+    day: "2-digit",
+    month: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(resolved.date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    day: get("day"),
+    month: SHORT_MONTHS[Number(get("month")) - 1] ?? "",
+    time: `${get("hour")}:${get("minute")}`,
+  };
+}

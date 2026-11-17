@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import * as orderService from "../../services/orderService";
 import type { Order } from "../../types/order";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
+import { EmptyState, Loading, Notice, PageHeader } from "../../components/ui/Feedback";
 import { formatDateTime } from "../../utils/date";
 import { formatCurrency } from "../../utils/format";
-
 
 export function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -14,31 +15,59 @@ export function MyOrdersPage() {
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", maxWidth: 640 }}>
-      <h1 className="title">Meus pedidos</h1>
-      <p className="caption" style={{ color: "var(--ink-muted)", margin: 0 }}>
-        O backend ainda não tem um endpoint para listar todos os pedidos de um cliente — esta lista
-        mostra os pedidos feitos neste navegador.
-      </p>
-      {orders === null && <p className="body">Carregando…</p>}
-      {orders?.length === 0 && <p className="body">Você ainda não fez nenhum pedido.</p>}
-      {orders?.map((order) => (
-        <div key={order.id} className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="body-strong">Pedido #{order.id.slice(0, 8)}</span>
-            <OrderStatusBadge status={order.status} />
-          </div>
-          <span className="caption" style={{ color: "var(--ink-muted)" }}>
-            {formatDateTime(order.createdAt)} · {order.items.length} {order.items.length === 1 ? "item" : "itens"}
-          </span>
-          <span className="body-strong">{formatCurrency(order.totalAmount)}</span>
-          {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
-            <span className="caption" style={{ color: "var(--ink-muted)" }}>
-              Reservado até {formatDateTime(order.expiresAt)}
-            </span>
-          )}
-        </div>
-      ))}
+    <div className="container page page-narrow">
+      <PageHeader eyebrow="o que você já levou" title="Meus pedidos" />
+
+      <div className="stack">
+        <Notice tone="muted">
+          O backend ainda não tem um endpoint para listar todos os pedidos de um cliente — esta lista mostra os
+          pedidos feitos neste navegador.
+        </Notice>
+
+        {orders === null && <Loading>Folheando o caderninho…</Loading>}
+
+        {orders?.length === 0 && (
+          <EmptyState title="Você ainda não fez nenhum pedido" note="a prateleira está logo ali">
+            <Link to="/" className="btn btn-primary">
+              Ver a prateleira
+            </Link>
+          </EmptyState>
+        )}
+
+        {orders && orders.length > 0 && (
+          <ul className="list">
+            {orders.map((order) => (
+              <li key={order.id} className="list-row">
+                <div className="list-row-main">
+                  <p className="list-row-title mono">
+                    <Link to={`/pedido/${order.id}`} className="link">
+                      Pedido #{order.id.slice(0, 8)}
+                    </Link>
+                  </p>
+                  <p className="list-row-sub">
+                    {formatDateTime(order.createdAt)} · {order.items.length}{" "}
+                    {order.items.length === 1 ? "item" : "itens"}
+                  </p>
+                  <ul className="order-items">
+                    {order.items.map((item) => (
+                      <li key={item.productId}>
+                        {item.quantity}x {item.productName}
+                      </li>
+                    ))}
+                  </ul>
+                  {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
+                    <p className="list-row-sub">Reservado até {formatDateTime(order.expiresAt)}</p>
+                  )}
+                </div>
+                <div className="list-row-actions">
+                  <OrderStatusBadge status={order.status} />
+                  <span className="price-tag">{formatCurrency(order.totalAmount)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

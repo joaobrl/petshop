@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { safeNext } from "../../services/authService";
+import { EmptyState, Loading } from "../../components/ui/Feedback";
 
 // redirect_uri do client "web" (SDD-024 F3): troca o authorization code (PKCE) pelos
 // tokens e volta para a página de origem.
@@ -25,18 +26,15 @@ export function AuthCallbackPage() {
   }, [completeLogin, navigate]);
 
   return (
-    <div style={{ maxWidth: 420, margin: "0 auto", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+    <div className="container page">
       {error ? (
-        <>
-          <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-            {error}
-          </p>
+        <EmptyState title={error} note="alguém tropeçou no caminho de volta">
           <Link to="/entrar" className="btn btn-primary">
             Tentar de novo
           </Link>
-        </>
+        </EmptyState>
       ) : (
-        <p className="body">Entrando...</p>
+        <Loading>Entrando…</Loading>
       )}
     </div>
   );

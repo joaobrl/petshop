@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { useAuth } from "../../context/AuthContext";
 import { safeNext } from "../../services/authService";
 import { Button } from "../../components/ui/Button";
-import { Logo } from "../../components/ui/Logo";
+import { Loading, Notice } from "../../components/ui/Feedback";
+import { AuthShell } from "../../components/account/AuthShell";
 
 // Login is the Keycloak page (SDD-024 F3): this route only redirects there. "Manter
 // conectado" (Remember Me) and "Esqueci a senha" are on the Keycloak screen.
@@ -33,36 +34,33 @@ export function LoginPage() {
   }, [initializing, expired, isAuthenticated, login, navigate, next]);
 
   return (
-    <div style={{ maxWidth: 360, margin: "0 auto", display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <Logo height={56} />
-      </div>
-      <h1 className="title" style={{ textAlign: "center" }}>
-        Entrar
-      </h1>
-      {expired && !error && (
-        <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-          Sua sessão expirou, entre novamente.
+    <div className="container page">
+      <AuthShell
+        greeting="Que bom ver você de novo."
+        photo="/images/avatars/golden-retriever.webp"
+        caption="já estava na porta esperando"
+      >
+        <div>
+          <span className="eyebrow">bem-vindo de volta</span>
+          <h1 className="title">Entrar</h1>
+        </div>
+        <div className="form">
+          {expired && !error && <Notice tone="warning">Sua sessão expirou, entre novamente.</Notice>}
+          {!expired && !error && <Loading>Abrindo a tela de login…</Loading>}
+          {error && <Notice tone="danger">{error}</Notice>}
+          {(expired || error) && (
+            <Button variant="primary" size="lg" block onClick={goToKeycloak}>
+              Entrar
+            </Button>
+          )}
+        </div>
+        <p className="auth-foot">
+          Ainda não tem conta?{" "}
+          <Link to="/cadastro" className="link">
+            Criar conta
+          </Link>
         </p>
-      )}
-      {!expired && !error && (
-        <p className="body" style={{ textAlign: "center", margin: 0 }}>
-          Redirecionando para a tela de login...
-        </p>
-      )}
-      {error && (
-        <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-          {error}
-        </p>
-      )}
-      {(expired || error) && (
-        <Button variant="primary" type="button" onClick={goToKeycloak}>
-          Entrar
-        </Button>
-      )}
-      <p className="caption" style={{ textAlign: "center", color: "var(--ink-muted)" }}>
-        Ainda não tem conta? <Link to="/cadastro">Criar conta</Link>
-      </p>
+      </AuthShell>
     </div>
   );
 }

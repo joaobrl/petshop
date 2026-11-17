@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import type { Product } from "../../types/product";
 import { getProduct } from "../../services/productService";
 import { ApiError } from "../../services/http";
 import { Button } from "../../components/ui/Button";
+import { EmptyState, Loading, Notice } from "../../components/ui/Feedback";
+import { ArrowRightIcon, CartIcon, MinusIcon, PinIcon, PlusIcon } from "../../components/ui/Icon";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { StockBadge } from "../../components/store/StockBadge";
+import { ProductArt } from "../../components/store/ProductArt";
 import { formatCurrency } from "../../utils/format";
 
 export function ProductDetailPage() {
@@ -26,8 +29,24 @@ export function ProductDetailPage() {
       .catch(() => setProduct(null));
   }, [id]);
 
-  if (product === undefined) return <p className="body">Carregando…</p>;
-  if (product === null) return <p className="body">Produto não encontrado.</p>;
+  if (product === undefined) {
+    return (
+      <div className="container page">
+        <Loading>Buscando na prateleira…</Loading>
+      </div>
+    );
+  }
+  if (product === null) {
+    return (
+      <div className="container page">
+        <EmptyState title="Produto não encontrado" note="procuramos até atrás do saco de ração">
+          <Link to="/" className="btn btn-primary">
+            Voltar para a loja
+          </Link>
+        </EmptyState>
+      </div>
+    );
+  }
 
   async function handleAdd() {
     if (!isAuthenticated) {
@@ -46,59 +65,94 @@ export function ProductDetailPage() {
     }
   }
 
+  const { dimensions } = product;
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-8)" }}>
-      <div
-        style={{
-          background: "var(--primary-tint)",
-          borderRadius: "var(--radius-md)",
-          height: 320,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--ink-muted)",
-        }}
-        className="body"
-      >
-        foto do produto
-      </div>
+    <div className="container page">
+      <button type="button" className="back-link" onClick={() => navigate(-1)}>
+        <ArrowRightIcon size={18} />
+        Voltar
+      </button>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-        <h1 className="title">{product.name}</h1>
-        <p className="body" style={{ color: "var(--ink-muted)" }}>
-          {product.description}
-        </p>
-        <p className="display" style={{ fontSize: 28, lineHeight: "36px" }}>
-          {formatCurrency(product.price)}
-        </p>
-        <div>
-          <StockBadge stockRange={product.stockRange} />
-        </div>
+      <div className="product-detail">
+        <ProductArt name={product.name} seed={product.id} out={!product.inStock} />
 
-        <div className="field" style={{ maxWidth: 120 }}>
-          <label htmlFor="qty">Quantidade</label>
-          <input
-            id="qty"
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-          />
-        </div>
+        <div className="product-info">
+          <div>
+            <StockBadge stockRange={product.stockRange} />
+            <h1 className="title" style={{ marginTop: "var(--space-3)" }}>
+              {product.name}
+            </h1>
+          </div>
 
-        {error && (
-          <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-            {error}
+          <p className="lead">{product.description}</p>
+
+          <div>
+            <span className="price-tag price-tag-lg">{formatCurrency(product.price)}</span>
+          </div>
+
+          <div className="buy-row">
+            <div className="stepper" role="group" aria-label="Quantidade">
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Diminuir quantidade"
+                disabled={quantity <= 1}
+                onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+              >
+                <MinusIcon size={18} />
+              </button>
+              <input
+                id="qty"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                aria-label="Quantidade"
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
+              />
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Aumentar quantidade"
+                onClick={() => setQuantity((value) => value + 1)}
+              >
+                <PlusIcon size={18} />
+              </button>
+            </div>
+            <Button variant="primary" size="lg" disabled={adding || !product.inStock} onClick={handleAdd}>
+              <CartIcon size={20} />
+              {adding ? "Adicionando…" : product.inStock ? "Adicionar ao carrinho" : "Sem estoque"}
+            </Button>
+          </div>
+
+          {error && <Notice tone="danger">{error}</Notice>}
+
+          <p className="row muted" style={{ "--gap": "8px" } as React.CSSProperties}>
+            <PinIcon size={18} />
+            Retirada no balcão — Rua das Patinhas, 123
           </p>
-        )}
 
-        <div style={{ display: "flex", gap: "var(--space-3)" }}>
-          <Button variant="primary" disabled={adding || !product.inStock} onClick={handleAdd}>
-            {adding ? "Adicionando…" : "Adicionar ao carrinho"}
-          </Button>
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            Voltar
-          </Button>
+          {dimensions && (
+            <dl className="spec-list">
+              <div>
+                <dt>Peso</dt>
+                <dd>{dimensions.weight} kg</dd>
+              </div>
+              <div>
+                <dt>Altura</dt>
+                <dd>{dimensions.height} cm</dd>
+              </div>
+              <div>
+                <dt>Largura</dt>
+                <dd>{dimensions.width} cm</dd>
+              </div>
+              <div>
+                <dt>Comprimento</dt>
+                <dd>{dimensions.length} cm</dd>
+              </div>
+            </dl>
+          )}
         </div>
       </div>
     </div>

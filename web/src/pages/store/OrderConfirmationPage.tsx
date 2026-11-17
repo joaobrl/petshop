@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import * as orderService from "../../services/orderService";
 import type { Order } from "../../types/order";
-import { CheckCircleIcon } from "../../components/ui/Icon";
+import { EmptyState, Loading } from "../../components/ui/Feedback";
 import { OrderStatusBadge } from "../../components/ui/StatusBadges";
 import { formatDateTime } from "../../utils/date";
-
+import { formatCurrency } from "../../utils/format";
 
 export function OrderConfirmationPage() {
   const { id } = useParams();
@@ -19,28 +19,65 @@ export function OrderConfirmationPage() {
       .catch(() => setOrder(null));
   }, [id]);
 
-  if (order === undefined) return <p className="body">Carregando…</p>;
-  if (order === null) return <p className="body">Pedido não encontrado.</p>;
+  if (order === undefined) {
+    return (
+      <div className="container page">
+        <Loading>Conferindo o pedido…</Loading>
+      </div>
+    );
+  }
+  if (order === null) {
+    return (
+      <div className="container page">
+        <EmptyState title="Pedido não encontrado" note="esse a gente não achou no caderninho">
+          <Link to="/" className="btn btn-primary">
+            Voltar para a loja
+          </Link>
+        </EmptyState>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-4)", textAlign: "center", maxWidth: 420, margin: "0 auto" }}>
-      <CheckCircleIcon size={56} />
-      <h1 className="title">Pedido confirmado!</h1>
-      <p className="body" style={{ color: "var(--ink-muted)" }}>
-        Avisamos por e-mail quando o pedido #{order.id.slice(0, 8)} estiver pronto para retirada.
-      </p>
-      <OrderStatusBadge status={order.status} />
-      {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
-        <p className="caption" style={{ color: "var(--ink-muted)", margin: 0 }}>
-          Reservado até {formatDateTime(order.expiresAt)}
-        </p>
-      )}
-      <Link to="/minha-conta/pedidos" className="btn btn-primary" style={{ textDecoration: "none", marginTop: "var(--space-4)" }}>
-        Ver meus pedidos
-      </Link>
-      <Link to="/" className="btn btn-outline" style={{ textDecoration: "none" }}>
-        Voltar ao catálogo
-      </Link>
+    <div className="container page">
+      <div className="confirm">
+        <div style={{ textAlign: "center" }}>
+          <span className="eyebrow">eba!</span>
+          <h1 className="title">Pedido confirmado</h1>
+        </div>
+
+        <div className="ticket-wrap">
+          <div className="ticket">
+            <div className="ticket-top">
+              <p className="label">Senha de retirada</p>
+              <p className="ticket-number">#{order.id.slice(0, 8)}</p>
+            </div>
+            <div className="ticket-body stack" style={{ alignItems: "center" }}>
+              <OrderStatusBadge status={order.status} />
+              <p className="muted">
+                Avisamos por e-mail quando o pedido estiver pronto para retirada na Rua das Patinhas, 123.
+              </p>
+              <p className="mono body-strong">
+                {order.items.length} {order.items.length === 1 ? "item" : "itens"} · {formatCurrency(order.totalAmount)}
+              </p>
+              {order.status === "AWAITING_PAYMENT" && order.expiresAt && (
+                <p className="hand" style={{ color: "var(--primary-ink)" }}>
+                  reservado até {formatDateTime(order.expiresAt)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="confirm-actions">
+          <Link to="/minha-conta/pedidos" className="btn btn-primary btn-block">
+            Ver meus pedidos
+          </Link>
+          <Link to="/" className="btn btn-outline btn-block">
+            Voltar para a loja
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

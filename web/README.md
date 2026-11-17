@@ -122,15 +122,15 @@ find-or-create) segue sem resolver, fora do escopo desta integração.
 
 ```
 src/
-  styles/        tokens.css, base.css, components.css — direto do design system
+  styles/        tokens.css, base.css, components.css, layout.css, pages.css — visual "lojinha de bairro" (toldo, polaroids, etiquetas, cupom)
   types/         tipos espelhando os DTOs reais dos módulos Java
   mocks/         só avatarOptions.ts — mapa dos avatares de pet enviados pro design system (não é dado mockado)
   services/      fetch real, todo via gateway (URL base em src/services/config.ts)
   context/       AuthContext (login OIDC no Keycloak, token só em memória, claims decodificados no cliente), CartContext (carrinho real)
   components/
-    ui/          Button, Badge, Card (classe .card), Field, Logo, PetAvatar, InitialsAvatar, PawBackground, Icon
+    ui/          Button, Badge, Card (classe .card), Field, Logo/Brand, PetAvatar, InitialsAvatar, Polaroid, PawTrail, DateLeaf, Feedback (Loading, Notice, EmptyState, PageHeader), Icon
     layout/      Header, Footer, StoreLayout, InternalLayout, RequireAuth, RequireStaff
-    store/       ProductCard
+    store/       ProductCard, ProductArt (ilustração do produto pelo nome — o catálogo não tem fotos)
   pages/
     store/       catálogo, produto, carrinho, checkout, confirmação
     account/     login (redireciona ao Keycloak), callback OIDC, cadastro, verificação de e-mail, meus pets, meus pedidos

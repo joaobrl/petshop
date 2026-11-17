@@ -5,6 +5,7 @@ import { resendVerification, verifyEmail } from "../../services/authService";
 import { ApiError } from "../../services/http";
 import { TextField } from "../../components/ui/Field";
 import { Button } from "../../components/ui/Button";
+import { Loading, Notice } from "../../components/ui/Feedback";
 
 // The token is single-use: StrictMode (dev) runs effects twice, so the
 // request is shared per token instead of being fired again.
@@ -56,36 +57,39 @@ export function VerifyEmailPage() {
   }, [status, isAuthenticated, refreshSession]);
 
   return (
-    <div style={{ maxWidth: 420, margin: "0 auto", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <h1 className="title">Confirmação de e-mail</h1>
+    <div className="container page">
+      <div className="card stack" style={{ maxWidth: 480, margin: "0 auto" }}>
+        <div>
+          <span className="eyebrow">só para ter certeza que é você</span>
+          <h1 className="title">Confirmação de e-mail</h1>
+        </div>
 
-      {status === "verifying" && <p className="body">Confirmando seu e-mail…</p>}
+        {status === "verifying" && <Loading>Confirmando seu e-mail…</Loading>}
 
-      {status === "success" && (
-        <>
-          <p className="body" style={{ color: "var(--success)", margin: 0 }}>
-            {isAuthenticated ? "E-mail confirmado." : "E-mail confirmado. Entre para continuar."}
-          </p>
-          {isAuthenticated ? (
-            <Link to="/" className="btn btn-primary">
-              Continuar
-            </Link>
-          ) : (
-            <Link to="/entrar" className="btn btn-primary">
-              Entrar
-            </Link>
-          )}
-        </>
-      )}
+        {status === "success" && (
+          <>
+            <Notice tone="success">
+              {isAuthenticated ? "E-mail confirmado." : "E-mail confirmado. Entre para continuar."}
+            </Notice>
+            {isAuthenticated ? (
+              <Link to="/" className="btn btn-primary">
+                Continuar
+              </Link>
+            ) : (
+              <Link to="/entrar" className="btn btn-primary">
+                Entrar
+              </Link>
+            )}
+          </>
+        )}
 
-      {status === "error" && (
-        <>
-          <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-            {error}
-          </p>
-          <ResendVerificationForm initialEmail={user?.email ?? ""} />
-        </>
-      )}
+        {status === "error" && (
+          <>
+            <Notice tone="danger">{error}</Notice>
+            <ResendVerificationForm initialEmail={user?.email ?? ""} />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -112,20 +116,16 @@ function ResendVerificationForm({ initialEmail }: { initialEmail: string }) {
 
   if (sent) {
     return (
-      <p className="body" style={{ margin: 0 }}>
+      <Notice tone="success">
         Se houver uma conta pendente de confirmação com esse e-mail, enviamos um novo link.
-      </p>
+      </Notice>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+    <form onSubmit={handleSubmit} className="form">
       <TextField label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      {error && (
-        <p className="body" style={{ color: "var(--danger)", margin: 0 }}>
-          {error}
-        </p>
-      )}
+      {error && <Notice tone="danger">{error}</Notice>}
       <Button variant="secondary" type="submit" disabled={submitting}>
         {submitting ? "Enviando…" : "Reenviar e-mail de confirmação"}
       </Button>
